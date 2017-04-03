@@ -1,0 +1,17 @@
+.font-bold {
+    font-weight: bold;
+}
+
+.wire-table-container {
+    height: 350px;
+    overflow: scroll;
+}
+
+.wire-data-container {
+    height: 350px;
+    overflow: scroll;
+}
+
+.ng-invalid {
+    border: 1px solid red;
+}

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Wire</title>
+      <link href="../node_modules/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet">
+      <link href="../assets/wire.css" rel="stylesheet">
+  </head>
+  <body>
+  <nav class="navbar navbar-default">
+      <div class="container-fluid">
+          <div class="navbar-header">
+              <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+                  <span class="icon-bar"></span>
+                  <span class="icon-bar"></span>
+                  <span class="icon-bar"></span>
+              </button>
+          </div>
+          <div id="navbar" class="navbar-collapse collapse">
+              <ul class="nav navbar-nav">
+                  <li>
+                      <form class="navbar-form navbar-left" role="search">
+                          <div class="form-group">
+                              <select class="form-control" id="listenProtocol">
+                                  <option value="http">HTTP</option>
+                                  <option value="https">HTTPS</option>
+                              </select>
+                              <input type="text" id="listenPort" class="form-control" placeholder="Listen Port" />
+                              <span><img src="../assets/arrow-left.png" height="30"><img src="../assets/arrow-right.png" height="30"></span>
+                              <select class="form-control" id="destProtocol">
+                                  <option value="http">HTTP</option>
+                                  <option value="https">HTTPS</option>
+                              </select>
+                              <input type="text" id="dest" class="form-control" placeholder="Destination Host"/>
+                              <input type="text" id="destPort" class="form-control" placeholder="Destination Port" />
+                              <div class="btn-group btn-toggle">
+                                  <button class="btn btn-small btn-default">ON</button>
+                                  <button class="btn btn-small btn-success active">OFF</button>
+                              </div>
+                          </div>
+                      </form>
+                  </li>
+              </ul>
+          </div>
+      </div>
+  </nav>
+    <div class="wire-table-container">
+      <table class="table table-striped table-hover" >
+          <thead>
+          <tr>
+              <th>#</th>
+              <th>Method</th>
+              <th>Path</th>
+              <th>Status</th>
+              <th>Content-Type</th>
+          </tr>
+          </thead>
+          <tbody id="traffic-table-body">
+          </tbody>
+      </table>
+    </div>
+
+  <div id="details-component" class="bs-component" style="resize: both; overflow: auto">
+      <ul class="nav nav-tabs">
+          <li class="active"><a href="#response-body" data-toggle="tab" aria-expanded="true">Response Body</a></li>
+          <li class=""><a href="#response-headers" data-toggle="tab" aria-expanded="false">Response Headers</a></li>
+          <li class=""><a href="#request-body" data-toggle="tab" aria-expanded="false">Request Body</a></li>
+          <li class=""><a href="#request-headers" data-toggle="tab" aria-expanded="false">Request Headers</a></li>
+      </ul>
+      <div id="tabContent" class="tab-content wire-data-container">
+          <div class="tab-pane fade active in" id="response-body">
+          </div>
+          <div class="tab-pane fade" id="response-headers">
+          </div>
+          <div class="tab-pane fade" id="request-body">
+          </div>
+          <div class="tab-pane fade" id="request-headers">
+          </div>
+      </div>
+  </div>
+
+
+
+    <script>window.$ = window.jQuery = require('./../node_modules/jquery/dist/jquery.min.js');</script>
+    <script src="../node_modules/bootstrap/dist/js/bootstrap.min.js"></script>
+    <script type="text/javascript" src="index.js"></script>
+  </body>
+</html>

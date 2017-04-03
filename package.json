@@ -1,0 +1,24 @@
+{
+  "name": "Reversee",
+  "version": "0.0.1",
+  "main": "src/main.js",
+  "productName" : "Reversee",
+  "scripts": {
+    "start": "./node_modules/.bin/electron src/main.js",
+    "test:e2e": "./node_modules/mocha/bin/mocha tests/",
+    "build" : "rimraf Reversee-* && electron-packager . --platform=darwin,win32,linux --arch=x64 --ignore=\"tests|.idea|.*iml\""
+  },
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "chai-as-promised": "^5.3.0",
+    "electron": "^1.6.2",
+    "electron-packager": "^8.6.0",
+    "mocha": "^3.0.2",
+    "spectron": "^3.6.0",
+    "rimraf": "^2.5.4"
+  },
+  "dependencies": {
+    "bootstrap": "^3.3.7",
+    "jquery": "^3.1.0"
+  }
+}
