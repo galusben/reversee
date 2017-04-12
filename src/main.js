@@ -4,6 +4,7 @@ const url = require('url');
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
+zlib = require("zlib");
 
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -76,13 +77,28 @@ function handleRequest(clentReq, clientRes) {
         clientRes.statusCode = serverResponse.statusCode;
         responseView.statusCode = serverResponse.statusCode;
         serverResponse.on('data', (chunk) => {
-            responseView.body = responseView.body + chunk;
+            if(responseView.body) {
+                responseView.body = Buffer.concat([responseView.body, chunk])
+            }
+            else {
+                responseView.body = chunk
+            }
             clientRes.write(chunk)
         });
         serverResponse.on('end', () => {
-            console.log('ended, request: ' + JSON.stringify(requestView))
-            console.log('ended, response: ' + JSON.stringify(responseView))
-            win.webContents.send('trip-data', {request: requestView, response: responseView})
+            console.log('ended, request: ' + JSON.stringify(requestView));
+            console.log('ended, response: ' + JSON.stringify(responseView));
+            if(responseView.headers['content-encoding'] == 'gzip') {
+                zlib.gunzip(responseView.body, function (err, dezipped) {
+                    if(err) {
+                        console.log(err)
+                    }
+                    responseView.body = dezipped.toString();
+                    win.webContents.send('trip-data', {request: requestView, response: responseView})
+                });
+            } else {
+                win.webContents.send('trip-data', {request: requestView, response: responseView});
+            }
             clientRes.end()
         })
     });
@@ -105,7 +121,7 @@ function startProxy(settings) {
     } else {
         server =https.createServer(sslOptions, handleRequest);
     }
-    server.on('error', (err) -> {
+    server.on('error', (err) => {
         win.webContents.send( 'server-error', {message: 'could not start server'} );
     });
     server.listen(userSettings.listenPort, function () {
@@ -119,7 +135,9 @@ ipcMain.on('message-settings', (event, settings) => {
 });
 
 ipcMain.on('stop-proxy', (event, settings) => {
-    server.close();
-    server = null;
+    if(server) {
+        server.close();
+        server = null;
+    }
 });
 

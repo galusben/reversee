@@ -133,5 +133,23 @@ $('form').submit(function () {
 });
 
 ipcRenderer.on('server-error', (event, arg) => {
+    console.log('server error');
+    unSetProxy();
+    proxySet = false;
+    var btnGroup = $('#btn-group');
+    btnGroup.find('.btn').toggleClass('active');
 
+    if (btnGroup.find('.btn-primary').length > 0) {
+        btnGroup.find('.btn').toggleClass('btn-primary');
+    }
+    if (btnGroup.find('.btn-danger').length > 0) {
+        btnGroup.find('.btn').toggleClass('btn-danger');
+    }
+    if (btnGroup.find('.btn-success').length > 0) {
+        btnGroup.find('.btn').toggleClass('btn-success');
+    }
+    if (btnGroup.find('.btn-info').length > 0) {
+        btnGroup.find('.btn').toggleClass('btn-info');
+    }
+    btnGroup.find('.btn').toggleClass('btn-default');
 });
