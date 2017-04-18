@@ -4,7 +4,10 @@ const url = require('url');
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
-zlib = require("zlib");
+const zlib = require("zlib");
+const util = require('util');
+const vm = require('vm');
+
 
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -51,25 +54,43 @@ function getServerProtocol(protocol) {
     return (protocol == 'https') ? https : http
 }
 
-function handleRequest(clentReq, clientRes) {
-    console.log('Path Hit: ' + clentReq.url)
-    var requestView = {
-        url: clentReq.url,
-        headers: clentReq.headers,
-        method: clentReq.method,
-        body: ''
+function interceptRequest(requestParams) {
+    var sandbox = {
+        requestParams: requestParams
     };
+
+    console.log('request-interceptor :' + userSettings.requestInterceptor)
+    var script = new vm.Script(userSettings.requestInterceptor);
+    var context = new vm.createContext(sandbox);
+    script.runInContext(context);
+    console.log('after interception' + JSON.stringify(sandbox.requestParams));
+}
+function handleRequest(clientReq, clientRes) {
+    console.log('Path Hit: ' + clientReq.url);
     var responseView = {
         headers: {},
         body: ''
     };
-    var connector = getServerProtocol(userSettings.destProtocol).request({
+    var requestParams = {
         host: userSettings.dest,
-        path: clentReq.url,
-        method: clentReq.method,
+        path: clientReq.url,
+        method: clientReq.method,
         port: userSettings.destPort,
-        headers: clentReq.headers
-    }, (serverResponse) => {
+        headers: clientReq.headers
+    };
+
+    if(userSettings.requestInterceptor && userSettings.requestInterceptor.length > 0) {
+        interceptRequest(requestParams);
+    }
+
+    var requestView = {
+        url: requestParams.path,
+        headers: requestParams.headers,
+        method: requestParams.method,
+        body: ''
+    };
+
+    var connector = getServerProtocol(userSettings.destProtocol).request(requestParams, (serverResponse) => {
         for (var key in serverResponse.headers) {
             clientRes.setHeader(key, serverResponse.headers[key]);
             responseView.headers[key] = serverResponse.headers[key];
@@ -86,8 +107,6 @@ function handleRequest(clentReq, clientRes) {
             clientRes.write(chunk)
         });
         serverResponse.on('end', () => {
-            console.log('ended, request: ' + JSON.stringify(requestView));
-            console.log('ended, response: ' + JSON.stringify(responseView));
             if(responseView.headers['content-encoding'] == 'gzip') {
                 zlib.gunzip(responseView.body, function (err, dezipped) {
                     if(err) {
@@ -103,12 +122,11 @@ function handleRequest(clentReq, clientRes) {
         })
     });
 
-    clentReq.on('data', (chunk) => {
-        console.log('client chunk!!!!' + chunk);
+    clientReq.on('data', (chunk) => {
         connector.write(chunk);
         requestView.body = requestView.body + chunk;
     });
-    clentReq.on('end', () => {
+    clientReq.on('end', () => {
         connector.end()
     });
 }

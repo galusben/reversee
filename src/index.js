@@ -7,17 +7,17 @@ function setProxy() {
         destProtocol: document.getElementById("destProtocol").value,
         destPort: document.getElementById("destPort").value,
         listenPort: document.getElementById("listenPort").value,
-        listenProtocol: document.getElementById("listenProtocol").value
+        listenProtocol: document.getElementById("listenProtocol").value,
+        requestInterceptor: document.getElementById("request-interceptor").value
     };
     $('.ng-invalid').removeClass('ng-invalid');
     var validations = [];
-    $('.form-control').map(function (index, element) {
+    $('.form-control').not("[optional='true']").map(function (index, element) {
         validations.push(notifyInvalid(element.id))
     });
     console.log(validations);
     var valid = true;
     for (var i = 0; i < validations.length; i++) {
-        console.log('i: ' + i);
         valid = valid && validations[i].valid;
     }
     if (!valid) {
@@ -50,9 +50,10 @@ function setProxy() {
 }
 
 function notifyInvalid(id) {
-    var val = $(`#${id}`).val();
+    let jqueryId = $(`#${id}`);
+    var val = jqueryId.val();
     if (!val || val.length <= 0) {
-        $(`#${id}`).addClass('ng-invalid');
+        jqueryId.addClass('ng-invalid');
         return {valid: false};
     }
     return {valid: true};
