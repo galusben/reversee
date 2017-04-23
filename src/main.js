@@ -6,8 +6,8 @@ const https = require('https');
 const fs = require('fs');
 const zlib = require("zlib");
 const util = require('util');
-const vm = require('vm');
-
+// const vm = require('vm');
+const interceptor = require(path.join(__dirname,'interceptor.js'));
 
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -29,8 +29,6 @@ function createWindow() {
         protocol: 'file:',
         slashes: true
     }));
-
-    // win.webContents.openDevTools()
 
     win.on('closed', () => {
         win = null
@@ -54,17 +52,17 @@ function getServerProtocol(protocol) {
     return (protocol == 'https') ? https : http
 }
 
-function interceptRequest(requestParams) {
-    var sandbox = {
-        requestParams: requestParams
-    };
-
-    console.log('request-interceptor :' + userSettings.requestInterceptor)
-    var script = new vm.Script(userSettings.requestInterceptor);
-    var context = new vm.createContext(sandbox);
-    script.runInContext(context);
-    console.log('after interception' + JSON.stringify(sandbox.requestParams));
-}
+// function interceptRequest(requestParams) {
+//     var sandbox = {
+//         requestParams: requestParams
+//     };
+//
+//     console.log('request-interceptor :' + userSettings.requestInterceptor)
+//     var script = new vm.Script(userSettings.requestInterceptor);
+//     var context = new vm.createContext(sandbox);
+//     script.runInContext(context);
+//     console.log('after interception' + JSON.stringify(sandbox.requestParams));
+// }
 function handleRequest(clientReq, clientRes) {
     console.log('Path Hit: ' + clientReq.url);
     var responseView = {
@@ -80,7 +78,7 @@ function handleRequest(clientReq, clientRes) {
     };
 
     if(userSettings.requestInterceptor && userSettings.requestInterceptor.length > 0) {
-        interceptRequest(requestParams);
+        interceptor.interceptRequest(requestParams, userSettings.requestInterceptor);
     }
 
     var requestView = {
@@ -89,6 +87,7 @@ function handleRequest(clientReq, clientRes) {
         method: requestParams.method,
         body: ''
     };
+    requestView.headers.host = userSettings.dest + ":" + userSettings.destPort;
 
     var connector = getServerProtocol(userSettings.destProtocol).request(requestParams, (serverResponse) => {
         for (var key in serverResponse.headers) {

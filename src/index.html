@@ -4,7 +4,11 @@
     <meta charset="UTF-8">
     <title>Reversee</title>
       <link href="../node_modules/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet">
+      <link rel="stylesheet" href="../node_modules/codemirror/lib/codemirror.css">
+      <script src="../node_modules/codemirror/lib/codemirror.js"></script>
+      <script src="../node_modules/codemirror/mode/javascript/javascript.js"></script>
       <link href="../assets/wire.css" rel="stylesheet">
+      <link rel="stylesheet" href="../node_modules/font-awesome/css/font-awesome.min.css">
   </head>
   <body>
   <nav class="navbar navbar-default">
@@ -39,7 +43,10 @@
                               </div>
                           </div>
                           <div>
-                              <textarea id="request-interceptor" class="form-control" placeholder="request interceptor here" optional="true"></textarea>
+                              <input type="checkbox"  onclick="showHideRequestInterceptor()" id="intercept-request">
+                              <label for="intercept-request">Intercept Request</label>
+                          </div>
+                          <div id="request-interceptor">
                           </div>
                       </form>
                   </li>
@@ -47,6 +54,9 @@
           </div>
       </div>
   </nav>
+  <button onclick="resetTable()">
+      <i class="fa fa-trash" aria-hidden="true"></i>
+  </button>
     <div class="wire-table-container">
       <table class="table table-striped table-hover" >
           <thead>
@@ -81,8 +91,6 @@
           </div>
       </div>
   </div>
-
-
 
     <script>window.$ = window.jQuery = require('./../node_modules/jquery/dist/jquery.min.js');</script>
     <script src="../node_modules/bootstrap/dist/js/bootstrap.min.js"></script>

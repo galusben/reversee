@@ -1,6 +1,17 @@
 var proxySet = false;
 var traffic = [];
 const {ipcRenderer} = require('electron');
+
+
+const input = document.getElementById('request-interceptor');
+const codeMirror = CodeMirror(document.getElementById("request-interceptor"), {
+    value: "/*Request interceptor. Use javascript. \nYou can use requestParams object to access the request data. \nExample: \nrequestParams.headers['custom']='custom val'*/",
+    mode:  "javascript",
+    lineNumbers: true,
+});
+$(codeMirror.getWrapperElement()).hide();
+
+
 function setProxy() {
     var settings = {
         dest: document.getElementById("dest").value,
@@ -8,14 +19,13 @@ function setProxy() {
         destPort: document.getElementById("destPort").value,
         listenPort: document.getElementById("listenPort").value,
         listenProtocol: document.getElementById("listenProtocol").value,
-        requestInterceptor: document.getElementById("request-interceptor").value
+        requestInterceptor: $('#intercept-request').is(':checked') ? codeMirror.getValue() : ''
     };
     $('.ng-invalid').removeClass('ng-invalid');
     var validations = [];
     $('.form-control').not("[optional='true']").map(function (index, element) {
         validations.push(notifyInvalid(element.id))
     });
-    console.log(validations);
     var valid = true;
     for (var i = 0; i < validations.length; i++) {
         valid = valid && validations[i].valid;
@@ -24,6 +34,7 @@ function setProxy() {
         return false;
     }
     $('.form-control').not('button').prop('disabled', 'true');
+    codeMirror.setOption("readOnly", true)
     ipcRenderer.send('message-settings', settings);
     function setDirection(direction, element) {
         $(`#${direction}-headers`).empty();
@@ -90,6 +101,7 @@ ipcRenderer.on('trip-data', (event, arg) => {
 function unSetProxy() {
     ipcRenderer.send('stop-proxy', '');
     $('.form-control').not('button').prop('disabled', false);
+    codeMirror.setOption("readOnly", false)
 
 }
 $('.btn-toggle').click(function () {
@@ -154,3 +166,18 @@ ipcRenderer.on('server-error', (event, arg) => {
     }
     btnGroup.find('.btn').toggleClass('btn-default');
 });
+
+function showHideRequestInterceptor() {
+
+    var intercept = $('#intercept-request').is(':checked');
+    if(intercept) {
+        $(codeMirror.getWrapperElement()).show();
+    } else {
+        $(codeMirror.getWrapperElement()).hide();
+    }
+}
+
+function resetTable() {
+    var tableBody = $('#traffic-table-body');
+    tableBody.empty()
+}
