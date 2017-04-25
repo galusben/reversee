@@ -1,11 +1,23 @@
+const {ipcRenderer, remote, clipboard} = require('electron');
+const {Menu, MenuItem} = remote;
+
+
+function addContextMenu(element, curl) {
+    const menu = new Menu();
+    menu.append(new MenuItem({label: 'Copy as curl', click(a) { clipboard.writeText(curl) }}));
+    element.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        menu.popup(remote.getCurrentWindow());
+    }, false);
+}
+
 var proxySet = false;
 var traffic = [];
-const {ipcRenderer} = require('electron');
 
 
 const input = document.getElementById('request-interceptor');
 const codeMirror = CodeMirror(document.getElementById("request-interceptor"), {
-    value: "/*Request interceptor. Use javascript. \nYou can use requestParams object to access the request data. \nExample: \nrequestParams.headers['custom']='custom val'*/",
+    value: "/*Request interceptor. Use javascript. \nYou can use requestParams object to access the request data. \nExample: \nrequestParams.headers['custom']='custom val'*/\nvar a = 5; \n   var b=2",
     mode:  "javascript",
     lineNumbers: true,
 });
@@ -33,7 +45,7 @@ function setProxy() {
     if (!valid) {
         return false;
     }
-    $('.form-control').not('button').prop('disabled', 'true');
+    $('.form-control, input[type=checkbox]').not('button').prop('disabled', 'true');
     codeMirror.setOption("readOnly", true)
     ipcRenderer.send('message-settings', settings);
     function setDirection(direction, element) {
@@ -95,12 +107,13 @@ ipcRenderer.on('trip-data', (event, arg) => {
         '<td>' + (arg.response.headers["content-type"] ? arg.response.headers["content-type"] : arg.response.headers["Content-Type"]) + '</td>' +
         '</tr>');
     tableBody.append(tr);
-    traffic.push(arg)
+    addContextMenu(tr[0], arg.request.curl);
+    traffic.push(arg);
 });
 
 function unSetProxy() {
     ipcRenderer.send('stop-proxy', '');
-    $('.form-control').not('button').prop('disabled', false);
+    $('.form-control, input[type=checkbox]').not('button').prop('disabled', false);
     codeMirror.setOption("readOnly", false)
 
 }

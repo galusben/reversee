@@ -6,8 +6,8 @@ const https = require('https');
 const fs = require('fs');
 const zlib = require("zlib");
 const util = require('util');
-// const vm = require('vm');
 const interceptor = require(path.join(__dirname,'interceptor.js'));
+require('request-to-curl');
 
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -52,17 +52,6 @@ function getServerProtocol(protocol) {
     return (protocol == 'https') ? https : http
 }
 
-// function interceptRequest(requestParams) {
-//     var sandbox = {
-//         requestParams: requestParams
-//     };
-//
-//     console.log('request-interceptor :' + userSettings.requestInterceptor)
-//     var script = new vm.Script(userSettings.requestInterceptor);
-//     var context = new vm.createContext(sandbox);
-//     script.runInContext(context);
-//     console.log('after interception' + JSON.stringify(sandbox.requestParams));
-// }
 function handleRequest(clientReq, clientRes) {
     console.log('Path Hit: ' + clientReq.url);
     var responseView = {
@@ -90,6 +79,7 @@ function handleRequest(clientReq, clientRes) {
     requestView.headers.host = userSettings.dest + ":" + userSettings.destPort;
 
     var connector = getServerProtocol(userSettings.destProtocol).request(requestParams, (serverResponse) => {
+        requestView.curl = connector.toCurl();
         for (var key in serverResponse.headers) {
             clientRes.setHeader(key, serverResponse.headers[key]);
             responseView.headers[key] = serverResponse.headers[key];
@@ -136,10 +126,10 @@ function startProxy(settings) {
     if (userSettings.listenProtocol == 'http') {
         server = http.createServer(handleRequest);
     } else {
-        server =https.createServer(sslOptions, handleRequest);
+        server = https.createServer(sslOptions, handleRequest);
     }
     server.on('error', (err) => {
-        win.webContents.send( 'server-error', {message: 'could not start server'} );
+        win.webContents.send('server-error', {message: 'could not start server'});
     });
     server.listen(userSettings.listenPort, function () {
         console.log("Server listening on: %s://localhost:%s", userSettings.listenProtocol, userSettings.listenPort);
