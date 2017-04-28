@@ -15,14 +15,19 @@ function addContextMenu(element, curl) {
 var proxySet = false;
 var traffic = [];
 
-
-const input = document.getElementById('request-interceptor');
-const codeMirror = CodeMirror(document.getElementById("request-interceptor"), {
-    value: "/*Request interceptor. Use javascript. \nYou can use requestParams object to access the request data. \nExample: \nrequestParams.headers['custom']='custom val'*/\nvar a = 5; \n   var b=2",
+const requestInterceptorEditor = CodeMirror(document.getElementById("request-interceptor"), {
+    value: "/*Request interceptor. Use javascript. \nYou can use requestParams object to access the request data. \nExample: \nrequestParams.headers['custom']='custom val'*/",
     mode:  "javascript",
     lineNumbers: true,
 });
-$(codeMirror.getWrapperElement()).hide();
+$(requestInterceptorEditor.getWrapperElement()).hide();
+
+const responseInterceptorEditor = CodeMirror(document.getElementById("response-interceptor"), {
+    value: "/*Response interceptor. Use javascript. \nYou can use responseParams object to access the response data. \nExample: \nresponseParams.headers['custom']='custom val'*/",
+    mode:  "javascript",
+    lineNumbers: true,
+});
+$(responseInterceptorEditor.getWrapperElement()).hide();
 
 
 function setProxy() {
@@ -32,7 +37,8 @@ function setProxy() {
         destPort: document.getElementById("destPort").value,
         listenPort: document.getElementById("listenPort").value,
         listenProtocol: document.getElementById("listenProtocol").value,
-        requestInterceptor: $('#intercept-request').is(':checked') ? codeMirror.getValue() : ''
+        requestInterceptor: $('#intercept-request').is(':checked') ? requestInterceptorEditor.getValue() : '',
+        responseInterceptor: $('#intercept-response').is(':checked') ? responseInterceptorEditor.getValue() : ''
     };
     $('.ng-invalid').removeClass('ng-invalid');
     var validations = [];
@@ -47,7 +53,7 @@ function setProxy() {
         return false;
     }
     $('.form-control, input[type=checkbox]').not('button').prop('disabled', 'true');
-    codeMirror.setOption("readOnly", true)
+    requestInterceptorEditor.setOption("readOnly", true)
     ipcRenderer.send('message-settings', settings);
     function setDirection(direction, element) {
         $(`#${direction}-headers`).empty();
@@ -115,7 +121,7 @@ ipcRenderer.on('trip-data', (event, arg) => {
 function unSetProxy() {
     ipcRenderer.send('stop-proxy', '');
     $('.form-control, input[type=checkbox]').not('button').prop('disabled', false);
-    codeMirror.setOption("readOnly", false)
+    requestInterceptorEditor.setOption("readOnly", false)
 
 }
 $('.btn-toggle').click(function () {
@@ -182,14 +188,23 @@ ipcRenderer.on('server-error', (event, arg) => {
 });
 
 function showHideRequestInterceptor() {
-
     var intercept = $('#intercept-request').is(':checked');
     if(intercept) {
-        $(codeMirror.getWrapperElement()).show();
+        $(requestInterceptorEditor.getWrapperElement()).show();
     } else {
-        $(codeMirror.getWrapperElement()).hide();
+        $(requestInterceptorEditor.getWrapperElement()).hide();
     }
 }
+
+function showHideResponseInterceptor() {
+    var intercept = $('#intercept-response').is(':checked');
+    if(intercept) {
+        $(responseInterceptorEditor.getWrapperElement()).show();
+    } else {
+        $(responseInterceptorEditor.getWrapperElement()).hide();
+    }
+}
+
 
 function resetTable() {
     var tableBody = $('#traffic-table-body');

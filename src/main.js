@@ -4,7 +4,6 @@ const url = require('url');
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
-const interceptor = require(path.join(__dirname, 'interceptor.js'));
 const proxy = require(path.join(__dirname, 'proxy.js'));
 require('request-to-curl');
 

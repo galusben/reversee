@@ -1,15 +1,23 @@
 const vm = require('vm');
 
-function interceptRequest(requestParams, requestInterceptor) {
-    var sandbox = {
-        requestParams: requestParams
-    };
-
-    console.log('request-interceptor :' + requestInterceptor);
-    var script = new vm.Script(requestInterceptor);
+function intercept(params, interceptor, paramsVarName) {
+    var sandbox = {};
+    sandbox[paramsVarName] = params;
+    console.log('%s-interceptor :%s', paramsVarName, interceptor);
+    var script = new vm.Script(interceptor);
     var context = new vm.createContext(sandbox);
     script.runInContext(context);
-    console.log('after interception' + JSON.stringify(sandbox.requestParams));
+    console.log('after interception' + JSON.stringify(sandbox[paramsVarName]));
 }
+
+function interceptRequest(requestParams, requestInterceptor) {
+    intercept(requestParams, requestInterceptor, 'requestParams')
+}
+
+function interceptResponse(responseParams, responseInterceptor) {
+    intercept(responseParams, responseInterceptor, 'responseParams')
+}
+
 exports.interceptRequest = interceptRequest;
+exports.interceptResponse = interceptResponse;
 
