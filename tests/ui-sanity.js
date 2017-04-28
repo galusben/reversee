@@ -39,7 +39,7 @@ describe('Sanity, window is loaded', function () {
 
     it('tests the title', function () {
         return app.client.waitUntilWindowLoaded()
-            .getTitle().should.eventually.equal('Wire');
+            .getTitle().should.eventually.equal('Reversee');
     });
 
 });

@@ -4,7 +4,8 @@ const {Menu, MenuItem} = remote;
 
 function addContextMenu(element, curl) {
     const menu = new Menu();
-    menu.append(new MenuItem({label: 'Copy as curl', click(a) { clipboard.writeText(curl) }}));
+    menu.append(new MenuItem({label: 'Copy as curl', click() { clipboard.writeText(curl) }}));
+    menu.append(new MenuItem({label: 'Clear All', click() { resetTable() }}));
     element.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         menu.popup(remote.getCurrentWindow());
