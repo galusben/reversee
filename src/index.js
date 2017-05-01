@@ -13,7 +13,7 @@ function addContextMenu(element, curl) {
 }
 
 var proxySet = false;
-var traffic = [];
+var traffic = {};
 
 const requestInterceptorEditor = CodeMirror(document.getElementById("request-interceptor"), {
     value: "/*Request interceptor. Use javascript. \nYou can use requestParams object to access the request data. \nExample: \nrequestParams.headers['custom']='custom val'*/",
@@ -29,6 +29,29 @@ const responseInterceptorEditor = CodeMirror(document.getElementById("response-i
 });
 $(responseInterceptorEditor.getWrapperElement()).hide();
 
+function setDirection(direction, element) {
+    $(`#${direction}-headers`).empty();
+    $(`#${direction}-body`).empty();
+    let trafficKey = $(element).attr('trafficId');
+    var body = $('<pre>').text(traffic[trafficKey][direction].body);
+    var headersText = '';
+    var headersMap = traffic[trafficKey][direction].headers;
+    for (key in headersMap) {
+        headersText += key + " : " + headersMap[key] + "\n";
+    }
+    var headers = $('<pre>').text(headersText);
+    $(`#${direction}-headers`).append(headers);
+    $(`#${direction}-body`).append(body);
+}
+
+function rowClicked(element) {
+    setDirection('response', element);
+    setDirection('request', element);
+    $('.font-bold').removeClass('font-bold');
+    $(element).addClass('font-bold');
+    $("[selected-r='true']").attr('selected-r', 'false')
+    $(element).attr('selected-r', 'true');
+}
 
 function setProxy() {
     var settings = {
@@ -53,28 +76,12 @@ function setProxy() {
         return false;
     }
     $('.form-control, input[type=checkbox]').not('button').prop('disabled', 'true');
-    requestInterceptorEditor.setOption("readOnly", true)
+    requestInterceptorEditor.setOption("readOnly", true);
     ipcRenderer.send('message-settings', settings);
-    function setDirection(direction, element) {
-        $(`#${direction}-headers`).empty();
-        $(`#${direction}-body`).empty();
-        var body = $('<pre>').text(traffic[$(element).index()][direction].body);
-        var headersText = '';
-        var headersMap = traffic[$(element).index()][direction].headers;
-        for (key in headersMap) {
-            headersText += key + " : " + headersMap[key] + "\n";
-        }
-        var headers = $('<pre>').text(headersText);
-        $(`#${direction}-headers`).append(headers);
-        $(`#${direction}-body`).append(body);
-    }
+
 
     $('#traffic-table-body').on('click', 'tr', function (event) {
-        setDirection('response', this);
-        setDirection('request', this);
-        $('.font-bold').removeClass('font-bold');
-        $(this).addClass('font-bold');
-
+        rowClicked(this);
     });
     return true;
 }
@@ -104,18 +111,29 @@ function getClassForTripData(statusCode) {
 }
 
 ipcRenderer.on('trip-data', (event, arg) => {
+    traffic[arg.trafficId] = arg;
     var tableBody = $('#traffic-table-body');
     var statusCode = arg.response.statusCode;
     var tr = $(`<tr class="${getClassForTripData(statusCode)}">` +
-        '<td>' + $("#traffic-table-body tr").length + '</td>' +
+        '<td></td>' +
         '<td>' + arg.request.method + '</td>' +
         '<td>' + arg.request.url + '</td>' +
         '<td>' + arg.response.statusCode + '</td>' +
-        '<td>' + (arg.response.headers["content-type"] ? arg.response.headers["content-type"] : arg.response.headers["Content-Type"]) + '</td>' +
+        '<td>' + (arg.response.headers["content-type"] ? arg.response.headers["content-type"] : '') + '</td>' +
         '</tr>');
-    tableBody.append(tr);
+    tr.attr('trafficId', arg.trafficId);
+    var oldTr = $(`[trafficId='${arg.trafficId}']`);
+    if (oldTr.length > 0) {
+        console.log('selected-r ' + oldTr.attr('selected-r'));
+        if (oldTr.attr('selected-r') == 'true') {
+            tr.attr('selected-r', 'true');
+            rowClicked(tr[0])
+        }
+        oldTr.replaceWith(tr);
+    } else {
+        tableBody.append(tr);
+    }
     addContextMenu(tr[0], arg.request.curl);
-    traffic.push(arg);
 });
 
 function unSetProxy() {
@@ -188,25 +206,28 @@ ipcRenderer.on('server-error', (event, arg) => {
 });
 
 function showHideRequestInterceptor() {
-    var intercept = $('#intercept-request').is(':checked');
-    if(intercept) {
-        $(requestInterceptorEditor.getWrapperElement()).show();
-    } else {
-        $(requestInterceptorEditor.getWrapperElement()).hide();
+    $(requestInterceptorEditor.getWrapperElement()).toggle();
+    let a = $('#hide-show-request-interceptor');
+    if (a.text() == 'show') {
+        a.text('hide');
+        return
     }
+    a.text('show');
 }
 
 function showHideResponseInterceptor() {
-    var intercept = $('#intercept-response').is(':checked');
-    if(intercept) {
-        $(responseInterceptorEditor.getWrapperElement()).show();
-    } else {
-        $(responseInterceptorEditor.getWrapperElement()).hide();
+    $(responseInterceptorEditor.getWrapperElement()).toggle();
+    let a = $('#hide-show-response-interceptor');
+    if (a.text() == 'show') {
+        a.text('hide');
+        return
     }
-}
+    a.text('show');
 
+}
 
 function resetTable() {
     var tableBody = $('#traffic-table-body');
     tableBody.empty()
+    traffic = {}
 }

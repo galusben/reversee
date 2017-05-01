@@ -3,6 +3,7 @@ const https = require('https');
 const zlib = require("zlib");
 const path = require('path');
 const interceptor = require(path.join(__dirname, 'interceptor.js'));
+let trafficId = 0;
 
 function getServerProtocol(protocol) {
     return (protocol == 'https') ? https : http
@@ -12,7 +13,7 @@ function handleRequest(clientReq, clientRes, userSettings, win) {
     console.log('Path Hit: ' + clientReq.url);
     var responseView = {
         headers: {},
-        body: ''
+        body: Buffer.alloc(0)
     };
     var requestParams = {
         host: userSettings.dest,
@@ -32,6 +33,12 @@ function handleRequest(clientReq, clientRes, userSettings, win) {
         method: requestParams.method,
         body: ''
     };
+
+    var trafficView = {
+        trafficId : trafficId++,
+        request: requestView,
+        response: responseView
+    };
     requestView.headers.host = userSettings.dest + ":" + userSettings.destPort;
 
     var connector = getServerProtocol(userSettings.destProtocol).request(requestParams, (serverResponse) => {
@@ -41,7 +48,7 @@ function handleRequest(clientReq, clientRes, userSettings, win) {
             headers : Object.assign({}, serverResponse.headers)
         };
 
-        if(userSettings.responseInterceptor && userSettings.responseInterceptor.length > 0) {
+        if (userSettings.responseInterceptor && userSettings.responseInterceptor.length > 0) {
             interceptor.interceptResponse(responseParams, userSettings.responseInterceptor);
         }
         for (var key in responseParams.headers) {
@@ -52,13 +59,9 @@ function handleRequest(clientReq, clientRes, userSettings, win) {
         clientRes.statusCode = responseParams.statusCode;
         responseView.statusCode = responseParams.statusCode;
         serverResponse.on('data', (chunk) => {
-            if(responseView.body) {
-                responseView.body = Buffer.concat([responseView.body, chunk])
-            }
-            else {
-                responseView.body = chunk
-            }
-            clientRes.write(chunk)
+            clientRes.write(chunk);
+            responseView.body = Buffer.concat([responseView.body, chunk]);
+            win.webContents.send('trip-data', trafficView);
         });
         serverResponse.on('end', () => {
             if(responseView.headers['content-encoding'] == 'gzip') {
@@ -67,10 +70,10 @@ function handleRequest(clientReq, clientRes, userSettings, win) {
                         console.log(err)
                     }
                     responseView.body = dezipped.toString();
-                    win.webContents.send('trip-data', {request: requestView, response: responseView})
+                    win.webContents.send('trip-data', trafficView)
                 });
             } else {
-                win.webContents.send('trip-data', {request: requestView, response: responseView});
+                win.webContents.send('trip-data', trafficView);
             }
             clientRes.end()
         })

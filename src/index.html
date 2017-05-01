@@ -42,15 +42,17 @@
                                   <button class="btn btn-small btn-success active">OFF</button>
                               </div>
                           </div>
-                          <div>
-                              <input type="checkbox" onclick="showHideRequestInterceptor()" id="intercept-request">
-                              <label for="intercept-request">Intercept Request</label>
+                          <div class="row">
+                              <div class="col-xs-1"><input type="checkbox" id="intercept-request"></div>
+                              <div class="col-sm-3"><label for="intercept-request">Intercept Request</label></div>
+                              <div class="col-sm-1"><a href="#" id="hide-show-request-interceptor" onclick="showHideRequestInterceptor()">show</a></div>
                           </div>
                           <div id="request-interceptor">
                           </div>
-                          <div>
-                              <input type="checkbox" onclick="showHideResponseInterceptor()" id="intercept-response">
-                              <label for="intercept-response">Intercept Response</label>
+                          <div class="row">
+                              <div class="col-xs-1"><input type="checkbox" id="intercept-response"></div>
+                              <div class="col-sm-3"><label for="intercept-response">Intercept Response</label></div>
+                              <div class="col-sm-1"><a href="#" id="hide-show-response-interceptor" onclick="showHideResponseInterceptor()">show</a></div>
                           </div>
                           <div id="response-interceptor">
                           </div>
