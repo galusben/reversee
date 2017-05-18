@@ -228,6 +228,6 @@ function showHideResponseInterceptor() {
 
 function resetTable() {
     var tableBody = $('#traffic-table-body');
-    tableBody.empty()
+    tableBody.empty();
     traffic = {}
 }

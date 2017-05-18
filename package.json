@@ -23,5 +23,6 @@
     "codemirror": "^5.25.2",
     "font-awesome" : "^4.7.0",
     "request-to-curl" : "^0.1.1"
-  }
+  },
+  "publishConfig":{"registry":"http://127.0.0.1:8080/npm/galsorg/npm"}
 }

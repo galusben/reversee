@@ -9,21 +9,19 @@ function getServerProtocol(protocol) {
     return (protocol == 'https') ? https : http
 }
 
-function handleRequest(clientReq, clientRes, userSettings, win) {
+function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
     console.log('Path Hit: ' + clientReq.url);
     var responseView = {
         headers: {},
         body: Buffer.alloc(0)
     };
-    var requestParams = {
-        host: userSettings.dest,
-        path: clientReq.url,
-        method: clientReq.method,
-        port: userSettings.destPort,
-        headers: clientReq.headers
-    };
+    requestParams.host = requestParams.host ? requestParams.host : userSettings.dest;
+    requestParams.path = requestParams.path ? requestParams.path : clientReq.url;
+    requestParams.method = requestParams.method ? requestParams.method : clientReq.method;
+    requestParams.port = requestParams.port ? requestParams.port : userSettings.destPort;
+    requestParams.headers = requestParams.headers ? requestParams.headers : clientReq.headers;
 
-    if(userSettings.requestInterceptor && userSettings.requestInterceptor.length > 0) {
+    if (userSettings.requestInterceptor && userSettings.requestInterceptor.length > 0) {
         interceptor.interceptRequest(requestParams, userSettings.requestInterceptor);
     }
 
@@ -35,17 +33,19 @@ function handleRequest(clientReq, clientRes, userSettings, win) {
     };
 
     var trafficView = {
-        trafficId : trafficId++,
+        trafficId: trafficId++,
         request: requestView,
         response: responseView
     };
     requestView.headers.host = userSettings.dest + ":" + userSettings.destPort;
+    console.log('setting connector ');
 
     var connector = getServerProtocol(userSettings.destProtocol).request(requestParams, (serverResponse) => {
+        console.log('server response');
         requestView.curl = connector.toCurl();
         var responseParams = {
-            statusCode : serverResponse.statusCode,
-            headers : Object.assign({}, serverResponse.headers)
+            statusCode: serverResponse.statusCode,
+            headers: Object.assign({}, serverResponse.headers)
         };
 
         if (userSettings.responseInterceptor && userSettings.responseInterceptor.length > 0) {
@@ -58,15 +58,16 @@ function handleRequest(clientReq, clientRes, userSettings, win) {
 
         clientRes.statusCode = responseParams.statusCode;
         responseView.statusCode = responseParams.statusCode;
+        console.log('status set')
         serverResponse.on('data', (chunk) => {
             clientRes.write(chunk);
             responseView.body = Buffer.concat([responseView.body, chunk]);
             win.webContents.send('trip-data', trafficView);
         });
         serverResponse.on('end', () => {
-            if(responseView.headers['content-encoding'] == 'gzip') {
+            if (responseView.headers['content-encoding'] == 'gzip') {
                 zlib.gunzip(responseView.body, function (err, dezipped) {
-                    if(err) {
+                    if (err) {
                         console.log(err)
                     }
                     responseView.body = dezipped.toString();
