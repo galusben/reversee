@@ -9,17 +9,20 @@ function getServerProtocol(protocol) {
     return (protocol == 'https') ? https : http
 }
 
+function buildRequestParams(requestParams, userSettings, clientReq) {
+    requestParams.host = requestParams.host || userSettings.dest;
+    requestParams.path = requestParams.path || clientReq.url;
+    requestParams.method = requestParams.method || clientReq.method;
+    requestParams.port = requestParams.port || userSettings.destPort;
+    requestParams.headers = requestParams.headers || clientReq.headers;
+}
 function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
     console.log('Path Hit: ' + clientReq.url);
     var responseView = {
         headers: {},
         body: Buffer.alloc(0)
     };
-    requestParams.host = requestParams.host ? requestParams.host : userSettings.dest;
-    requestParams.path = requestParams.path ? requestParams.path : clientReq.url;
-    requestParams.method = requestParams.method ? requestParams.method : clientReq.method;
-    requestParams.port = requestParams.port ? requestParams.port : userSettings.destPort;
-    requestParams.headers = requestParams.headers ? requestParams.headers : clientReq.headers;
+    buildRequestParams(requestParams, userSettings, clientReq);
 
     if (userSettings.requestInterceptor && userSettings.requestInterceptor.length > 0) {
         interceptor.interceptRequest(requestParams, userSettings.requestInterceptor);

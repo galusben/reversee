@@ -34,11 +34,11 @@ describe('Sanity, window is loaded', function () {
 
     it('opens a window', function () {
         return app.client.waitUntilWindowLoaded()
-            .getWindowCount().should.eventually.equal(1);
+            .getWindowCount().should.eventually.equal(2);
     });
 
     it('tests the title', function () {
-        return app.client.waitUntilWindowLoaded()
+        return app.client.waitUntilWindowLoaded().windowByIndex(1)
             .getTitle().should.eventually.equal('Reversee');
     });
 

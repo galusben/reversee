@@ -124,7 +124,6 @@ ipcRenderer.on('trip-data', (event, arg) => {
     tr.attr('trafficId', arg.trafficId);
     var oldTr = $(`[trafficId='${arg.trafficId}']`);
     if (oldTr.length > 0) {
-        console.log('selected-r ' + oldTr.attr('selected-r'));
         if (oldTr.attr('selected-r') == 'true') {
             tr.attr('selected-r', 'true');
             rowClicked(tr[0])

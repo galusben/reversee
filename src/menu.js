@@ -1,6 +1,6 @@
-const {Menu, BrowserWindow} = require('electron')
-const electron = require('electron')
-const app = electron.app
+const {Menu, BrowserWindow} = require('electron');
+const electron = require('electron');
+const app = electron.app;
 const package = require('./../package.json');
 
 function create(breakpointsEditWin) {
