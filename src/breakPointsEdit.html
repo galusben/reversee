@@ -8,24 +8,36 @@
     <link href="../assets/wire.css" rel="stylesheet">
 </head>
 <body>
-
-<form class="navbar-form navbar-left">
-    <div class="form-group">
-        <label for="method">Http Verb</label>
-        <select id="method" class="selectpicker form-control" multiple>
-            <option>GET</option>
-            <option>POST</option>
-            <option>PUT</option>
-            <option>PATCH</option>
-            <option>DELETE</option>
-        </select>
-        <label for="path">Path</label>
-        <input id="path" type="text" placeholder="regex: /my-app/.*/page.html">
+<div class="form-wrapper">
+    <form>
+        <div class="form-group">
+            <label for="method">Method</label>
+            <select id="method" class="selectpicker form-control" multiple>
+                <option>GET</option>
+                <option>POST</option>
+                <option>PUT</option>
+                <option>PATCH</option>
+                <option>DELETE</option>
+            </select>
+            <label for="path">Path</label>
+            <input class="form-control" id="path" type="text" placeholder="regex: /my-app/.*/page.html">
+        </div>
         <button type="button" class="btn btn-primary" onclick="add()">Add</button>
         <button type="button" class="btn btn-primary" onclick="hideBreakPointsWindow()">OK</button>
-    </div>
-</form>
+    </form>
 
+    <div>
+        <table id="breakpoints-table" class="table table-striped table-hover">
+            <thead>
+            <th>#</th>
+            <th>URL</th>
+            <th>Methods</th>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+    </div>
+</div>
 
 <script>window.$ = window.jQuery = require('./../node_modules/jquery/dist/jquery.min.js');</script>
 <script src="../node_modules/bootstrap/dist/js/bootstrap.min.js"></script>

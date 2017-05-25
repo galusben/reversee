@@ -9,7 +9,21 @@ function hideBreakPointsWindow() {
 function add(){
     var methods = $('#method').val();
     var path = $('#path').val();
-    breakpoints.push({methods, path});
-    console.log(breakpoints[0]);
+    const point = {methods, path};
+    breakpoints.push(point);
+    var tbody = $('#breakpoints-table').children('tbody');
+    drawLine(tbody, point)
 }
 
+function drawLine(tbody, point) {
+    tbody.append(
+        $(`<tr><td></td><td>${point.path}</td><td>${point.methods.join(', ')}</td></tr>`)
+    );
+}
+function drawTable() {
+    var tbody = $('#breakpoints-table').children('tbody');
+    for (var i = 0; i < breakpoints.length; i++) {
+        let point = breakpoints[i];
+        extracted(tbody, point);
+    }
+}
