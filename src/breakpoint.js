@@ -19,13 +19,22 @@ function continu() {
     });
 }
 
+function addRow() {
+
+    $('#headers-table').children('tbody').append(
+        $('<tr><td></td><td contenteditable="true"></td><td contenteditable="true"></td></tr>')
+    );
+}
+
 ipcRenderer.on('breaking', (event, arg) => {
     $('#url').val(arg.url);
     $('#method').val(arg.method);
     var tbody = $('#headers-table').children('tbody');
     var headers = arg.headers;
     for (key in headers) {
-        tbody.append($(`<tr><td></td><td contenteditable="true">${key}</td><td contenteditable="true">${headers[key]}</td></tr>`));
+        tbody.append(
+            $(`<tr><td></td><td contenteditable="true">${key}</td><td contenteditable="true">${headers[key]}</td></tr>`)
+        );
     }
     breakPoint = arg;
 });

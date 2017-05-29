@@ -2,11 +2,11 @@
   "name": "Reversee",
   "version": "0.0.1",
   "main": "src/main.js",
-  "productName" : "Reversee",
+  "productName": "Reversee",
   "scripts": {
     "start": "./node_modules/.bin/electron src/main.js",
     "test:e2e": "./node_modules/mocha/bin/mocha tests/",
-    "build" : "rimraf Reversee-* && electron-packager . --platform=darwin,win32,linux --arch=x64 --ignore=\"tests|.idea|.*iml\""
+    "build": "rimraf Reversee-* && electron-packager . --platform=darwin,win32,linux --arch=x64 --ignore=\"tests|.idea|.*iml\""
   },
   "devDependencies": {
     "chai": "^3.5.0",
@@ -19,10 +19,13 @@
   },
   "dependencies": {
     "bootstrap": "^3.3.7",
-    "jquery": "^3.1.0",
     "codemirror": "^5.25.2",
-    "font-awesome" : "^4.7.0",
-    "request-to-curl" : "^0.1.1"
+    "font-awesome": "^4.7.0",
+    "jquery": "^3.1.0",
+    "lodash": "^4.17.4",
+    "request-to-curl": "^0.1.1"
   },
-  "publishConfig":{"registry":"http://127.0.0.1:8080/npm/galsorg/npm"}
+  "publishConfig": {
+    "registry": "http://127.0.0.1:8080/npm/galsorg/npm"
+  }
 }

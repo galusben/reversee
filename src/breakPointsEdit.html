@@ -6,6 +6,7 @@
     <link href="../node_modules/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="../node_modules/bootstrap-select/dist/css/bootstrap-select.min.css" rel="stylesheet">
     <link href="../assets/wire.css" rel="stylesheet">
+    <link rel="stylesheet" href="../node_modules/font-awesome/css/font-awesome.min.css">
 </head>
 <body>
 <div class="form-wrapper">
@@ -23,20 +24,21 @@
             <input class="form-control" id="path" type="text" placeholder="regex: /my-app/.*/page.html">
         </div>
         <button type="button" class="btn btn-primary" onclick="add()">Add</button>
-        <button type="button" class="btn btn-primary" onclick="hideBreakPointsWindow()">OK</button>
-    </form>
 
-    <div>
-        <table id="breakpoints-table" class="table table-striped table-hover">
-            <thead>
-            <th>#</th>
-            <th>URL</th>
-            <th>Methods</th>
-            </thead>
-            <tbody>
-            </tbody>
-        </table>
-    </div>
+        <div>
+            <table id="breakpoints-table" class="table table-striped table-hover">
+                <thead>
+                <th>#</th>
+                <th>URL</th>
+                <th>Methods</th>
+                <th></th>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+        </div>
+        <button type="button" class="btn btn-primary" onclick="hideBreakPointsWindow()">Save Changes</button>
+    </form>
 </div>
 
 <script>window.$ = window.jQuery = require('./../node_modules/jquery/dist/jquery.min.js');</script>

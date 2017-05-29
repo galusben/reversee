@@ -19,7 +19,26 @@ let win;
 let server;
 let breakpointsEditWin;
 let haltedBreakpoints = {};
-let breakpointsSettings = [];
+let breakpointsSettings = {};
+let currentViewingBreakpoint = null;
+
+function createBreakpointWin() {
+    breakpointsEditWin = new BrowserWindow({width: 800, height: 600});
+    breakpointsEditWin.hide();
+    menu.create(breakpointsEditWin);
+    breakpointsEditWin.loadURL(url.format({
+        pathname: path.join(__dirname, 'breakPointsEdit.html'),
+        protocol: 'file:',
+        slashes: true
+    }));
+    breakpointsEditWin.on('close', (event) => {
+            if (win) {
+                event.preventDefault()
+            }
+        }
+    )
+}
+
 function createWindow() {
     win = new BrowserWindow({width: 950, height: 600});
     win.loadURL(url.format({
@@ -29,16 +48,12 @@ function createWindow() {
     }));
 
     win.on('closed', () => {
-        win = null
+        win = null;
+        breakpointsEditWin.destroy();
+        breakpointsEditWin = null;
     });
-    breakpointsEditWin = new BrowserWindow({width: 800, height: 600});
-    breakpointsEditWin.hide();
-    menu.create(breakpointsEditWin);
-    breakpointsEditWin.loadURL(url.format({
-        pathname: path.join(__dirname, 'breakPointsEdit.html'),
-        protocol: 'file:',
-        slashes: true
-    }));
+
+    createBreakpointWin();
 
 }
 
@@ -57,8 +72,8 @@ app.on('activate', () => {
 
 function matchingBreakpoint(url, method) {
     console.log('url ' + url);
-    for (var i = 0; i < breakpointsSettings.length; i++) {
-        let breakpointSetting = breakpointsSettings[i];
+    for (var key in breakpointsSettings) {
+        let breakpointSetting = breakpointsSettings[key];
         console.log('url ' + breakpointSetting.path);
         if (breakpointSetting.methods.includes(method) && url.match(new RegExp(breakpointSetting.path))) {
             return breakpointSetting;
@@ -85,13 +100,14 @@ function startProxy(settings) {
                 protocol: 'file:',
                 slashes: true
             }));
+
             var breakPointId = generateId();
             breakpointWin.webContents.on('did-finish-load', () => {
                 breakpointWin.webContents.send('breaking',
                     {
                         id: breakPointId,
                         url: request.url,
-                        method : request.method,
+                        method: request.method,
                         headers: new Object(request.headers)
                     });
             });
@@ -101,6 +117,11 @@ function startProxy(settings) {
                 }
                 ,
                 bwin: breakpointWin
+            }
+            if (currentViewingBreakpoint && currentViewingBreakpoint.bwin.isVisible()) {
+                breakpointWin.hide()
+            } else {
+                currentViewingBreakpoint = haltedBreakpoints[breakPointId]
             }
         } else {
             proxy.handleRequest(request, response, settings, win, {})
@@ -133,14 +154,20 @@ ipcMain.on('stop-proxy', (event, settings) => {
 
 ipcMain.on('breakpoints-settings', (event, data) => {
     breakpointsEditWin.hide();
-    data.methods = data.methods || [];
-    breakpointsSettings = breakpointsSettings.concat(data);
+    breakpointsSettings = data
 });
 
 ipcMain.on('continue', (event, data) => {
     let breakpoint = haltedBreakpoints[data.id];
-    breakpoint.bwin.hide();
+    breakpoint.bwin.destroy();
     delete haltedBreakpoints[data.id];
+    var breakpointWindows = Object.values(haltedBreakpoints);
+    if (breakpointWindows.length > 0) {
+        currentViewingBreakpoint = breakpointWindows[0];
+        currentViewingBreakpoint.bwin.show()
+    } else {
+        currentViewingBreakpoint = null;
+    }
     breakpoint.action({path: data.url, method: data.method, headers: data.headers});
 
 });
