@@ -4,8 +4,16 @@ const {Menu, MenuItem} = remote;
 
 function addContextMenu(element, curl) {
     const menu = new Menu();
-    menu.append(new MenuItem({label: 'Copy as curl', click() { clipboard.writeText(curl) }}));
-    menu.append(new MenuItem({label: 'Clear All', click() { resetTable() }}));
+    menu.append(new MenuItem({
+        label: 'Copy as curl', click() {
+            clipboard.writeText(curl)
+        }
+    }));
+    menu.append(new MenuItem({
+        label: 'Clear All', click() {
+            resetTable()
+        }
+    }));
     element.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         menu.popup(remote.getCurrentWindow());
@@ -17,14 +25,14 @@ var traffic = {};
 
 const requestInterceptorEditor = CodeMirror(document.getElementById("request-interceptor"), {
     value: "/*Request interceptor. Use javascript. \nYou can use requestParams object to access the request data. \nExample: \nrequestParams.headers['custom']='custom val'*/",
-    mode:  "javascript",
+    mode: "javascript",
     lineNumbers: true,
 });
 $(requestInterceptorEditor.getWrapperElement()).hide();
 
 const responseInterceptorEditor = CodeMirror(document.getElementById("response-interceptor"), {
     value: "/*Response interceptor. Use javascript. \nYou can use responseParams object to access the response data. \nExample: \nresponseParams.headers['custom']='custom val'*/",
-    mode:  "javascript",
+    mode: "javascript",
     lineNumbers: true,
 });
 $(responseInterceptorEditor.getWrapperElement()).hide();
@@ -230,3 +238,11 @@ function resetTable() {
     tableBody.empty();
     traffic = {}
 }
+
+window.Split(['#table-container', '#details-component'], {
+    direction: 'vertical',
+    sizes: [50, 50],
+    gutterSize: 8,
+    cursor: 'row-resize',
+    minSize : [50, 100]
+})

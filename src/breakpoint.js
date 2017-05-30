@@ -8,7 +8,9 @@ function continu() {
     $('#headers-table').children('tbody').children('tr').each(function (i, tr) {
         var headerName = $($(tr).children('td')[1]).text();
         var headerValue = $($(tr).children('td')[2]).text();
-        headers[headerName] = headerValue;
+        if (headerName) {
+            headers[headerName] = headerValue;
+        }
     });
 
     ipcRenderer.send('continue', {
