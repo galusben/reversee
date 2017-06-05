@@ -35,11 +35,11 @@ table tr td:first-child::before {
 }
 
 .traffic-view {
-    height: 500px;
+    height: 100%;
     width: 100%;
 }
 
-#split
+/*split*/
 html, body {
     height: 100%;
 }
