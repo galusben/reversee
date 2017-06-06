@@ -100,6 +100,12 @@ function startProxy(settings) {
                 protocol: 'file:',
                 slashes: true
             }));
+            breakpointWin.on('close', (event) => {
+                    if (win) {
+                        event.preventDefault()
+                    }
+                }
+            );
 
             var breakPointId = generateId();
             breakpointWin.webContents.on('did-finish-load', () => {
@@ -117,7 +123,7 @@ function startProxy(settings) {
                 }
                 ,
                 bwin: breakpointWin
-            }
+            };
             if (currentViewingBreakpoint && currentViewingBreakpoint.bwin.isVisible()) {
                 breakpointWin.hide()
             } else {

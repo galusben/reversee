@@ -65,7 +65,7 @@ function setProxy() {
     var settings = {
         dest: document.getElementById("dest").value,
         destProtocol: document.getElementById("destProtocol").value,
-        destPort: document.getElementById("destPort").value,
+        destPort: document.getElementById("destPort").value || document.getElementById("destProtocol").value == 'http' ? '80' : '443',
         listenPort: document.getElementById("listenPort").value,
         listenProtocol: document.getElementById("listenProtocol").value,
         requestInterceptor: $('#intercept-request').is(':checked') ? requestInterceptorEditor.getValue() : '',
