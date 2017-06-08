@@ -9,9 +9,9 @@ pipelines:
   default:
     - step:
         script: # Modify the commands below to build your repository.
-          - sudo add-apt-repository ppa:ubuntu-wine/ppa
-          - sudo apt-get update
-          - sudo apt-get install wine1.8
-          - sudo apt-get install winetricks
+          - add-apt-repository ppa:ubuntu-wine/ppa
+          - apt-get update
+          - apt-get install wine1.8
+          - apt-get install winetricks
           - npm install
           - npm run build
