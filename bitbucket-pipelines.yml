@@ -9,5 +9,6 @@ pipelines:
   default:
     - step:
         script: # Modify the commands below to build your repository.
+          - apt-get install wine
           - npm install
-          - npm run test:e2e
+          - npm run build
