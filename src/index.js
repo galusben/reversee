@@ -65,12 +65,13 @@ function setProxy() {
     var settings = {
         dest: document.getElementById("dest").value,
         destProtocol: document.getElementById("destProtocol").value,
-        destPort: document.getElementById("destPort").value || document.getElementById("destProtocol").value == 'http' ? '80' : '443',
+        destPort: document.getElementById("destPort").value || (document.getElementById("destProtocol").value == 'http' ? '80' : '443'),
         listenPort: document.getElementById("listenPort").value,
         listenProtocol: document.getElementById("listenProtocol").value,
         requestInterceptor: $('#intercept-request').is(':checked') ? requestInterceptorEditor.getValue() : '',
         responseInterceptor: $('#intercept-response').is(':checked') ? responseInterceptorEditor.getValue() : ''
     };
+    console.log(settings.destPort)
     $('.ng-invalid').removeClass('ng-invalid');
     var validations = [];
     $('.form-control').not("[optional='true']").map(function (index, element) {
@@ -244,5 +245,5 @@ window.Split(['#table-container', '#details-component'], {
     sizes: [50, 50],
     gutterSize: 8,
     cursor: 'row-resize',
-    minSize : [50, 100]
+    minSize: [50, 100]
 })
