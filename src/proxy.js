@@ -82,12 +82,13 @@ function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
             clientRes.end()
         })
     });
-
+    var clientRequestBufferedBody = Buffer.alloc(0);
     clientReq.on('data', (chunk) => {
-        connector.write(chunk);
-        requestView.body = requestView.body + chunk;
+        clientRequestBufferedBody = Buffer.concat([clientRequestBufferedBody, chunk]);
     });
     clientReq.on('end', () => {
+        connector.write(clientRequestBufferedBody);
+        requestView.body = clientRequestBufferedBody;
         connector.end()
     });
 }
