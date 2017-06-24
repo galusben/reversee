@@ -93,45 +93,55 @@ var generateId = function generateId() {
 function startProxy(settings) {
     console.log("starting proxy to: " + settings.dest);
     const handleRequestWrapper = (request, response) => {
-        if (matchingBreakpoint(request.url, request.method)) {
-            var breakpointWin = new BrowserWindow({width: 400, height: 400});
-            breakpointWin.loadURL(url.format({
-                pathname: path.join(__dirname, 'breakpoint.html'),
-                protocol: 'file:',
-                slashes: true
-            }));
-            breakpointWin.on('close', (event) => {
-                    if (win) {
-                        event.preventDefault()
-                    }
-                }
-            );
 
-            var breakPointId = generateId();
-            breakpointWin.webContents.on('did-finish-load', () => {
-                breakpointWin.webContents.send('breaking',
-                    {
-                        id: breakPointId,
-                        url: request.url,
-                        method: request.method,
-                        headers: new Object(request.headers)
-                    });
-            });
-            haltedBreakpoints[breakPointId] = {
-                action: function (breakpointData) {
-                    proxy.handleRequest(request, response, settings, win, breakpointData)
+        const chunks = [];
+        request.on('data', chunk => chunks.push(chunk));
+        request.on('end', () => {
+            const body = Buffer.concat(chunks);
+
+            if (matchingBreakpoint(request.url, request.method)) {
+                var breakpointWin = new BrowserWindow({width: 400, height: 400});
+                breakpointWin.loadURL(url.format({
+                    pathname: path.join(__dirname, 'breakpoint.html'),
+                    protocol: 'file:',
+                    slashes: true
+                }));
+                breakpointWin.on('close', (event) => {
+                        if (win) {
+                            event.preventDefault()
+                        }
+                    }
+                );
+
+                var breakPointId = generateId();
+
+                breakpointWin.webContents.on('did-finish-load', () => {
+                    breakpointWin.webContents.send('breaking',
+                        {
+                            id: breakPointId,
+                            url: request.url,
+                            method: request.method,
+                            headers: new Object(request.headers),
+                            body: body
+                        });
+                });
+                haltedBreakpoints[breakPointId] = {
+                    action: function (requestParams) {
+                        proxy.handleRequest(request, response, settings, win, requestParams)
+                    }
+                    ,
+                    bwin: breakpointWin
+                };
+                if (currentViewingBreakpoint && currentViewingBreakpoint.bwin.isVisible()) {
+                    breakpointWin.hide()
+                } else {
+                    currentViewingBreakpoint = haltedBreakpoints[breakPointId]
                 }
-                ,
-                bwin: breakpointWin
-            };
-            if (currentViewingBreakpoint && currentViewingBreakpoint.bwin.isVisible()) {
-                breakpointWin.hide()
             } else {
-                currentViewingBreakpoint = haltedBreakpoints[breakPointId]
+                proxy.handleRequest(request, response, settings, win, {body})
             }
-        } else {
-            proxy.handleRequest(request, response, settings, win, {})
-        }
+        });
+
     };
     if (settings.listenProtocol == 'http') {
         server = http.createServer(handleRequestWrapper);
@@ -174,7 +184,7 @@ ipcMain.on('continue', (event, data) => {
     } else {
         currentViewingBreakpoint = null;
     }
-    breakpoint.action({path: data.url, method: data.method, headers: data.headers});
+    breakpoint.action({path: data.url, method: data.method, headers: data.headers, body: data.body});
 
 });
 

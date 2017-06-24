@@ -17,7 +17,8 @@ function continu() {
         id: breakPoint.id,
         url: $('#url').val(),
         method: $('#method').val(),
-        headers: headers
+        headers: headers,
+        body: $('#body').val()
     });
 }
 
@@ -38,5 +39,6 @@ ipcRenderer.on('breaking', (event, arg) => {
             $(`<tr><td></td><td contenteditable="true">${key}</td><td contenteditable="true">${headers[key]}</td></tr>`)
         );
     }
+    $('#body').val(arg.body);
     breakPoint = arg;
 });

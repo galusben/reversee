@@ -32,7 +32,7 @@ function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
         url: requestParams.path,
         headers: requestParams.headers,
         method: requestParams.method,
-        body: ''
+        body: Buffer.alloc(0)
     };
 
     var trafficView = {
@@ -82,15 +82,11 @@ function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
             clientRes.end()
         })
     });
-    var clientRequestBufferedBody = Buffer.alloc(0);
-    clientReq.on('data', (chunk) => {
-        clientRequestBufferedBody = Buffer.concat([clientRequestBufferedBody, chunk]);
-    });
-    clientReq.on('end', () => {
-        connector.write(clientRequestBufferedBody);
-        requestView.body = clientRequestBufferedBody;
-        connector.end()
-    });
+    if (requestParams.body) {
+        connector.write(requestParams.body);
+    }
+    connector.end();
+    requestView.body = requestParams.body
 }
 
 exports.handleRequest = handleRequest;
