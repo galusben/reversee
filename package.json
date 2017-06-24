@@ -6,7 +6,7 @@
   "scripts": {
     "start": "./node_modules/.bin/electron src/main.js",
     "test:e2e": "./node_modules/mocha/bin/mocha tests/",
-    "build": "rimraf Reversee-* && electron-packager . --platform=darwin,win32,linux --arch=x64 --icon=assets/Reversee_d00a_00a --ignore=\"tests|.idea|.*iml|Dockerfile|bitbucket-pipelines.yml\""
+    "build": "rimraf Reversee-* && electron-packager . --platform=darwin,win32,linux --arch=x64 --icon=assets/Reversee --ignore=\"tests|.idea|.*iml|Dockerfile|bitbucket-pipelines.yml\""
   },
   "devDependencies": {
     "chai": "^3.5.0",
