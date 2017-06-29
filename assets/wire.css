@@ -83,3 +83,23 @@ body {
 .split.split-horizontal, .gutter.gutter-horizontal {
     float: left;
 }
+
+#overlay2 {
+    width:50%;
+    position: fixed; top:50px;right:50px;bottom:50px;left:50px;
+    z-index:1104;
+    display: none;
+}
+
+#overlay{
+    position:absolute;
+    left:0;
+    right:0;
+    margin-left:auto;
+    width:50%;
+    margin-right:auto;
+    margin-top: auto;
+    margin-bottom: auto;
+    z-index:5;
+    display: none;
+}

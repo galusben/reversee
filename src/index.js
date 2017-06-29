@@ -71,7 +71,6 @@ function setProxy() {
         requestInterceptor: $('#intercept-request').is(':checked') ? requestInterceptorEditor.getValue() : '',
         responseInterceptor: $('#intercept-response').is(':checked') ? responseInterceptorEditor.getValue() : ''
     };
-    console.log(settings.destPort)
     $('.ng-invalid').removeClass('ng-invalid');
     var validations = [];
     $('.form-control').not("[optional='true']").map(function (index, element) {
@@ -119,6 +118,21 @@ function getClassForTripData(statusCode) {
     return ""
 }
 
+var scrolLocked = true;
+function toggleScollLock() {
+    const lockIcon = $('#scroll-lock');
+    if (scrolLocked) {
+        lockIcon.removeClass('fa fa-lock')
+        lockIcon.addClass('fa')
+        lockIcon.addClass('fa-unlock-alt')
+    } else {
+        lockIcon.removeClass('fa fa-unlock-alt')
+        lockIcon.addClass('fa fa-lock')
+        lockIcon.addClass('fa-lock')
+    }
+    scrolLocked = !scrolLocked;
+}
+
 ipcRenderer.on('trip-data', (event, arg) => {
     traffic[arg.trafficId] = arg;
     var tableBody = $('#traffic-table-body');
@@ -142,6 +156,11 @@ ipcRenderer.on('trip-data', (event, arg) => {
         tableBody.append(tr);
     }
     addContextMenu(tr[0], arg.request.curl);
+    if(!scrolLocked) {
+        const tableElement = $('#table-container');
+        tableElement.scrollTop(tableElement[0].scrollHeight);
+    }
+
 });
 
 function unSetProxy() {
@@ -246,4 +265,22 @@ window.Split(['#table-container', '#details-component'], {
     gutterSize: 8,
     cursor: 'row-resize',
     minSize: [50, 100]
-})
+});
+const konami = [38, 38, 40, 40, 37, 39, 37, 39];
+let konamiIdx = 0;
+$(window).on('keydown', function (e) {
+    var code = (e.keyCode ? e.keyCode : e.which);
+    if (code == konami[konamiIdx]) {
+        if (konamiIdx == konami.length - 1) {
+            console.log('KONAMI CODE!!');
+            $('#overlay').toggle(true);
+            setTimeout(function () {
+                $('#overlay').toggle(false);
+            }, 5000);
+            konamiIdx = 0
+        } else {
+            konamiIdx++
+        }
+    }
+
+});
