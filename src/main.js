@@ -11,8 +11,8 @@ const menu = require(path.join(__dirname, 'menu.js'));
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 const sslOptions = {
-    key: fs.readFileSync(path.join(__dirname, '..', 'resources', 'localhost.key')),
-    cert: fs.readFileSync(path.join(__dirname, '..', 'resources', 'localhost.cert'))
+    key: fs.readFileSync(path.join(__dirname, 'resources', 'localhost.key')),
+    cert: fs.readFileSync(path.join(__dirname, 'resources', 'localhost.cert'))
 };
 
 let win;
@@ -72,7 +72,7 @@ app.on('activate', () => {
 
 function matchingBreakpoint(url, method) {
     console.log('url ' + url);
-    for (var key in breakpointsSettings) {
+    for (let key in breakpointsSettings) {
         let breakpointSetting = breakpointsSettings[key];
         console.log('url ' + breakpointSetting.path);
         if (breakpointSetting.methods.includes(method) && url.match(new RegExp(breakpointSetting.path))) {

@@ -34,7 +34,7 @@ ipcRenderer.on('breaking', (event, arg) => {
     $('#method').val(arg.method);
     var tbody = $('#headers-table').children('tbody');
     var headers = arg.headers;
-    for (key in headers) {
+    for (let key in headers) {
         tbody.append(
             $(`<tr><td></td><td contenteditable="true">${key}</td><td contenteditable="true">${headers[key]}</td></tr>`)
         );

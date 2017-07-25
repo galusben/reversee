@@ -85,8 +85,8 @@ describe('proxy is working', function () {
     it('proxy is startted on https', function (done) {
         process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
         const sslOptions = {
-            key: fs.readFileSync(path.join(__dirname, '..', 'resources', 'localhost.key')),
-            cert: fs.readFileSync(path.join(__dirname, '..', 'resources', 'localhost.cert'))
+            key: fs.readFileSync(path.join(__dirname, 'resources', 'localhost.key')),
+            cert: fs.readFileSync(path.join(__dirname, 'resources', 'localhost.cert'))
         };
         var destPort = 10443;
         var listenPort = 11443;

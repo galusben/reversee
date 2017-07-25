@@ -44,7 +44,7 @@ function setDirection(direction, element) {
     var body = $('<pre>').text(traffic[trafficKey][direction].body);
     var headersText = '';
     var headersMap = traffic[trafficKey][direction].headers;
-    for (key in headersMap) {
+    for (let key in headersMap) {
         headersText += key + " : " + headersMap[key] + "\n";
     }
     var headers = $('<pre>').text(headersText);

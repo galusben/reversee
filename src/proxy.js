@@ -54,7 +54,7 @@ function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
         if (userSettings.responseInterceptor && userSettings.responseInterceptor.length > 0) {
             interceptor.interceptResponse(responseParams, userSettings.responseInterceptor);
         }
-        for (var key in responseParams.headers) {
+        for (let key in responseParams.headers) {
             clientRes.setHeader(key, responseParams.headers[key]);
             responseView.headers[key] = responseParams.headers[key];
         }

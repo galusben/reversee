@@ -44,7 +44,7 @@ function deleteRow(clickedElement) {
 function drawTable() {
     var tbody = $('#breakpoints-table').children('tbody');
     tbody.empty();
-    for (var key in breakpoints) {
+    for (let key in breakpoints) {
         let point = breakpoints[key];
         drawLine(tbody, point);
     }

@@ -1,7 +1,7 @@
 const {Menu, BrowserWindow} = require('electron');
 const electron = require('electron');
 const app = electron.app;
-const package = require('./../package.json');
+const pkg = require('./../package.json');
 
 function create(breakpointsEditWin) {
 
@@ -119,7 +119,7 @@ function create(breakpointsEditWin) {
     ]
 
     if (process.platform === 'darwin') {
-        const name = package.name;
+        const name = pkg.name;
         template.unshift({
             label: name,
             submenu: [
