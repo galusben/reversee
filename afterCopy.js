@@ -9,7 +9,7 @@ module.exports = function (buildPath, electronVersion, platform, arch, callback)
     console.log(electronVersion);
     console.log(platform);
     console.log(arch);
-    const sourcePath = path.join(buildPath, 'src')
+    const sourcePath = path.join(buildPath, 'src');
     const items = fs.readdirSync(sourcePath);
 
     console.log(items);
@@ -17,8 +17,7 @@ module.exports = function (buildPath, electronVersion, platform, arch, callback)
         console.log(items[i]);
         const filePath = path.join(sourcePath, items[i]);
         if (fs.lstatSync(filePath).isFile() && filePath.endsWith('.js')) {
-            const contentBeforeMinify = fs.readFileSync(filePath);
-            console.log('Content:' + contentBeforeMinify);
+            const contentBeforeMinify = fs.readFileSync(filePath, 'utf8');
             const mini = uglifyJS.minify(contentBeforeMinify, { warnings: true, mangle: {toplevel: true} });
             if (mini.error) {
                 return callback(mini.error);
