@@ -19,7 +19,8 @@
     "electron-prebuilt-compile": "1.6.10",
     "mocha": "^3.0.2",
     "rimraf": "^2.5.4",
-    "spectron": "^3.6.0"
+    "spectron": "^3.6.0",
+    "uglify-es": "^3.0.26"
   },
   "dependencies": {
     "bootstrap": "^3.3.7",
@@ -54,16 +55,19 @@
           "win32",
           "darwin"
         ],
-        "packageManager" : "yarn",
-        "icon" : "src/assets/Reversee"
+        "packageManager": "yarn",
+        "icon": "src/assets/Reversee",
+        "afterCopy": [
+          "./afterCopy.js"
+        ]
       },
       "electronWinstallerConfig": {
         "name": "Reversee",
-        "authors" :"Gal Ben Ami",
+        "authors": "Gal Ben Ami",
         "description": "Reversee - reverse proxy web debugger"
       },
       "electronInstallerDebian": {
-        "description" : "Reversee - reverse proxy web debugger",
+        "description": "Reversee - reverse proxy web debugger",
         "productDescription": "Reversee - reverse proxy web debugger"
       },
       "electronInstallerRedhat": {},
