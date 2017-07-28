@@ -24,14 +24,14 @@ var proxySet = false;
 var traffic = {};
 
 const requestInterceptorEditor = CodeMirror(document.getElementById("request-interceptor"), {
-    value: "/*Request interceptor. Use javascript. \nYou can use requestParams object to access the request data. \nExample: \nrequestParams.headers['custom']='custom val'*/",
+    value: "/*Request interceptor. Use javascript. \nYou can use requestParams object to access the request data. \nfollowing attributes are available for manipulation: host, path, method, port, headers and body\nExample: \nrequestParams.headers['custom']='custom val'*/",
     mode: "javascript",
     lineNumbers: true,
 });
 $(requestInterceptorEditor.getWrapperElement()).hide();
 
 const responseInterceptorEditor = CodeMirror(document.getElementById("response-interceptor"), {
-    value: "/*Response interceptor. Use javascript. \nYou can use responseParams object to access the response data. \nExample: \nresponseParams.headers['custom']='custom val'*/",
+    value: "/*Response interceptor. Use javascript. \nYou can use responseParams object to access the response data. \ncurrently supported attributes are statusCode and headers\nExample: \nresponseParams.headers['custom']='custom val'*/",
     mode: "javascript",
     lineNumbers: true,
 });
