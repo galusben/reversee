@@ -44,7 +44,6 @@ function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
     console.log('setting connector ');
 
     var connector = getServerProtocol(userSettings.destProtocol).request(requestParams, (serverResponse) => {
-        console.log('server response');
         requestView.curl = connector.toCurl();
         var responseParams = {
             statusCode: serverResponse.statusCode,
@@ -61,7 +60,7 @@ function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
 
         clientRes.statusCode = responseParams.statusCode;
         responseView.statusCode = responseParams.statusCode;
-        console.log('status set')
+        console.log('status set');
         serverResponse.on('data', (chunk) => {
             clientRes.write(chunk);
             responseView.body = Buffer.concat([responseView.body, chunk]);
@@ -81,6 +80,14 @@ function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
             }
             clientRes.end()
         })
+    });
+    connector.on('error', function(err){
+        console.log(err);
+        clientRes.statusCode = 502;
+        responseView.statusCode = 502;
+        trafficView.connectorError = err;
+        win.webContents.send('trip-data', trafficView);
+        clientRes.end();
     });
     if (requestParams.body) {
         connector.write(requestParams.body);

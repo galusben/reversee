@@ -45,7 +45,7 @@ function create(breakpointsEditWin) {
                     label: 'Edit',
                     accelerator: 'CmdOrCtrl+B',
                     click (item, focusedWindow) {
-                        console.log('Breakpoints clicked')
+                        console.log('Breakpoints clicked');
                         breakpointsEditWin.show();
                     }
                 },
@@ -116,7 +116,7 @@ function create(breakpointsEditWin) {
                 }
             ]
         }
-    ]
+    ];
 
     if (process.platform === 'darwin') {
         const name = pkg.name;
@@ -152,7 +152,7 @@ function create(breakpointsEditWin) {
                     role: 'quit'
                 }
             ]
-        })
+        });
         // Edit menu.
         template[1].submenu.push(
             {
@@ -169,7 +169,7 @@ function create(breakpointsEditWin) {
                     }
                 ]
             }
-        )
+        );
         // Window menu.
         template[3].submenu = [
             {

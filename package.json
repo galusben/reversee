@@ -62,6 +62,7 @@
       },
       "electronWinstallerConfig": {
         "name": "Reversee",
+        "title": "Reversee",
         "authors": "Gal Ben Ami",
         "description": "Reversee - reverse proxy web debugger"
       },

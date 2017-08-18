@@ -38,8 +38,10 @@ const responseInterceptorEditor = CodeMirror(document.getElementById("response-i
 $(responseInterceptorEditor.getWrapperElement()).hide();
 
 function setDirection(direction, element) {
-    $(`#${direction}-headers`).empty();
-    $(`#${direction}-body`).empty();
+    const headersElement = $(`#${direction}-headers`);
+    const bodyElement = $(`#${direction}-body`);
+    headersElement.empty();
+    bodyElement.empty();
     let trafficKey = $(element).attr('trafficId');
     var body = $('<pre>').text(traffic[trafficKey][direction].body);
     var headersText = '';
@@ -48,8 +50,8 @@ function setDirection(direction, element) {
         headersText += key + " : " + headersMap[key] + "\n";
     }
     var headers = $('<pre>').text(headersText);
-    $(`#${direction}-headers`).append(headers);
-    $(`#${direction}-body`).append(body);
+    headersElement.append(headers);
+    bodyElement.append(body);
 }
 
 function rowClicked(element) {
@@ -57,7 +59,7 @@ function rowClicked(element) {
     setDirection('request', element);
     $('.font-bold').removeClass('font-bold');
     $(element).addClass('font-bold');
-    $("[selected-r='true']").attr('selected-r', 'false')
+    $("[selected-r='true']").attr('selected-r', 'false');
     $(element).attr('selected-r', 'true');
 }
 
@@ -122,12 +124,12 @@ var scrolLocked = true;
 function toggleScollLock() {
     const lockIcon = $('#scroll-lock');
     if (scrolLocked) {
-        lockIcon.removeClass('fa fa-lock')
-        lockIcon.addClass('fa')
+        lockIcon.removeClass('fa fa-lock');
+        lockIcon.addClass('fa');
         lockIcon.addClass('fa-unlock-alt')
     } else {
-        lockIcon.removeClass('fa fa-unlock-alt')
-        lockIcon.addClass('fa fa-lock')
+        lockIcon.removeClass('fa fa-unlock-alt');
+        lockIcon.addClass('fa fa-lock');
         lockIcon.addClass('fa-lock')
     }
     scrolLocked = !scrolLocked;

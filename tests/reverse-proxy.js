@@ -93,7 +93,7 @@ describe('proxy is working', function () {
             response.end('got request');
         });
         server.listen(destPort);
-        console.log('server started on https')
+        console.log('server started on https');
         var settings = {
             dest: 'localhost',
             destProtocol: 'https',
