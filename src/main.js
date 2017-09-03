@@ -106,7 +106,7 @@ function startProxy(settings) {
             if (matchingBreakpoint(request.url, request.method)) {
                 var breakpointWin = new BrowserWindow({width: 400, height: 400});
                 breakpointWin.loadURL(url.format({
-                    pathname: path.join(__dirname, 'breakpoint.html'),
+                    pathname: path.join(__dirname, 'breakPoint.html'),
                     protocol: 'file:',
                     slashes: true
                 }));
