@@ -8,7 +8,7 @@ const url = require('url');
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
-const nativeImage = require('electron').nativeImage
+const nativeImage = require('electron').nativeImage;
 
 const proxy = require(path.join(__dirname, 'proxy.js'));
 require('request-to-curl');
@@ -29,7 +29,7 @@ let breakpointsSettings = {};
 let currentViewingBreakpoint = null;
 
 
-let image = nativeImage.createFromPath(path.join(__dirname, 'assets','icon.png'));
+let image = nativeImage.createFromPath(path.join(__dirname, 'assets','Reversee.png'));
 const icon =  process.platform === 'linux' ? image : null;
 
 function createBreakpointWin() {
