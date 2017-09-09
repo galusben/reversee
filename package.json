@@ -24,7 +24,7 @@
     "bootstrap-select": "^1.12.2",
     "codemirror": "^5.25.2",
     "electron-compile": "^6.4.1",
-    "electron": "^1.6.11",
+    "electron": "^1.7.6",
     "electron-squirrel-startup": "^1.0.0",
     "font-awesome": "^4.7.0",
     "jquery": "^3.1.0",
@@ -34,8 +34,14 @@
   },
   "config": {
     "forge": {
+      "s3": {
+        "accessKeyId": "AKIAIJQRYPQCTECCDSEA",
+        "bucket": "reverseeapp",
+        "public": true
+      },
       "make_targets": {
         "win32": [
+          "zip",
           "squirrel"
         ],
         "darwin": [
@@ -43,6 +49,7 @@
           "dmg"
         ],
         "linux": [
+          "zip",
           "deb"
         ]
       },
@@ -69,14 +76,6 @@
       "electronInstallerDebian": {
         "description": "Reversee - reverse proxy web debugger",
         "productDescription": "Reversee - reverse proxy web debugger"
-      },
-      "electronInstallerRedhat": {},
-      "github_repository": {
-        "owner": "",
-        "name": ""
-      },
-      "windowsStoreConfig": {
-        "packageName": ""
       }
     }
   }

@@ -8,6 +8,8 @@ const url = require('url');
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
+const nativeImage = require('electron').nativeImage
+
 const proxy = require(path.join(__dirname, 'proxy.js'));
 require('request-to-curl');
 const menu = require(path.join(__dirname, 'menu.js'));
@@ -26,8 +28,12 @@ let haltedBreakpoints = {};
 let breakpointsSettings = {};
 let currentViewingBreakpoint = null;
 
+
+let image = nativeImage.createFromPath(path.join(__dirname, 'assets','icon.png'));
+const icon =  process.platform === 'linux' ? image : null;
+
 function createBreakpointWin() {
-    breakpointsEditWin = new BrowserWindow({width: 800, height: 600});
+    breakpointsEditWin = new BrowserWindow({width: 800, height: 600, icon: icon});
     breakpointsEditWin.hide();
     menu.create(breakpointsEditWin);
     breakpointsEditWin.loadURL(url.format({
@@ -44,7 +50,7 @@ function createBreakpointWin() {
 }
 
 function createWindow() {
-    win = new BrowserWindow({width: 1000, height: 600});
+    win = new BrowserWindow({width: 1000, height: 600, icon: icon});
     win.loadURL(url.format({
         pathname: path.join(__dirname, 'index.html'),
         protocol: 'file:',
@@ -104,7 +110,7 @@ function startProxy(settings) {
             const body = Buffer.concat(chunks);
 
             if (matchingBreakpoint(request.url, request.method)) {
-                var breakpointWin = new BrowserWindow({width: 400, height: 400});
+                var breakpointWin = new BrowserWindow({width: 400, height: 400, icon: icon});
                 breakpointWin.loadURL(url.format({
                     pathname: path.join(__dirname, 'breakPoint.html'),
                     protocol: 'file:',
