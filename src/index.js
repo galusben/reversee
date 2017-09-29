@@ -106,6 +106,11 @@ function notifyInvalid(id) {
     return {valid: true};
 }
 
+function setInvalid(id) {
+    let jqueryId = $(`#${id}`);
+    jqueryId.addClass('ng-invalid');
+}
+
 function getClassForTripData(statusCode) {
     const statusClass = {
         "2": "success",
@@ -121,6 +126,7 @@ function getClassForTripData(statusCode) {
 }
 
 var scrolLocked = true;
+
 function toggleScollLock() {
     const lockIcon = $('#scroll-lock');
     if (scrolLocked) {
@@ -158,7 +164,7 @@ ipcRenderer.on('trip-data', (event, arg) => {
         tableBody.append(tr);
     }
     addContextMenu(tr[0], arg.request.curl);
-    if(!scrolLocked) {
+    if (!scrolLocked) {
         const tableElement = $('#table-container');
         tableElement.scrollTop(tableElement[0].scrollHeight);
     }
@@ -171,6 +177,7 @@ function unSetProxy() {
     requestInterceptorEditor.setOption("readOnly", false)
 
 }
+
 $('.btn-toggle').click(function () {
     if (proxySet) {
         try {
@@ -213,7 +220,7 @@ $('form').submit(function () {
 });
 
 ipcRenderer.on('server-error', (event, arg) => {
-    console.log('server error');
+    console.log('got server error event');
     unSetProxy();
     proxySet = false;
     var btnGroup = $('#btn-group');
@@ -232,6 +239,9 @@ ipcRenderer.on('server-error', (event, arg) => {
         btnGroup.find('.btn').toggleClass('btn-info');
     }
     btnGroup.find('.btn').toggleClass('btn-default');
+    if (arg.code === 'EACCES') {
+        setInvalid("listenPort");
+    }
 });
 
 function showHideRequestInterceptor() {

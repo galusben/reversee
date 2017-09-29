@@ -159,7 +159,8 @@ function startProxy(settings) {
         server = https.createServer(sslOptions, handleRequestWrapper);
     }
     server.on('error', (err) => {
-        win.webContents.send('server-error', {message: 'could not start server'});
+        console.log("error on server!!!", err);
+        win.webContents.send('server-error', {code: err.code});
     });
     server.listen(settings.listenPort, function () {
         console.log("Server listening on: %s://localhost:%s", settings.listenProtocol, settings.listenPort);
