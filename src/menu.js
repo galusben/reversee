@@ -58,6 +58,16 @@ function create(breakpointsEditWin) {
                 }]
         },
         {
+            label: 'Proxy Settings',
+            submenu: [
+                {
+                    label: 'Rewrite Redirects (3xx)',
+                    type: 'checkbox',
+                    checked: true,
+                    id: 'redirects'
+                }]
+        },
+        {
             label: 'View',
             submenu: [
                 {
@@ -171,7 +181,7 @@ function create(breakpointsEditWin) {
             }
         );
         // Window menu.
-        template[3].submenu = [
+        template[3].submenu.push = [
             {
                 label: 'Close',
                 accelerator: 'CmdOrCtrl+W',
@@ -200,3 +210,4 @@ function create(breakpointsEditWin) {
 }
 
 exports.create = create;
+exports.getMenuInstance = function () {return Menu.getApplicationMenu()};

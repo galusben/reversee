@@ -231,6 +231,55 @@ describe('proxy is working', function () {
                 });
             }, 200)
         })
+    });
+
+    it('proxy is started on https and response interceptor sends custom body', function (done) {
+        process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+        const sslOptions = {
+            key: fs.readFileSync(path.join(__dirname, '..', 'src', 'resources', 'localhost.key')),
+            cert: fs.readFileSync(path.join(__dirname, '..', 'src', 'resources', 'localhost.cert'))
+        };
+        var destPort = 15443;
+        var listenPort = 16443;
+        var server = https.createServer(sslOptions, (request, response) => {
+            response.end('got request');
+        });
+        server.listen(destPort);
+        console.log('server started on https');
+        var settings = {
+            dest: 'localhost',
+            destProtocol: 'https',
+            destPort: destPort,
+            listenPort: listenPort,
+            listenProtocol: 'https',
+            responseInterceptor: 'responseParams.body=\'custom val\''
+        };
+
+        app.client.waitUntilWindowLoaded().then(() => {
+            app.electron.ipcRenderer.send("message-settings", settings);
+            setTimeout(() => {
+                https.get({
+                    hostname: 'localhost',
+                    port: listenPort,
+                    path: '/'
+                }, (res) => {
+                    var body = '';
+                    res.on('data', (data) => {
+                        body += data
+                    });
+                    res.on('end', () => {
+                        if (body.should.equal('custom val')) {
+                            done()
+                        } else {
+                            done(new Error())
+                        }
+                    });
+                }).on('error', (e) => {
+                    console.log('error from get');
+                    done(e);
+                });
+            }, 200)
+        })
     })
 
 });

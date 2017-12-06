@@ -87,6 +87,7 @@ function setProxy() {
     }
     $('.form-control, input[type=checkbox]').not('button').prop('disabled', 'true');
     requestInterceptorEditor.setOption("readOnly", true);
+    responseInterceptorEditor.setOption("readOnly", true);
     ipcRenderer.send('message-settings', settings);
 
 
@@ -174,8 +175,8 @@ ipcRenderer.on('trip-data', (event, arg) => {
 function unSetProxy() {
     ipcRenderer.send('stop-proxy', '');
     $('.form-control, input[type=checkbox]').not('button').prop('disabled', false);
-    requestInterceptorEditor.setOption("readOnly", false)
-
+    requestInterceptorEditor.setOption("readOnly", false);
+    responseInterceptorEditor.setOption("readOnly", false);
 }
 
 $('.btn-toggle').click(function () {

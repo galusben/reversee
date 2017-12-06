@@ -47,26 +47,26 @@ function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
         requestView.curl = connector.toCurl();
         var responseParams = {
             statusCode: serverResponse.statusCode,
-            headers: Object.assign({}, serverResponse.headers)
+            headers: Object.assign({}, serverResponse.headers),
+            body: Buffer.alloc(0)
         };
 
-        if (userSettings.responseInterceptor && userSettings.responseInterceptor.length > 0) {
-            interceptor.interceptResponse(responseParams, userSettings.responseInterceptor);
-        }
-        for (let key in responseParams.headers) {
-            clientRes.setHeader(key, responseParams.headers[key]);
-            responseView.headers[key] = responseParams.headers[key];
-        }
 
-        clientRes.statusCode = responseParams.statusCode;
-        responseView.statusCode = responseParams.statusCode;
         console.log('status set');
         serverResponse.on('data', (chunk) => {
-            clientRes.write(chunk);
-            responseView.body = Buffer.concat([responseView.body, chunk]);
-            win.webContents.send('trip-data', trafficView);
+            responseParams.body = Buffer.concat([responseParams.body, chunk]);
         });
         serverResponse.on('end', () => {
+            if (userSettings.responseInterceptor && userSettings.responseInterceptor.length > 0) {
+                interceptor.interceptResponse(responseParams, userSettings.responseInterceptor, requestParams);
+            }
+            clientRes.statusCode = responseParams.statusCode;
+            responseView.statusCode = responseParams.statusCode;
+
+            for (let key in responseParams.headers) {
+                clientRes.setHeader(key, responseParams.headers[key]);
+                responseView.headers[key] = responseParams.headers[key];
+            }
             if (responseView.headers['content-encoding'] == 'gzip') {
                 zlib.gunzip(responseView.body, function (err, dezipped) {
                     if (err) {
@@ -78,7 +78,10 @@ function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
             } else {
                 win.webContents.send('trip-data', trafficView);
             }
-            clientRes.end()
+            responseView.body = responseParams.body;
+            clientRes.write(responseParams.body);
+            clientRes.end();
+            win.webContents.send('trip-data', trafficView);
         })
     });
     connector.on('error', function(err){

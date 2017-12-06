@@ -102,6 +102,9 @@ var generateId = function generateId() {
 
 function startProxy(settings) {
     console.log("starting proxy to: " + settings.dest);
+    const redirects = menu.getMenuInstance().getMenuItemById('redirects');
+    console.log("redirects: " + redirects);
+
     const handleRequestWrapper = (request, response) => {
 
         const chunks = [];
