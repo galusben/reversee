@@ -1,6 +1,6 @@
 {
   "name": "Reversee",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "main": "src/main.js",
   "productName": "Reversee",
   "scripts": {
@@ -23,8 +23,7 @@
     "bootstrap": "^3.3.7",
     "bootstrap-select": "^1.12.2",
     "codemirror": "^5.25.2",
-    "electron-compile": "^6.4.1",
-    "electron": "^1.7.9",
+    "electron-compile": "^6.4.2",
     "electron-squirrel-startup": "^1.0.0",
     "font-awesome": "^4.7.0",
     "jquery": "^3.1.0",

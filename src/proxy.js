@@ -2,6 +2,8 @@ const http = require('http');
 const https = require('https');
 const zlib = require("zlib");
 const path = require('path');
+const {URL} = require('url');
+
 const interceptor = require(path.join(__dirname, 'interceptor.js'));
 let trafficId = 0;
 
@@ -16,6 +18,7 @@ function buildRequestParams(requestParams, userSettings, clientReq) {
     requestParams.port = requestParams.port || userSettings.destPort;
     requestParams.headers = requestParams.headers || clientReq.headers;
 }
+
 function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
     console.log('Path Hit: ' + clientReq.url);
     var responseView = {
@@ -40,8 +43,10 @@ function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
         request: requestView,
         response: responseView
     };
+
+    const originalHost = requestView.headers.host;
+    console.log('originalHost: ' + originalHost);
     requestView.headers.host = userSettings.dest + ":" + userSettings.destPort;
-    console.log('setting connector ');
 
     var connector = getServerProtocol(userSettings.destProtocol).request(requestParams, (serverResponse) => {
         requestView.curl = connector.toCurl();
@@ -60,6 +65,7 @@ function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
             if (userSettings.responseInterceptor && userSettings.responseInterceptor.length > 0) {
                 interceptor.interceptResponse(responseParams, userSettings.responseInterceptor, requestParams);
             }
+
             clientRes.statusCode = responseParams.statusCode;
             responseView.statusCode = responseParams.statusCode;
 
@@ -67,24 +73,36 @@ function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
                 clientRes.setHeader(key, responseParams.headers[key]);
                 responseView.headers[key] = responseParams.headers[key];
             }
-            if (responseView.headers['content-encoding'] == 'gzip') {
-                zlib.gunzip(responseView.body, function (err, dezipped) {
+
+            console.log('redirect :' + userSettings.redirect);
+            if (userSettings.redirect && serverResponse.statusCode.toString().startsWith('30')) {
+                console.log('handling redirects');
+                let location = serverResponse.headers['location'];
+                let url = new URL(location);
+                url.host = originalHost;
+                clientRes.setHeader('location', url.href);
+                responseView.headers['location'] = url.href;
+            }
+
+            if (responseView.headers['content-encoding'] === 'gzip') {
+                zlib.gunzip(responseParams.body, function (err, dezipped) {
                     if (err) {
                         console.log(err)
                     }
                     responseView.body = dezipped.toString();
+                    clientRes.write(responseParams.body);
+                    clientRes.end();
                     win.webContents.send('trip-data', trafficView)
                 });
             } else {
+                responseView.body = responseParams.body;
+                clientRes.write(responseParams.body);
+                clientRes.end();
                 win.webContents.send('trip-data', trafficView);
             }
-            responseView.body = responseParams.body;
-            clientRes.write(responseParams.body);
-            clientRes.end();
-            win.webContents.send('trip-data', trafficView);
         })
     });
-    connector.on('error', function(err){
+    connector.on('error', function (err) {
         console.log(err);
         clientRes.statusCode = 502;
         responseView.statusCode = 502;

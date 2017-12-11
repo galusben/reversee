@@ -283,3 +283,5 @@ describe('proxy is working', function () {
     })
 
 });
+
+//TODO: test gzip, redirects and request context

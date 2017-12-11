@@ -1,7 +1,18 @@
-const {Menu, BrowserWindow} = require('electron');
-const electron = require('electron');
-const app = electron.app;
+const {Menu} = require('electron');
 const pkg = require('./../package.json');
+
+
+Menu.prototype.getMenuItemById = function (id) {
+    const items = this.items;
+    console.log('getMenuItemById');
+    let found = items.find(item => item.id === id) || null;
+    for (let i = 0; !found && i < items.length; i++) {
+        if (items[i].submenu) {
+            found = items[i].submenu.getMenuItemById(id)
+        }
+    }
+    return found
+};
 
 function create(breakpointsEditWin) {
 
