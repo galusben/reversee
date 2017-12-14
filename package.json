@@ -20,7 +20,8 @@
     "uglify-es": "^3.0.26",
     "babel-plugin-transform-async-to-generator": "^6.24.1",
     "babel-preset-env": "^1.6.1",
-    "babel-preset-react": "^6.24.1"
+    "babel-preset-react": "^6.26.1",
+    "babel-helper-builder-react-jsx": "^6.26.0"
   },
   "dependencies": {
     "bootstrap": "^3.3.7",
