@@ -76,12 +76,15 @@ function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
 
             console.log('redirect :' + userSettings.redirect);
             if (userSettings.redirect && serverResponse.statusCode.toString().startsWith('30')) {
-                console.log('handling redirects');
                 let location = serverResponse.headers['location'];
-                let url = new URL(location);
-                url.host = originalHost;
-                clientRes.setHeader('location', url.href);
-                responseView.headers['location'] = url.href;
+                console.log('handling redirects, location:' + location);
+                if (location) {
+                    let url = new URL(location);
+                    console.log('originalHost: ' + originalHost);
+                    url.host = originalHost || url.host;
+                    clientRes.setHeader('location', url.href);
+                    responseView.headers['location'] = url.href;
+                }
             }
 
             if (responseView.headers['content-encoding'] === 'gzip') {

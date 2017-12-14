@@ -198,6 +198,4 @@ ipcMain.on('continue', (event, data) => {
         currentViewingBreakpoint = null;
     }
     breakpoint.action({path: data.url, method: data.method, headers: data.headers, body: data.body});
-
 });
-
