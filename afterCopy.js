@@ -18,7 +18,7 @@ module.exports = function (buildPath, electronVersion, platform, arch, callback)
         const filePath = path.join(sourcePath, items[i]);
         if (fs.lstatSync(filePath).isFile() && filePath.endsWith('.js')) {
             const contentBeforeMinify = fs.readFileSync(filePath, 'utf8');
-            const mini = uglifyJS.minify(contentBeforeMinify, { warnings: true,  mangle: {toplevel: true} });
+            const mini = uglifyJS.minify(contentBeforeMinify, { warnings: true, keep_fnames:true, mangle: {toplevel: true} });
             if (mini.error) {
                 return callback(mini.error);
             }
