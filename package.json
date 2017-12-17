@@ -83,6 +83,9 @@
       "electronInstallerDebian": {
         "description": "Reversee - reverse proxy web debugger",
         "productDescription": "Reversee - reverse proxy web debugger"
+      },
+      "electronInstallerDMG" : {
+        "icon": "src/assets/Reversee.icns"
       }
     }
   }

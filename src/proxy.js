@@ -92,7 +92,7 @@ function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
                     if (err) {
                         console.log(err)
                     }
-                    responseView.body = dezipped.toString();
+                    responseView.body = dezipped && dezipped.toString();
                     clientRes.write(responseParams.body);
                     clientRes.end();
                     win.webContents.send('trip-data', trafficView)
