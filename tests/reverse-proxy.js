@@ -181,7 +181,7 @@ describe('proxy is working', function () {
     })
 
 
-    it('proxy is started on https and response interceptor sends custom header', function (done) {
+    it('proxy is started on https and response interceptor sends custom header, and custom body from request context', function (done) {
         process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
         const sslOptions = {
             key: fs.readFileSync(path.join(__dirname, '..', 'src', 'resources', 'localhost.key')),
@@ -200,16 +200,17 @@ describe('proxy is working', function () {
             destPort: destPort,
             listenPort: listenPort,
             listenProtocol: 'https',
-            responseInterceptor: 'responseParams.headers[\'custom\']=\'custom val\''
+            responseInterceptor: 'responseParams.headers[\'custom\']=\'custom val\'; \n responseParams.body = requestParams.path'
         };
 
         app.client.waitUntilWindowLoaded().then(() => {
+
             app.electron.ipcRenderer.send("message-settings", settings);
             setTimeout(() => {
                 https.get({
                     hostname: 'localhost',
                     port: listenPort,
-                    path: '/'
+                    path: '/bla'
                 }, (res) => {
                     if (!res.headers['custom'].should.equal('custom val')) {
                         done(new Error())
@@ -219,7 +220,7 @@ describe('proxy is working', function () {
                         body += data
                     });
                     res.on('end', () => {
-                        if (body.should.equal('got request')) {
+                        if (body.should.equal('/bla')) {
                             done()
                         } else {
                             done(new Error())
@@ -282,6 +283,107 @@ describe('proxy is working', function () {
         })
     })
 
+    it('proxy is started on https and redirect does not have host', function (done) {
+        process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+        const sslOptions = {
+            key: fs.readFileSync(path.join(__dirname, '..', 'src', 'resources', 'localhost.key')),
+            cert: fs.readFileSync(path.join(__dirname, '..', 'src', 'resources', 'localhost.cert'))
+        };
+        var destPort = 16443;
+        var listenPort = 17443;
+        var server = https.createServer(sslOptions, (request, response) => {
+            response.writeHead(302, {location: '/bla/'});
+            response.end('got request');
+        });
+        server.listen(destPort);
+        console.log('server started on https');
+        var settings = {
+            dest: 'localhost',
+            destProtocol: 'https',
+            destPort: destPort,
+            listenPort: listenPort,
+            listenProtocol: 'https'
+        };
+
+        app.client.waitUntilWindowLoaded().then(() => {
+            app.electron.ipcRenderer.send("message-settings", settings);
+            setTimeout(() => {
+                https.get({
+                    hostname: 'localhost',
+                    port: listenPort,
+                    path: '/'
+                }, (res) => {
+                    var body = '';
+                    res.on('data', (data) => {
+                        body += data
+                    });
+                    res.on('end', () => {
+                        if (body.should.equal('got request')
+                            && res.headers.location.should.equal('/bla/')) {
+                            done()
+                        } else {
+                            done(new Error())
+                        }
+                    });
+                }).on('error', (e) => {
+                    console.log('error from get');
+                    done(e);
+                });
+            }, 200)
+        })
+    });
+
+    it('proxy is started on https and redirect rewrite host', function (done) {
+        process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+        const sslOptions = {
+            key: fs.readFileSync(path.join(__dirname, '..', 'src', 'resources', 'localhost.key')),
+            cert: fs.readFileSync(path.join(__dirname, '..', 'src', 'resources', 'localhost.cert'))
+        };
+        var destPort = 17443;
+        var listenPort = 18443;
+        var server = https.createServer(sslOptions, (request, response) => {
+            response.writeHead(302, {location: 'http://bad.host.com/bla/'});
+            response.end('got request');
+        });
+        server.listen(destPort);
+        console.log('server started on https');
+        var settings = {
+            dest: 'localhost',
+            destProtocol: 'https',
+            destPort: destPort,
+            listenPort: listenPort,
+            listenProtocol: 'https'
+        };
+
+        app.client.waitUntilWindowLoaded().then(() => {
+            app.electron.ipcRenderer.send("message-settings", settings);
+            setTimeout(() => {
+                https.get({
+                    hostname: 'localhost',
+                    port: listenPort,
+                    path: '/'
+                }, (res) => {
+                    var body = '';
+                    res.on('data', (data) => {
+                        body += data
+                    });
+                    res.on('end', () => {
+                        if (body.should.equal('got request')
+                            && res.headers.location.should.equal('https://localhost:' + listenPort + '/bla/')) {
+                            done()
+                        } else {
+                            done(new Error())
+                        }
+                    });
+                }).on('error', (e) => {
+                    console.log('error from get');
+                    done(e);
+                });
+            }, 200)
+        })
+    })
+
+
 });
 
-//TODO: test gzip, redirects and request context
+//TODO: test gzip

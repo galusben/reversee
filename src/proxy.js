@@ -79,11 +79,16 @@ function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
                 let location = serverResponse.headers['location'];
                 console.log('handling redirects, location:' + location);
                 if (location) {
-                    let url = new URL(location);
-                    console.log('originalHost: ' + originalHost);
-                    url.host = originalHost || url.host;
-                    clientRes.setHeader('location', url.href);
-                    responseView.headers['location'] = url.href;
+                    try {
+                        let url = new URL(location);
+                        console.log('originalHost: ' + originalHost);
+                        url.host = originalHost || url.host;
+                        url.protocol = userSettings.listenProtocol;
+                        clientRes.setHeader('location', url.href);
+                        responseView.headers['location'] = url.href;
+                    } catch (e) {
+                        console.log(e);
+                    }
                 }
             }
 

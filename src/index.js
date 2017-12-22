@@ -31,7 +31,7 @@ const requestInterceptorEditor = CodeMirror(document.getElementById("request-int
 $(requestInterceptorEditor.getWrapperElement()).hide();
 
 const responseInterceptorEditor = CodeMirror(document.getElementById("response-interceptor"), {
-    value: "/*Response interceptor. Use javascript. \nYou can use responseParams object to access the response data. \ncurrently supported attributes are statusCode and headers\nExample: \nresponseParams.headers['custom']='custom val'*/",
+    value: "/*Response interceptor. Use javascript. \nYou can use responseParams object to access the response data. \ncurrently supported attributes are statusCode, headers and body. Also the requestParams object is available for read \nExample: \nresponseParams.headers['custom']='custom val'*/",
     mode: "javascript",
     lineNumbers: true,
 });
