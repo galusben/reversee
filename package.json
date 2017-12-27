@@ -62,7 +62,7 @@
       },
       "electronPackagerConfig": {
         "dir": "src",
-        "ignore": "tests|.idea|.*iml|docker|Dockerfile|bitbucket-pipelines.yml|afterCopy.js",
+        "ignore": "tests|.idea|.*iml|docker|Dockerfile|bitbucket-pipelines.yml|afterCopy.js|.*build.sh|yarn.lock|.npmrc|start.sh",
         "platform": [
           "linux",
           "win32",

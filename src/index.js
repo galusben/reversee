@@ -20,6 +20,19 @@ function addContextMenu(element, curl) {
     }, false);
 }
 
+function addCopyToClip(element, text) {
+    const menu = new Menu();
+    menu.append(new MenuItem({
+        label: 'Copy To Clipboard', click() {
+            clipboard.writeText(text ? text : '');
+        }
+    }));
+    element.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        menu.popup(remote.getCurrentWindow());
+    }, false);
+}
+
 var proxySet = false;
 var traffic = {};
 
@@ -37,21 +50,43 @@ const responseInterceptorEditor = CodeMirror(document.getElementById("response-i
 });
 $(responseInterceptorEditor.getWrapperElement()).hide();
 
+function format(body, headers) {
+    const contentType = headers['content-type'] || headers['content-type']
+    if (contentType && contentType.includes('application/json')) {
+        try {
+            let parsed = JSON.parse(body);
+            return JSON.stringify(parsed, null, 4);
+        } catch (e) {
+            return body;
+        }
+    }
+    return body;
+}
+
 function setDirection(direction, element) {
     const headersElement = $(`#${direction}-headers`);
     const bodyElement = $(`#${direction}-body`);
+    const formattedBodyElement = $(`#${direction}-body-formatted`);
     headersElement.empty();
     bodyElement.empty();
+    formattedBodyElement.empty();
     let trafficKey = $(element).attr('trafficId');
-    var body = $('<pre>').text(traffic[trafficKey][direction].body);
-    var headersText = '';
     var headersMap = traffic[trafficKey][direction].headers;
+    const bodyText = traffic[trafficKey][direction].body;
+    var body = $('<pre>').text(bodyText);
+    const formattedBody = format(bodyText, headersMap);
+    var formatedBody = $('<pre>').text(formattedBody);
+    var headersText = '';
     for (let key in headersMap) {
         headersText += key + " : " + headersMap[key] + "\n";
     }
     var headers = $('<pre>').text(headersText);
     headersElement.append(headers);
     bodyElement.append(body);
+    formattedBodyElement.append(formatedBody);
+    addCopyToClip(headersElement[0], headersText);
+    addCopyToClip(bodyElement[0], bodyText.toString());
+    addCopyToClip(formattedBodyElement[0], formattedBody.toString());
 }
 
 function rowClicked(element) {
