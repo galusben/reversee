@@ -147,7 +147,8 @@ describe('proxy is working', function () {
             destPort: destPort,
             listenPort: listenPort,
             listenProtocol: 'https',
-            requestInterceptor: 'requestParams.headers[\'custom\']=\'custom val\''
+            requestInterceptor: 'requestParams.headers[\'custom\']=\'custom val\'',
+            interceptRequest: true
         };
 
         app.client.waitUntilWindowLoaded().then(() => {
@@ -200,7 +201,8 @@ describe('proxy is working', function () {
             destPort: destPort,
             listenPort: listenPort,
             listenProtocol: 'https',
-            responseInterceptor: 'responseParams.headers[\'custom\']=\'custom val\'; \n responseParams.body = requestParams.path'
+            responseInterceptor: 'responseParams.headers[\'custom\']=\'custom val\'; \n responseParams.body = requestParams.path',
+            interceptResponse: true
         };
 
         app.client.waitUntilWindowLoaded().then(() => {
@@ -253,7 +255,8 @@ describe('proxy is working', function () {
             destPort: destPort,
             listenPort: listenPort,
             listenProtocol: 'https',
-            responseInterceptor: 'responseParams.body=\'custom val\''
+            responseInterceptor: 'responseParams.body=\'custom val\'',
+            interceptResponse: true
         };
 
         app.client.waitUntilWindowLoaded().then(() => {

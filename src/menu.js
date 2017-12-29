@@ -1,10 +1,9 @@
-const {Menu} = require('electron');
+const {Menu, BrowserWindow} = require('electron');
 const pkg = require('./../package.json');
 
 
 Menu.prototype.getMenuItemById = function (id) {
     const items = this.items;
-    console.log('getMenuItemById');
     let found = items.find(item => item.id === id) || null;
     for (let i = 0; !found && i < items.length; i++) {
         if (items[i].submenu) {
@@ -76,6 +75,13 @@ function create(breakpointsEditWin) {
                     type: 'checkbox',
                     checked: true,
                     id: 'redirects'
+                },
+                {
+                    label: 'Reset Cache',
+                    id: 'reset',
+                    click() {
+                        breakpointsEditWin.webContents.send('reset-cache', '')
+                    }
                 }]
         },
         {

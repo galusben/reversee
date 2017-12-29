@@ -27,7 +27,7 @@ function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
     };
     buildRequestParams(requestParams, userSettings, clientReq);
 
-    if (userSettings.requestInterceptor && userSettings.requestInterceptor.length > 0) {
+    if (userSettings.requestInterceptor && userSettings.interceptRequest) {
         interceptor.interceptRequest(requestParams, userSettings.requestInterceptor);
     }
 
@@ -62,7 +62,7 @@ function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
             responseParams.body = Buffer.concat([responseParams.body, chunk]);
         });
         serverResponse.on('end', () => {
-            if (userSettings.responseInterceptor && userSettings.responseInterceptor.length > 0) {
+            if (userSettings.responseInterceptor && userSettings.interceptResponse) {
                 interceptor.interceptResponse(responseParams, userSettings.responseInterceptor, requestParams);
             }
 

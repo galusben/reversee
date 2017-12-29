@@ -105,9 +105,13 @@ function setProxy() {
         destPort: document.getElementById("destPort").value || (document.getElementById("destProtocol").value == 'http' ? '80' : '443'),
         listenPort: document.getElementById("listenPort").value,
         listenProtocol: document.getElementById("listenProtocol").value,
-        requestInterceptor: $('#intercept-request').is(':checked') ? requestInterceptorEditor.getValue() : '',
-        responseInterceptor: $('#intercept-response').is(':checked') ? responseInterceptorEditor.getValue() : ''
+        requestInterceptor: requestInterceptorEditor.getValue(),
+        responseInterceptor: responseInterceptorEditor.getValue(),
+        interceptRequest: $('#intercept-request').is(':checked'),
+        interceptResponse: $('#intercept-request').is(':checked')
     };
+
+    localStorage.setItem('userSettings', JSON.stringify(settings));
     $('.ng-invalid').removeClass('ng-invalid');
     var validations = [];
     $('.form-control').not("[optional='true']").map(function (index, element) {
@@ -331,4 +335,22 @@ $(window).on('keydown', function (e) {
         }
     }
 
+});
+
+$(document).ready(function(){
+    console.log('ready');
+    localStorage.clear();
+    let settings = JSON.parse(localStorage.getItem('userSettings'));
+    if (settings) {
+        $('#dest').val(settings.dest);
+        $('#destProtocol').val(settings.destProtocol);
+        $('#destPort').val(settings.destPort);
+        $('#listenPort').val(settings.listenPort);
+        if (settings.interceptRequest) {
+            requestInterceptorEditor.setValue(settings.requestInterceptor);
+        }
+        if (settings.interceptResponse) {
+            responseInterceptorEditor.setValue(settings.responseInterceptor);
+        }
+    }
 });
