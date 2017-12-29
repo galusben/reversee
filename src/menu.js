@@ -1,4 +1,4 @@
-const {Menu, BrowserWindow} = require('electron');
+const {Menu} = require('electron');
 const pkg = require('./../package.json');
 
 

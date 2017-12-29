@@ -1,6 +1,6 @@
 {
   "name": "Reversee",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "main": "src/main.js",
   "productName": "Reversee",
   "scripts": {
@@ -42,7 +42,7 @@
   "config": {
     "forge": {
       "s3": {
-        "accessKeyId": "AKIAITPS6745UKR7PWDA",
+        "accessKeyId": "AKIAJEMT3RD4Z5ISHLVQ",
         "bucket": "reverseeapp",
         "public": true
       },
