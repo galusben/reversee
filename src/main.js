@@ -9,6 +9,8 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const nativeImage = require('electron').nativeImage;
+const windowStateKeeper = require('electron-window-state');
+
 
 const proxy = require(path.join(__dirname, 'proxy.js'));
 require('request-to-curl');
@@ -29,8 +31,8 @@ let breakpointsSettings = {};
 let currentViewingBreakpoint = null;
 
 
-let image = nativeImage.createFromPath(path.join(__dirname, 'assets','Reversee.png'));
-const icon =  process.platform === 'linux' ? image : null;
+let image = nativeImage.createFromPath(path.join(__dirname, 'assets', 'Reversee.png'));
+const icon = process.platform === 'linux' ? image : null;
 
 function createBreakpointWin() {
     breakpointsEditWin = new BrowserWindow({width: 800, height: 600, icon: icon});
@@ -50,12 +52,32 @@ function createBreakpointWin() {
 }
 
 function createWindow() {
-    win = new BrowserWindow({width: 1000, height: 600, icon: icon});
+
+    let mainWindowState = windowStateKeeper({
+        defaultWidth: 1000,
+        defaultHeight: 600
+    });
+
+    win = new BrowserWindow({
+        'x': mainWindowState.x,
+        'y': mainWindowState.y,
+        'width': mainWindowState.width,
+        'height': mainWindowState.height,
+        icon: icon,
+        show: false
+    });
+    mainWindowState.manage(win);
+
     win.loadURL(url.format({
         pathname: path.join(__dirname, 'index.html'),
         protocol: 'file:',
         slashes: true
     }));
+
+    win.on('ready-to-show', function () {
+        win.show();
+        win.focus();
+    });
 
     win.on('closed', () => {
         win = null;

@@ -339,7 +339,6 @@ $(window).on('keydown', function (e) {
 
 $(document).ready(function(){
     console.log('ready');
-    localStorage.clear();
     let settings = JSON.parse(localStorage.getItem('userSettings'));
     if (settings) {
         $('#dest').val(settings.dest);
