@@ -1,6 +1,8 @@
 const {ipcRenderer, remote, clipboard} = require('electron');
 const {Menu, MenuItem} = remote;
-
+var beautify_js = require('js-beautify');
+var beautify_css = require('js-beautify').css;
+var beautify_html = require('js-beautify').html;
 
 function addContextMenu(element, curl) {
     const menu = new Menu();
@@ -20,14 +22,14 @@ function addContextMenu(element, curl) {
     }, false);
 }
 
-function addCopyToClip(element, text) {
+function addCopyToClipInternalText(element) {
     const menu = new Menu();
     menu.append(new MenuItem({
         label: 'Copy To Clipboard', click() {
-            clipboard.writeText(text ? text : '');
+            clipboard.writeText(element.text());
         }
     }));
-    element.addEventListener('contextmenu', (e) => {
+    element[0].addEventListener('contextmenu', (e) => {
         e.preventDefault();
         menu.popup(remote.getCurrentWindow());
     }, false);
@@ -51,12 +53,40 @@ const responseInterceptorEditor = CodeMirror(document.getElementById("response-i
 $(responseInterceptorEditor.getWrapperElement()).hide();
 
 function format(body, headers) {
-    const contentType = headers['content-type'] || headers['content-type']
-    if (contentType && contentType.includes('application/json')) {
+    if (!body) {
+        return '';
+    }
+    body = body.toString()
+    const contentType = headers['content-type'] || headers['Content-Type']
+    if (contentType && contentType.includes('json')) {
         try {
             let parsed = JSON.parse(body);
             return JSON.stringify(parsed, null, 4);
         } catch (e) {
+            return body;
+        }
+    }
+    else if (contentType && (contentType.includes('html') || contentType.includes('xml'))) {
+        try {
+            return beautify_html(body, {indent_size: 4});
+        } catch (e) {
+            console.log(e);
+            return body;
+        }
+    }
+    else if (contentType && contentType.includes('css')) {
+        try {
+            return beautify_css(body, {indent_size: 4});
+        } catch (e) {
+            console.log(e);
+            return body;
+        }
+    }
+    else if (contentType && contentType.includes('javascript')) {
+        try {
+            return beautify_js(body, {indent_size: 4});
+        } catch (e) {
+            console.log(e);
             return body;
         }
     }
@@ -84,9 +114,9 @@ function setDirection(direction, element) {
     headersElement.append(headers);
     bodyElement.append(body);
     formattedBodyElement.append(formatedBody);
-    addCopyToClip(headersElement[0], headersText);
-    addCopyToClip(bodyElement[0], bodyText.toString());
-    addCopyToClip(formattedBodyElement[0], formattedBody.toString());
+    // addCopyToClipInternalText(headersElement, headersText);
+    // addCopyToClipInternalText(bodyElement, bodyText.toString());
+    // addCopyToClipInternalText(formattedBodyElement, formattedBody.toString());
 }
 
 function rowClicked(element) {
@@ -108,7 +138,7 @@ function setProxy() {
         requestInterceptor: requestInterceptorEditor.getValue(),
         responseInterceptor: responseInterceptorEditor.getValue(),
         interceptRequest: $('#intercept-request').is(':checked'),
-        interceptResponse: $('#intercept-request').is(':checked')
+        interceptResponse: $('#intercept-response').is(':checked')
     };
 
     localStorage.setItem('userSettings', JSON.stringify(settings));
@@ -337,7 +367,7 @@ $(window).on('keydown', function (e) {
 
 });
 
-$(document).ready(function(){
+$(document).ready(() => {
     console.log('ready');
     let settings = JSON.parse(localStorage.getItem('userSettings'));
     if (settings) {
@@ -345,11 +375,27 @@ $(document).ready(function(){
         $('#destProtocol').val(settings.destProtocol);
         $('#destPort').val(settings.destPort);
         $('#listenPort').val(settings.listenPort);
-        if (settings.interceptRequest) {
-            requestInterceptorEditor.setValue(settings.requestInterceptor);
-        }
-        if (settings.interceptResponse) {
-            responseInterceptorEditor.setValue(settings.responseInterceptor);
-        }
+        $('#intercept-request')[0].checked = settings.interceptRequest;
+        $('#intercept-response')[0].checked = settings.interceptResponse;
+        requestInterceptorEditor.setValue(settings.requestInterceptor);
+        responseInterceptorEditor.setValue(settings.responseInterceptor);
     }
+    registerCopyToClip();
+
 });
+
+function registerCopyToClip(){
+    let headersElement = $(`#request-headers`);
+    let bodyElement = $(`#request-body`);
+    let formattedBodyElement = $(`#request-body-formatted`);
+    addCopyToClipInternalText(headersElement);
+    addCopyToClipInternalText(bodyElement);
+    addCopyToClipInternalText(formattedBodyElement);
+
+    headersElement = $(`#response-headers`);
+    bodyElement = $(`#response-body`);
+    formattedBodyElement = $(`#response-body-formatted`);
+    addCopyToClipInternalText(headersElement);
+    addCopyToClipInternalText(bodyElement);
+    addCopyToClipInternalText(formattedBodyElement);
+}

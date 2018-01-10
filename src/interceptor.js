@@ -9,8 +9,6 @@ function intercept(requestParams, responseParams, interceptor) {
         var script = new vm.Script(interceptor);
         var context = new vm.createContext(sandbox);
         script.runInContext(context);
-        console.log('after interception request: ' + JSON.stringify(sandbox['requestParams']));
-        console.log('after interception response: ' + responseParams && JSON.stringify(sandbox['responseParams']));
     } catch (e) {
         console.log('error' + e);
     }
