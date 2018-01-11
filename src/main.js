@@ -125,7 +125,10 @@ var generateId = function generateId() {
 function startProxy(settings) {
     console.log("starting proxy to: " + settings.dest);
     const redirect = menu.getMenuInstance().getMenuItemById('redirects');
+    const hostRewrite = menu.getMenuInstance().getMenuItemById('host');
     settings.redirect = redirect.checked;
+    settings.hostRewrite = hostRewrite.checked;
+    console.log('hostRewrite ' + settings.hostRewrite);
     const handleRequestWrapper = (request, response) => {
 
         const chunks = [];

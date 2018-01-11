@@ -77,6 +77,12 @@ function create(breakpointsEditWin) {
                     id: 'redirects'
                 },
                 {
+                    label: 'Rewrite host',
+                    type: 'checkbox',
+                    checked: true,
+                    id: 'host'
+                },
+                {
                     label: 'Reset Cache',
                     id: 'reset',
                     click() {

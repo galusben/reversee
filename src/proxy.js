@@ -46,7 +46,9 @@ function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
 
     const originalHost = requestView.headers.host;
     console.log('originalHost: ' + originalHost);
-    requestView.headers.host = userSettings.dest + ":" + userSettings.destPort;
+    if (userSettings.hostRewrite) {
+        requestView.headers.host = userSettings.dest + ":" + userSettings.destPort;
+    }
 
     var connector = getServerProtocol(userSettings.destProtocol).request(requestParams, (serverResponse) => {
         requestView.curl = connector.toCurl();
