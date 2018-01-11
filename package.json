@@ -44,7 +44,7 @@
   "config": {
     "forge": {
       "s3": {
-        "accessKeyId": "AKIAIBGOBYPO2TIZVCIA",
+        "accessKeyId": "AKIAI63AWXJ56LDZPX5Q",
         "bucket": "reverseeapp",
         "public": true
       },
