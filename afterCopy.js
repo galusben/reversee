@@ -3,12 +3,10 @@ const fs = require("fs");
 const path = require("path");
 console.log("Loading custom after copy");
 
-module.exports = function (buildPath, electronVersion, platform, arch, callback) {
+module.exports = function (context) {
+    console.log(context);
+    const buildPath = context.appOutDir;
     console.log("Running custom after copy");
-    console.log(buildPath);
-    console.log(electronVersion);
-    console.log(platform);
-    console.log(arch);
     const sourcePath = path.join(buildPath, 'src');
     const items = fs.readdirSync(sourcePath);
 
@@ -25,7 +23,4 @@ module.exports = function (buildPath, electronVersion, platform, arch, callback)
             fs.writeFileSync(filePath, mini.code)
         }
     }
-
-
-    return callback();
 };

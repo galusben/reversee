@@ -10,11 +10,15 @@ const https = require('https');
 const fs = require('fs');
 const nativeImage = require('electron').nativeImage;
 const windowStateKeeper = require('electron-window-state');
-
-
+const {autoUpdater} = require("electron-updater");
 const proxy = require(path.join(__dirname, 'proxy.js'));
 require('request-to-curl');
 const menu = require(path.join(__dirname, 'menu.js'));
+autoUpdater.logger = require("electron-log");
+autoUpdater.logger.transports.file.level = "info";
+
+autoUpdater.setFeedURL("https://download.reversee.ninja");
+autoUpdater.checkForUpdatesAndNotify();
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
