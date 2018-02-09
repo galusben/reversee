@@ -54,7 +54,11 @@
     "publish": {
       "provider": "s3",
       "bucket": "reverseeapp"
-    }
+    },
+    "files" : [
+      "!build-scripts",
+      "!tests"
+    ]
   },
   "author": {
     "name": "Gal Ben Ami",
