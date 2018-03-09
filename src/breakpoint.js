@@ -42,7 +42,3 @@ ipcRenderer.on('breaking', (event, arg) => {
     $('#body').val(arg.body);
     breakPoint = arg;
 });
-
-ipcRenderer.on('reset-cache', (event, arg) => {
-    localStorage.clear()
-});

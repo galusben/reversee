@@ -399,3 +399,8 @@ function registerCopyToClip(){
     addCopyToClipInternalText(bodyElement);
     addCopyToClipInternalText(formattedBodyElement);
 }
+
+
+ipcRenderer.on('reset-cache', (event, arg) => {
+    localStorage.clear()
+});

@@ -13,7 +13,7 @@ Menu.prototype.getMenuItemById = function (id) {
     return found
 };
 
-function create(breakpointsEditWin) {
+function create(breakpointsEditWin, main) {
 
     const template = [
         {
@@ -86,7 +86,7 @@ function create(breakpointsEditWin) {
                     label: 'Reset Cache',
                     id: 'reset',
                     click() {
-                        breakpointsEditWin.webContents.send('reset-cache', '')
+                        main.webContents.send('reset-cache', {})
                     }
                 }]
         },

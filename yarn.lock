@@ -1284,6 +1284,16 @@ concat-stream@1.6.0:
     readable-stream "^2.2.2"
     typedarray "^0.0.6"
 
+conf@^1.0.0:
+  version "1.4.0"
+  resolved "https://registry.yarnpkg.com/conf/-/conf-1.4.0.tgz#1ea66c9d7a9b601674a5bb9d2b8dc3c726625e67"
+  dependencies:
+    dot-prop "^4.1.0"
+    env-paths "^1.0.0"
+    make-dir "^1.0.0"
+    pkg-up "^2.0.0"
+    write-file-atomic "^2.3.0"
+
 config-chain@~1.1.5:
   version "1.1.11"
   resolved "https://registry.yarnpkg.com/config-chain/-/config-chain-1.1.11.tgz#aba09747dfbe4c3e70e766a6e41586e1859fc6f2"
@@ -1790,6 +1800,12 @@ electron-compilers@*:
     toutsuite "^0.6.0"
     typescript ">=1.6"
 
+electron-config@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/electron-config/-/electron-config-1.0.0.tgz#069d044cc794f04784ae72f12916725d3c8c39af"
+  dependencies:
+    conf "^1.0.0"
+
 electron-download-tf@4.3.4:
   version "4.3.4"
   resolved "https://registry.yarnpkg.com/electron-download-tf/-/electron-download-tf-4.3.4.tgz#b03740b2885aa2ad3f8784fae74df427f66d5165"
@@ -1831,6 +1847,13 @@ electron-download@^4.1.0:
     rc "^1.1.2"
     semver "^5.3.0"
     sumchecker "^2.0.1"
+
+electron-google-analytics@^0.0.24:
+  version "0.0.24"
+  resolved "https://registry.yarnpkg.com/electron-google-analytics/-/electron-google-analytics-0.0.24.tgz#cc2d0e7a18e9c4c52bda64c8115c70aab80bacdc"
+  dependencies:
+    request "^2.83.0"
+    uuid "^3.1.0"
 
 electron-is-dev@^0.3.0:
   version "0.3.0"
@@ -3388,6 +3411,12 @@ pinkie@^2.0.0:
   version "2.0.4"
   resolved "https://registry.yarnpkg.com/pinkie/-/pinkie-2.0.4.tgz#72556b80cfa0d48a974e80e77248e80ed4f7f870"
 
+pkg-up@^2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/pkg-up/-/pkg-up-2.0.0.tgz#c819ac728059a461cab1c3889a2be3c49a004d7f"
+  dependencies:
+    find-up "^2.1.0"
+
 plist@^2.1.0:
   version "2.1.0"
   resolved "https://registry.yarnpkg.com/plist/-/plist-2.1.0.tgz#57ccdb7a0821df21831217a3cad54e3e146a1025"
@@ -3879,7 +3908,7 @@ request@2.81.0:
     tunnel-agent "^0.6.0"
     uuid "^3.0.0"
 
-request@^2.45.0, request@^2.55.0, request@^2.81.0, request@~2.83.0:
+request@^2.45.0, request@^2.55.0, request@^2.81.0, request@^2.83.0, request@~2.83.0:
   version "2.83.0"
   resolved "https://registry.yarnpkg.com/request/-/request-2.83.0.tgz#ca0b65da02ed62935887808e6f510381034e3356"
   dependencies:
@@ -4602,6 +4631,10 @@ util-deprecate@~1.0.1:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/util-deprecate/-/util-deprecate-1.0.2.tgz#450d4dc9fa70de732762fbd2d4a28981419a0ccf"
 
+uuid4@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/uuid4/-/uuid4-1.0.0.tgz#813aaeaf11ea2f68909c5ad57d894f83202d6720"
+
 uuid@3.1.0:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/uuid/-/uuid-3.1.0.tgz#3dd3d3e790abc24d7b0d3a034ffababe28ebbc04"
@@ -4763,7 +4796,7 @@ wrappy@1:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/wrappy/-/wrappy-1.0.2.tgz#b5243d8f3ec1aa35f1364605bc0d1036e30ab69f"
 
-write-file-atomic@^2.0.0:
+write-file-atomic@^2.0.0, write-file-atomic@^2.3.0:
   version "2.3.0"
   resolved "https://registry.yarnpkg.com/write-file-atomic/-/write-file-atomic-2.3.0.tgz#1ff61575c2e2a4e8e510d6fa4e243cce183999ab"
   dependencies:

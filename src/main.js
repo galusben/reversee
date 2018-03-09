@@ -1,7 +1,8 @@
 const {app, BrowserWindow, ipcMain} = require('electron');
 if (require('electron-squirrel-startup')) {
     app.quit()
-};
+}
+;
 
 const path = require('path');
 const url = require('url');
@@ -14,8 +15,11 @@ const {autoUpdater} = require("electron-updater");
 const proxy = require(path.join(__dirname, 'proxy.js'));
 require('request-to-curl');
 const menu = require(path.join(__dirname, 'menu.js'));
+const stats = require(path.join(__dirname, 'reportingStats.js'));
+
 autoUpdater.logger = require("electron-log");
 autoUpdater.logger.transports.file.level = "info";
+
 
 autoUpdater.setFeedURL("https://download.reversee.ninja");
 autoUpdater.checkForUpdatesAndNotify();
@@ -41,7 +45,7 @@ const icon = process.platform === 'linux' ? image : null;
 function createBreakpointWin() {
     breakpointsEditWin = new BrowserWindow({width: 800, height: 600, icon: icon});
     breakpointsEditWin.hide();
-    menu.create(breakpointsEditWin);
+    menu.create(breakpointsEditWin, win);
     breakpointsEditWin.loadURL(url.format({
         pathname: path.join(__dirname, 'breakPointsEdit.html'),
         protocol: 'file:',
@@ -56,7 +60,7 @@ function createBreakpointWin() {
 }
 
 function createWindow() {
-
+    stats.reportAppLoaded();
     let mainWindowState = windowStateKeeper({
         defaultWidth: 1000,
         defaultHeight: 600
@@ -196,7 +200,7 @@ function startProxy(settings) {
     server.listen(settings.listenPort, function () {
         console.log("Server listening on: %s://localhost:%s", settings.listenProtocol, settings.listenPort);
     });
-
+    stats.reportProxyStarted();
 }
 
 ipcMain.on('message-settings', (event, settings) => {
@@ -208,6 +212,7 @@ ipcMain.on('stop-proxy', (event, settings) => {
         server.close();
         server = null;
     }
+    stats.reportProxyStopped();
 });
 
 ipcMain.on('breakpoints-settings', (event, data) => {
