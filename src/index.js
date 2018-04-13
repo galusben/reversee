@@ -38,25 +38,14 @@ function addCopyToClipInternalText(element) {
 var proxySet = false;
 var traffic = {};
 
-const requestInterceptorEditor = CodeMirror(document.getElementById("request-interceptor"), {
-    value: "/*Request interceptor. Use javascript. \nYou can use requestParams object to access the request data. \nfollowing attributes are available for manipulation: host, path, method, port, headers and body\nExample: \nrequestParams.headers['custom']='custom val'*/",
-    mode: "javascript",
-    lineNumbers: true,
-});
-$(requestInterceptorEditor.getWrapperElement()).hide();
-
-const responseInterceptorEditor = CodeMirror(document.getElementById("response-interceptor"), {
-    value: "/*Response interceptor. Use javascript. \nYou can use responseParams object to access the response data. \ncurrently supported attributes are statusCode, headers and body. Also the requestParams object is available for read \nExample: \nresponseParams.headers['custom']='custom val'*/",
-    mode: "javascript",
-    lineNumbers: true,
-});
-$(responseInterceptorEditor.getWrapperElement()).hide();
+let requestInterceptorEditor;
+let responseInterceptorEditor;
 
 function format(body, headers) {
     if (!body) {
         return '';
     }
-    body = body.toString()
+    body = body.toString();
     const contentType = headers['content-type'] || headers['Content-Type']
     if (contentType && contentType.includes('json')) {
         try {
@@ -114,9 +103,6 @@ function setDirection(direction, element) {
     headersElement.append(headers);
     bodyElement.append(body);
     formattedBodyElement.append(formatedBody);
-    // addCopyToClipInternalText(headersElement, headersText);
-    // addCopyToClipInternalText(bodyElement, bodyText.toString());
-    // addCopyToClipInternalText(formattedBodyElement, formattedBody.toString());
 }
 
 function rowClicked(element) {
@@ -129,7 +115,7 @@ function rowClicked(element) {
 }
 
 function setProxy() {
-    var settings = {
+    let settings = {
         dest: document.getElementById("dest").value,
         destProtocol: document.getElementById("destProtocol").value,
         destPort: document.getElementById("destPort").value || (document.getElementById("destProtocol").value == 'http' ? '80' : '443'),
@@ -140,7 +126,7 @@ function setProxy() {
         interceptRequest: $('#intercept-request').is(':checked'),
         interceptResponse: $('#intercept-response').is(':checked')
     };
-
+    console.log('userSettings: ' + JSON.stringify(settings));
     localStorage.setItem('userSettings', JSON.stringify(settings));
     $('.ng-invalid').removeClass('ng-invalid');
     var validations = [];
@@ -367,9 +353,12 @@ $(window).on('keydown', function (e) {
 
 });
 
-$(document).ready(() => {
-    console.log('ready');
-    let settings = JSON.parse(localStorage.getItem('userSettings'));
+function readFromLocalStorage() {
+    const userSettingsRaw = localStorage.getItem('userSettings');
+    if (!userSettingsRaw) {
+        return;
+    }
+    let settings = JSON.parse(userSettingsRaw);
     if (settings) {
         $('#dest').val(settings.dest);
         $('#destProtocol').val(settings.destProtocol);
@@ -377,11 +366,34 @@ $(document).ready(() => {
         $('#listenPort').val(settings.listenPort);
         $('#intercept-request')[0].checked = settings.interceptRequest;
         $('#intercept-response')[0].checked = settings.interceptResponse;
-        requestInterceptorEditor.setValue(settings.requestInterceptor);
-        responseInterceptorEditor.setValue(settings.responseInterceptor);
+        return settings;
     }
-    registerCopyToClip();
+}
 
+function setupInterceptors(settings) {
+    let defaultRequestVal = "/*Request interceptor. Use javascript. \nYou can use requestParams object to access the request data. \nfollowing attributes are available for manipulation: host, path, method, port, headers and body\nExample: \nrequestParams.headers['custom']='custom val'*/"
+    let defaultResponseVal = "/*Response interceptor. Use javascript. \nYou can use responseParams object to access the response data. \ncurrently supported attributes are statusCode, headers and body. Also the requestParams object is available for read \nExample: \nresponseParams.headers['custom']='custom val'*/"
+    requestInterceptorEditor = CodeMirror(document.getElementById("request-interceptor"), {
+        value: settings && settings.requestInterceptor ? settings.requestInterceptor : defaultRequestVal,
+        mode: "javascript",
+        lineNumbers: true,
+    });
+    $(requestInterceptorEditor.getWrapperElement()).hide();
+
+    responseInterceptorEditor = CodeMirror(document.getElementById("response-interceptor"), {
+        value: settings && settings.responseInterceptor ? settings.responseInterceptor : defaultResponseVal,
+        mode: "javascript",
+        lineNumbers: true,
+    });
+    $(responseInterceptorEditor.getWrapperElement()).hide();
+
+}
+
+$(document).ready(() => {
+    console.log('ready!!!!');
+    let settings = readFromLocalStorage();
+    setupInterceptors(settings);
+    registerCopyToClip();
 });
 
 function registerCopyToClip(){
