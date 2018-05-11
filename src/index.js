@@ -35,6 +35,20 @@ function addCopyToClipInternalText(element) {
     }, false);
 }
 
+
+function addCopyToClipInternalTextCodeMirror(element, cmKey) {
+    const menu = new Menu();
+    menu.append(new MenuItem({
+        label: 'Copy To Clipboard', click() {
+            clipboard.writeText(cm[cmKey].getValue());
+        }
+    }));
+    element[0].addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        menu.popup(remote.getCurrentWindow());
+    }, false);
+}
+
 var proxySet = false;
 var traffic = {};
 
@@ -81,6 +95,26 @@ function format(body, headers) {
     }
     return body;
 }
+const cm ={};
+
+function calcMode(headersMap) {
+    let contentType = headersMap['content-type'] || headersMap['Content-Type'];
+    if (contentType && contentType.length > 0) {
+        contentType = contentType.split(';')[0]
+    }
+    return contentType;
+}
+
+function createReadOnlyEditor(element, formattedBodyText, mode) {
+    return CodeMirror(element[0], {
+        value: formattedBodyText,
+        lineNumbers: true,
+        readOnly: true,
+        extraKeys: {"Cmd-F": "findPersistent"},
+        mode: mode,
+        cursorBlinkRate: -1
+    });
+}
 
 function setDirection(direction, element) {
     const headersElement = $(`#${direction}-headers`);
@@ -91,19 +125,24 @@ function setDirection(direction, element) {
     formattedBodyElement.empty();
     let trafficKey = $(element).attr('trafficId');
     var headersMap = traffic[trafficKey][direction].headers;
-    const bodyText = traffic[trafficKey][direction].body;
-    var body = $('<pre>').text(bodyText);
-    const formattedBody = format(bodyText, headersMap);
-    var formatedBody = $('<pre>').text(formattedBody);
+    const bodyText = traffic[trafficKey][direction].body || traffic[trafficKey][direction].body;
+    const formattedBodyText = format(bodyText, headersMap);
+    const mode = calcMode(headersMap);
     var headersText = '';
     for (let key in headersMap) {
         headersText += key + " : " + headersMap[key] + "\n";
     }
     var headers = $('<pre>').text(headersText);
     headersElement.append(headers);
-    bodyElement.append(body);
-    formattedBodyElement.append(formatedBody);
+    cm[direction + '-formatted'] = createReadOnlyEditor(formattedBodyElement, formattedBodyText, mode);
+    cm[direction + '-plain'] = createReadOnlyEditor(bodyElement, bodyText && bodyText.toString(), null);
 }
+
+$(".nav-tabs").on("shown.bs.tab", function(event){
+    for (let k in cm) {
+        cm[k].refresh()
+    }
+});
 
 function rowClicked(element) {
     setDirection('response', element);
@@ -377,14 +416,18 @@ function setupInterceptors(settings) {
         value: settings && settings.requestInterceptor ? settings.requestInterceptor : defaultRequestVal,
         mode: "javascript",
         lineNumbers: true,
+        extraKeys: {"Cmd-F": "findPersistent"}
     });
+    requestInterceptorEditor.setSize(840, 100);
     $(requestInterceptorEditor.getWrapperElement()).hide();
 
     responseInterceptorEditor = CodeMirror(document.getElementById("response-interceptor"), {
         value: settings && settings.responseInterceptor ? settings.responseInterceptor : defaultResponseVal,
         mode: "javascript",
         lineNumbers: true,
+        extraKeys: {"Cmd-F": "findPersistent"}
     });
+    responseInterceptorEditor.setSize(840, 100);
     $(responseInterceptorEditor.getWrapperElement()).hide();
 
 }
@@ -401,15 +444,15 @@ function registerCopyToClip(){
     let bodyElement = $(`#request-body`);
     let formattedBodyElement = $(`#request-body-formatted`);
     addCopyToClipInternalText(headersElement);
-    addCopyToClipInternalText(bodyElement);
-    addCopyToClipInternalText(formattedBodyElement);
+    addCopyToClipInternalTextCodeMirror(formattedBodyElement, 'request-formatted');
+    addCopyToClipInternalTextCodeMirror(bodyElement, 'request-plain');
 
     headersElement = $(`#response-headers`);
     bodyElement = $(`#response-body`);
     formattedBodyElement = $(`#response-body-formatted`);
     addCopyToClipInternalText(headersElement);
-    addCopyToClipInternalText(bodyElement);
-    addCopyToClipInternalText(formattedBodyElement);
+    addCopyToClipInternalTextCodeMirror(formattedBodyElement, 'response-formatted');
+    addCopyToClipInternalTextCodeMirror(bodyElement, 'response-plain');
 }
 
 

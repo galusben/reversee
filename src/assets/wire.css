@@ -6,11 +6,6 @@
     border: 1px solid red;
 }
 
-.CodeMirror {
-    width: 840px;
-    height: 100px;
-}
-
 .table-action {
     cursor: pointer;
     margin-left: 6px;
