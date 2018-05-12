@@ -1,0 +1,3 @@
+build-scripts/reversee/**
+dist/**
+node_modules/**
