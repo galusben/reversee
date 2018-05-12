@@ -110,7 +110,7 @@ function createReadOnlyEditor(element, formattedBodyText, mode) {
         value: formattedBodyText,
         lineNumbers: true,
         readOnly: true,
-        extraKeys: {"Cmd-F": "findPersistent"},
+        extraKeys: {"Cmd-F": "findPersistent", "Ctrl-F": "findPersistent"},
         mode: mode,
         cursorBlinkRate: -1
     });

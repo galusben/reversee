@@ -68,6 +68,10 @@ abbrev@1.0.x:
   version "1.0.9"
   resolved "https://registry.yarnpkg.com/abbrev/-/abbrev-1.0.9.tgz#91b4792588a7738c25f35dd6f63752a2f8776135"
 
+about-window@^1.11.0:
+  version "1.11.0"
+  resolved "https://registry.yarnpkg.com/about-window/-/about-window-1.11.0.tgz#d246838732d4119ce5a40c6b03bf5f6f292b3dc5"
+
 acorn-globals@^1.0.3, acorn-globals@^1.0.4:
   version "1.0.9"
   resolved "https://registry.yarnpkg.com/acorn-globals/-/acorn-globals-1.0.9.tgz#55bb5e98691507b74579d0513413217c380c54cf"

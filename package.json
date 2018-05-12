@@ -3,6 +3,7 @@
   "version": "0.0.13",
   "main": "src/main.js",
   "productName": "Reversee",
+  "description": "Reverse Proxy Web Debugger",
   "scripts": {
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
@@ -23,6 +24,7 @@
     "uglify-es": "^3.3.9"
   },
   "dependencies": {
+    "about-window": "^1.11.0",
     "bootstrap": "^3.3.7",
     "bootstrap-select": "^1.12.2",
     "codemirror": "^5.25.2",

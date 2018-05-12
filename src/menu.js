@@ -1,6 +1,7 @@
 const {Menu} = require('electron');
 const pkg = require('./../package.json');
-
+const about = require('about-window').default;
+const join = require('path').join;
 
 Menu.prototype.getMenuItemById = function (id) {
     const items = this.items;
@@ -144,7 +145,18 @@ function create(breakpointsEditWin, main) {
                 {
                     label: 'Learn More',
                     click () {
-                        require('electron').shell.openExternal('http://electron.atom.io')
+                        require('electron').shell.openExternal('https://reversee.ninja')
+                    }
+                },
+                {
+                    role: 'about',
+                    click: function () { 
+                        about(
+                            {
+                                icon_path: join(__dirname, 'assets','Reversee.png'), 
+                                css_path: join(__dirname, 'assets','about-window.css')
+                            }
+                        )
                     }
                 }
             ]
