@@ -151,12 +151,18 @@ function create(breakpointsEditWin, main) {
                 {
                     role: 'about',
                     click: function () { 
-                        about(
+                        const aboutWin = about(
                             {
                                 icon_path: join(__dirname, 'assets','Reversee.png'), 
-                                css_path: join(__dirname, 'assets','about-window.css')
+                                css_path: join(__dirname, 'assets','about-window.css'),
+                                win_options: {show: false}
                             }
                         )
+                        aboutWin.on('ready-to-show', function () {
+                            aboutWin.show();
+                            aboutWin.focus();
+                        });
+                        
                     }
                 }
             ]
