@@ -16,6 +16,7 @@ const proxy = require(path.join(__dirname, 'proxy.js'));
 require('request-to-curl');
 const menu = require(path.join(__dirname, 'menu.js'));
 const stats = require(path.join(__dirname, 'reportingStats.js'));
+require('http-shutdown').extend();
 
 autoUpdater.logger = require("electron-log");
 autoUpdater.logger.transports.file.level = "info";
@@ -189,9 +190,9 @@ function startProxy(settings) {
 
     };
     if (settings.listenProtocol == 'http') {
-        server = http.createServer(handleRequestWrapper);
+        server = http.createServer(handleRequestWrapper).withShutdown();
     } else {
-        server = https.createServer(sslOptions, handleRequestWrapper);
+        server = https.createServer(sslOptions, handleRequestWrapper).withShutdown();
     }
     server.on('error', (err) => {
         console.log("error on server!!!", err);
@@ -209,8 +210,10 @@ ipcMain.on('message-settings', (event, settings) => {
 
 ipcMain.on('stop-proxy', (event, settings) => {
     if (server) {
-        server.close();
-        server = null;
+        console.log('shutting down server')
+        server.shutdown(function() {
+            server = null;
+        });
     }
     stats.reportProxyStopped();
 });

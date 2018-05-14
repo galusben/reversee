@@ -8,7 +8,7 @@
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
     "release": "build",
-    "test": "./node_modules/mocha/bin/mocha tests/ --timeout 5000 -R spec",
+    "test": "./node_modules/.bin/mocha tests/ --timeout 5000 -R spec",
     "start": "./node_modules/.bin/electron src/main.js dev"
   },
   "devDependencies": {
@@ -36,6 +36,7 @@
     "electron-updater": "^2.20.1",
     "electron-window-state": "^4.1.1",
     "font-awesome": "^4.7.0",
+    "http-shutdown": "^1.2.0",
     "jquery": "^3.1.0",
     "js-beautify": "^1.7.5",
     "lodash": "^4.17.4",
