@@ -105,15 +105,17 @@ function calcMode(headersMap) {
     return contentType;
 }
 
-function createReadOnlyEditor(element, formattedBodyText, mode) {
-    return CodeMirror(element[0], {
-        value: formattedBodyText,
+function createReadOnlyEditor(element, text, mode) {
+    let cm = CodeMirror(element[0], {
+        value: text,
         lineNumbers: true,
         readOnly: true,
         extraKeys: {"Cmd-F": "findPersistent", "Ctrl-F": "findPersistent"},
         mode: mode,
-        cursorBlinkRate: -1
+        cursorBlinkRate: -1,
+        viewportMargin: Infinity
     });
+    cm.setSize(null, 'auto')
 }
 
 function setDirection(direction, element) {

@@ -1,4 +1,4 @@
 build-scripts/reversee/**
 dist/**
 node_modules/**
-settings.json
+.vscode/**
