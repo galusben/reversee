@@ -115,7 +115,8 @@ function createReadOnlyEditor(element, text, mode) {
         cursorBlinkRate: -1,
         viewportMargin: Infinity
     });
-    cm.setSize(null, 'auto')
+    cm.setSize(null, 'auto');
+    return cm;
 }
 
 function setDirection(direction, element) {
