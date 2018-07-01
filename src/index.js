@@ -436,7 +436,9 @@ function setupInterceptors(settings) {
 }
 
 $(document).ready(() => {
-    console.log('ready!!!!');
+    $("[data-toggle=tooltip]").tooltip({
+        placement: $(this).data("placement") || 'bottom'
+    });    
     let settings = readFromLocalStorage();
     setupInterceptors(settings);
     registerCopyToClip();

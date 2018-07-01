@@ -37,20 +37,20 @@
                 <li>
                     <form class="navbar-form navbar-left" role="search">
                         <div class="form-group">
-                            <select class="form-control" id="listenProtocol">
+                            <select class="form-control" id="listenProtocol" data-toggle="tooltip" data-placement="bottom" title="Protocol for Reversee to listen to, what protocol your client talks?">
                                 <option value="http">HTTP</option>
                                 <option value="https">HTTPS</option>
                             </select>
-                            <input type="text" id="listenPort" class="form-control" placeholder="Listen Port"/>
+                            <input type="text" id="listenPort" class="form-control" placeholder="Listen Port" data-toggle="tooltip" data-placement="bottom" title="Port for Reversee to listen to, select a free high port recommended larger than 1023"/>
                             <span><img src="assets/arrow-left.png" height="30"><img src="assets/arrow-right.png"
                                                                                     height="30"></span>
-                            <select class="form-control" id="destProtocol">
+                            <select class="form-control" id="destProtocol" data-toggle="tooltip" data-placement="bottom" title="The protocol the server listen to">
                                 <option value="http">HTTP</option>
                                 <option value="https">HTTPS</option>
                             </select>
-                            <input type="text" id="dest" class="form-control" placeholder="Destination Host"/>
+                            <input type="text" id="dest" class="form-control" placeholder="Destination Host" data-toggle="tooltip" data-placement="bottom" title="The hostname of the server. Example: github.com"/>
                             <input type="text" id="destPort" class="form-control" placeholder="Destination Port"
-                                   optional="true"/>
+                                   optional="true" data-toggle="tooltip" data-placement="bottom" title="Port the server listen to"/>
                             <div class="btn-group btn-toggle" id="btn-group">
                                 <button class="btn btn-small btn-default">ON</button>
                                 <button class="btn btn-small btn-success active">OFF</button>
