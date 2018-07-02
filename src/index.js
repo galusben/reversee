@@ -106,8 +106,9 @@ function calcMode(headersMap) {
 }
 
 function createReadOnlyEditor(element, text, mode) {
+    let textWithNewLines = text.substring(0,10000);
     let cm = CodeMirror(element[0], {
-        value: text,
+        value: textWithNewLines,
         lineNumbers: true,
         readOnly: true,
         extraKeys: {"Cmd-F": "findPersistent", "Ctrl-F": "findPersistent"},
@@ -130,6 +131,7 @@ function setDirection(direction, element) {
     var headersMap = traffic[trafficKey][direction].headers;
     const bodyText = traffic[trafficKey][direction].body || traffic[trafficKey][direction].body;
     const formattedBodyText = format(bodyText, headersMap);
+    console.log('after format')
     const mode = calcMode(headersMap);
     var headersText = '';
     for (let key in headersMap) {
@@ -137,8 +139,11 @@ function setDirection(direction, element) {
     }
     var headers = $('<pre>').text(headersText);
     headersElement.append(headers);
-    cm[direction + '-formatted'] = createReadOnlyEditor(formattedBodyElement, formattedBodyText, mode);
+    console.log('creating plain editor')
     cm[direction + '-plain'] = createReadOnlyEditor(bodyElement, bodyText && bodyText.toString(), null);
+    console.log('creating formatted editor')
+    cm[direction + '-formatted'] = createReadOnlyEditor(formattedBodyElement, formattedBodyText, mode);
+
 }
 
 $(".nav-tabs").on("shown.bs.tab", function(event){

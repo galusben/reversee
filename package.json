@@ -27,7 +27,7 @@
     "about-window": "^1.11.0",
     "bootstrap": "^3.3.7",
     "bootstrap-select": "^1.12.2",
-    "codemirror": "^5.25.2",
+    "codemirror": "^5.39.0",
     "electron-compile": "^6.4.2",
     "electron-config": "^1.0.0",
     "electron-google-analytics": "^0.0.24",
