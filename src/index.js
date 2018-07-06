@@ -1,5 +1,5 @@
-const {ipcRenderer, remote, clipboard} = require('electron');
-const {Menu, MenuItem} = remote;
+const { ipcRenderer, remote, clipboard } = require('electron');
+const { Menu, MenuItem } = remote;
 var beautify_js = require('js-beautify');
 var beautify_css = require('js-beautify').css;
 var beautify_html = require('js-beautify').html;
@@ -36,7 +36,7 @@ function addCopyToClipInternalText(element) {
 }
 
 
-function addCopyToClipInternalTextCodeMirror(element, cmKey) {
+function addCopyToClipInternalTextEditor(element, cmKey) {
     const menu = new Menu();
     menu.append(new MenuItem({
         label: 'Copy To Clipboard', click() {
@@ -71,7 +71,7 @@ function format(body, headers) {
     }
     else if (contentType && (contentType.includes('html') || contentType.includes('xml'))) {
         try {
-            return beautify_html(body, {indent_size: 4});
+            return beautify_html(body, { indent_size: 4 });
         } catch (e) {
             console.log(e);
             return body;
@@ -79,7 +79,7 @@ function format(body, headers) {
     }
     else if (contentType && contentType.includes('css')) {
         try {
-            return beautify_css(body, {indent_size: 4});
+            return beautify_css(body, { indent_size: 4 });
         } catch (e) {
             console.log(e);
             return body;
@@ -87,7 +87,7 @@ function format(body, headers) {
     }
     else if (contentType && contentType.includes('javascript')) {
         try {
-            return beautify_js(body, {indent_size: 4});
+            return beautify_js(body, { indent_size: 4 });
         } catch (e) {
             console.log(e);
             return body;
@@ -95,7 +95,7 @@ function format(body, headers) {
     }
     return body;
 }
-const cm ={};
+const cm = {};
 
 function calcMode(headersMap) {
     let contentType = headersMap['content-type'] || headersMap['Content-Type'];
@@ -105,19 +105,27 @@ function calcMode(headersMap) {
     return contentType;
 }
 
-function createReadOnlyEditor(element, text, mode) {
-    let textWithNewLines = text.substring(0,10000);
-    let cm = CodeMirror(element[0], {
-        value: textWithNewLines,
-        lineNumbers: true,
-        readOnly: true,
-        extraKeys: {"Cmd-F": "findPersistent", "Ctrl-F": "findPersistent"},
-        mode: mode,
-        cursorBlinkRate: -1,
-        viewportMargin: Infinity
-    });
-    cm.setSize(null, 'auto');
-    return cm;
+function createReadOnlyEditor(element, text, mode, editor) {
+    if (!editor) {
+        editor = monaco.editor.create(element[0], {
+            value: text,
+            language: mode,
+            automaticLayout: true,
+            autoIndent: true,
+            contextmenu: false,
+            formatOnType: true
+        });
+    } else {
+        monaco.editor.setModelLanguage(editor.getModel(), mode)
+        editor.setValue(text);
+    }
+    editor.updateOptions({ readOnly: false, automaticLayout: true,  autoIndent: true,  formatOnType: true})
+    editor.trigger('any', 'editor.action.formatDocument');
+    setTimeout(()=>{
+        editor.updateOptions({ readOnly: true })
+    }, 300)
+    
+    return editor;
 }
 
 function setDirection(direction, element) {
@@ -125,12 +133,9 @@ function setDirection(direction, element) {
     const bodyElement = $(`#${direction}-body`);
     const formattedBodyElement = $(`#${direction}-body-formatted`);
     headersElement.empty();
-    bodyElement.empty();
-    formattedBodyElement.empty();
     let trafficKey = $(element).attr('trafficId');
     var headersMap = traffic[trafficKey][direction].headers;
-    const bodyText = traffic[trafficKey][direction].body || traffic[trafficKey][direction].body;
-    const formattedBodyText = format(bodyText, headersMap);
+    const bodyText = traffic[trafficKey][direction].body && traffic[trafficKey][direction].body.toString();
     console.log('after format')
     const mode = calcMode(headersMap);
     var headersText = '';
@@ -140,15 +145,15 @@ function setDirection(direction, element) {
     var headers = $('<pre>').text(headersText);
     headersElement.append(headers);
     console.log('creating plain editor')
-    cm[direction + '-plain'] = createReadOnlyEditor(bodyElement, bodyText && bodyText.toString(), null);
+    cm[direction + '-plain'] = createReadOnlyEditor(bodyElement, bodyText, null, cm[direction + '-plain']);
     console.log('creating formatted editor')
-    cm[direction + '-formatted'] = createReadOnlyEditor(formattedBodyElement, formattedBodyText, mode);
+    cm[direction + '-formatted'] = createReadOnlyEditor(formattedBodyElement, bodyText, mode, cm[direction + '-formatted']);
+    console.log('done')
 
 }
 
-$(".nav-tabs").on("shown.bs.tab", function(event){
+$(".nav-tabs").on("shown.bs.tab", function (event) {
     for (let k in cm) {
-        cm[k].refresh()
     }
 });
 
@@ -188,8 +193,8 @@ function setProxy() {
         return false;
     }
     $('.form-control, input[type=checkbox]').not('button').prop('disabled', 'true');
-    requestInterceptorEditor.setOption("readOnly", true);
-    responseInterceptorEditor.setOption("readOnly", true);
+    requestInterceptorEditor.updateOptions({ readOnly: true })
+    responseInterceptorEditor.updateOptions({ readOnly: true })
     ipcRenderer.send('message-settings', settings);
 
 
@@ -204,9 +209,9 @@ function notifyInvalid(id) {
     var val = jqueryId.val();
     if (!val || val.length <= 0) {
         jqueryId.addClass('ng-invalid');
-        return {valid: false};
+        return { valid: false };
     }
-    return {valid: true};
+    return { valid: true };
 }
 
 function setInvalid(id) {
@@ -276,9 +281,9 @@ ipcRenderer.on('trip-data', (event, arg) => {
 
 function unSetProxy() {
     ipcRenderer.send('stop-proxy', '');
+    requestInterceptorEditor.updateOptions({ readOnly: false });
+    responseInterceptorEditor.updateOptions({ readOnly: false });
     $('.form-control, input[type=checkbox]').not('button').prop('disabled', false);
-    requestInterceptorEditor.setOption("readOnly", false);
-    responseInterceptorEditor.setOption("readOnly", false);
 }
 
 $('.btn-toggle').click(function () {
@@ -348,7 +353,7 @@ ipcRenderer.on('server-error', (event, arg) => {
 });
 
 function showHideRequestInterceptor() {
-    $(requestInterceptorEditor.getWrapperElement()).toggle();
+    $('#request-interceptor').toggle();
     let a = $('#hide-show-request-interceptor');
     if (a.text() == 'show') {
         a.text('hide');
@@ -358,7 +363,7 @@ function showHideRequestInterceptor() {
 }
 
 function showHideResponseInterceptor() {
-    $(responseInterceptorEditor.getWrapperElement()).toggle();
+    $('#response-interceptor').toggle();
     let a = $('#hide-show-response-interceptor');
     if (a.text() == 'show') {
         a.text('hide');
@@ -417,52 +422,53 @@ function readFromLocalStorage() {
     }
 }
 
+function createInterceptorEditor(id, settings, text) {
+    return monaco.editor.create(document.getElementById(id), {
+        value: text,
+        language: 'text/javascript',
+        autoIndent: true,
+        automaticLayout: true
+    });
+}
+
 function setupInterceptors(settings) {
     let defaultRequestVal = "/*Request interceptor. Use javascript. \nYou can use requestParams object to access the request data. \nfollowing attributes are available for manipulation: host, path, method, port, headers and body\nExample: \nrequestParams.headers['custom']='custom val'*/"
     let defaultResponseVal = "/*Response interceptor. Use javascript. \nYou can use responseParams object to access the response data. \ncurrently supported attributes are statusCode, headers and body. Also the requestParams object is available for read \nExample: \nresponseParams.headers['custom']='custom val'*/"
-    requestInterceptorEditor = CodeMirror(document.getElementById("request-interceptor"), {
-        value: settings && settings.requestInterceptor ? settings.requestInterceptor : defaultRequestVal,
-        mode: "javascript",
-        lineNumbers: true,
-        extraKeys: {"Cmd-F": "findPersistent"}
-    });
-    requestInterceptorEditor.setSize(840, 100);
-    $(requestInterceptorEditor.getWrapperElement()).hide();
-
-    responseInterceptorEditor = CodeMirror(document.getElementById("response-interceptor"), {
-        value: settings && settings.responseInterceptor ? settings.responseInterceptor : defaultResponseVal,
-        mode: "javascript",
-        lineNumbers: true,
-        extraKeys: {"Cmd-F": "findPersistent"}
-    });
-    responseInterceptorEditor.setSize(840, 100);
-    $(responseInterceptorEditor.getWrapperElement()).hide();
-
+    requestInterceptorEditor = createInterceptorEditor('request-interceptor', settings, settings && settings.requestInterceptor ? settings.requestInterceptor : defaultRequestVal);
+    responseInterceptorEditor = createInterceptorEditor('response-interceptor', settings, settings && settings.responseInterceptor ? settings.responseInterceptor : defaultResponseVal);
 }
 
 $(document).ready(() => {
     $("[data-toggle=tooltip]").tooltip({
         placement: $(this).data("placement") || 'bottom'
-    });    
-    let settings = readFromLocalStorage();
-    setupInterceptors(settings);
+    });
     registerCopyToClip();
 });
+editorLoadedEmitter.once('loaded', () => {
+    let settings = readFromLocalStorage();
+    setupInterceptors(settings);
+   
+    cm['request' + '-plain'] = createReadOnlyEditor($(`#request-body`), '', 'html', null);
+    cm['request' + '-formatted'] = createReadOnlyEditor($(`#request-body-formatted`), '', 'json', null);
+    cm['response' + '-plain'] = createReadOnlyEditor($(`#response-body`), '', 'css', null);
+    cm['response' + '-formatted'] = createReadOnlyEditor($(`#response-body-formatted`), '', 'javascript', null);
 
-function registerCopyToClip(){
+})
+
+function registerCopyToClip() {
     let headersElement = $(`#request-headers`);
     let bodyElement = $(`#request-body`);
     let formattedBodyElement = $(`#request-body-formatted`);
     addCopyToClipInternalText(headersElement);
-    addCopyToClipInternalTextCodeMirror(formattedBodyElement, 'request-formatted');
-    addCopyToClipInternalTextCodeMirror(bodyElement, 'request-plain');
+    addCopyToClipInternalTextEditor(formattedBodyElement, 'request-formatted');
+    addCopyToClipInternalTextEditor(bodyElement, 'request-plain');
 
     headersElement = $(`#response-headers`);
     bodyElement = $(`#response-body`);
     formattedBodyElement = $(`#response-body-formatted`);
     addCopyToClipInternalText(headersElement);
-    addCopyToClipInternalTextCodeMirror(formattedBodyElement, 'response-formatted');
-    addCopyToClipInternalTextCodeMirror(bodyElement, 'response-plain');
+    addCopyToClipInternalTextEditor(formattedBodyElement, 'response-formatted');
+    addCopyToClipInternalTextEditor(bodyElement, 'response-plain');
 }
 
 

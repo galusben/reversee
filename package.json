@@ -1,6 +1,6 @@
 {
   "name": "Reversee",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "main": "src/main.js",
   "productName": "Reversee",
   "description": "Reverse Proxy Web Debugger",
@@ -43,7 +43,8 @@
     "request-to-curl": "^0.1.1",
     "source-map-support": "^0.5.3",
     "split.js": "^1.3.4",
-    "uuid4": "^1.0.0"
+    "uuid4": "^1.0.0",
+    "monaco-editor": "^0.13.1"
   },
   "build": {
     "appId": "ninja.reversee",
