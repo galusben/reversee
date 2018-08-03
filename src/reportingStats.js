@@ -2,13 +2,14 @@ const Config = require('electron-config');
 const uuid = require('uuid4');
 const config = new Config();
 import Analytics from 'electron-google-analytics';
-const fakeClientId = 'ce283030-55f6-493f-b97a-c128488258ac';
+const fakeClientId = 'bf234a38-ffba-4b25-995a-5495f8bb425e';
 const devMode = process.argv[2] === 'dev';
-const {app} = require('electron');
+const {app, session} = require('electron');
 
 console.log('devMode: ' + devMode);
-
-const analytics = new Analytics(getPropertyId());
+const userAgent = session.defaultSession.getUserAgent();
+const analytics = new Analytics(getPropertyId(),{userAgent : userAgent});
+analytics.set('ua', userAgent)
 const clientId = getClientId();
 
 function getPropertyId() {

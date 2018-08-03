@@ -15,7 +15,7 @@ const {autoUpdater} = require("electron-updater");
 const proxy = require(path.join(__dirname, 'proxy.js'));
 require('request-to-curl');
 const menu = require(path.join(__dirname, 'menu.js'));
-const stats = require(path.join(__dirname, 'reportingStats.js'));
+let stats;
 require('http-shutdown').extend();
 
 autoUpdater.logger = require("electron-log");
@@ -61,11 +61,12 @@ function createBreakpointWin() {
 }
 
 function createWindow() {
-    stats.reportAppLoaded();
     let mainWindowState = windowStateKeeper({
         defaultWidth: 1000,
         defaultHeight: 600
     });
+    stats = require(path.join(__dirname, 'reportingStats.js'));
+    stats.reportAppLoaded();
 
     win = new BrowserWindow({
         'x': mainWindowState.x,
