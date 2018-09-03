@@ -120,10 +120,13 @@ function createReadOnlyEditor(element, text, mode, editor) {
         editor.setValue(text);
     }
     editor.updateOptions({ readOnly: false, automaticLayout: true,  autoIndent: true,  formatOnType: true})
-    editor.trigger('any', 'editor.action.formatDocument');
-    setTimeout(()=>{
+    editor.getAction('editor.action.formatDocument').run().then(() => {
         editor.updateOptions({ readOnly: true })
-    }, 300)
+    })
+    // editor.trigger('any', 'editor.action.formatDocument');
+    // setTimeout(()=>{
+    //     editor.updateOptions({ readOnly: true })
+    // }, 300)
     
     return editor;
 }
@@ -185,6 +188,7 @@ function setProxy() {
     $('.form-control').not("[optional='true']").map(function (index, element) {
         validations.push(notifyInvalid(element.id))
     });
+    validations.push({valid : validatePort(settings.listenPort)});
     var valid = true;
     for (var i = 0; i < validations.length; i++) {
         valid = valid && validations[i].valid;
@@ -202,6 +206,15 @@ function setProxy() {
         rowClicked(this);
     });
     return true;
+}
+
+function  validatePort(port) {
+    if (!isNaN(port) && port > 0 && port < 65536) {
+        return true
+    } else {
+        setInvalid("listenPort");
+        return false
+    }
 }
 
 function notifyInvalid(id) {
@@ -347,7 +360,7 @@ ipcRenderer.on('server-error', (event, arg) => {
         btnGroup.find('.btn').toggleClass('btn-info');
     }
     btnGroup.find('.btn').toggleClass('btn-default');
-    if (arg.code === 'EACCES') {
+    if (arg.code === 'EACCES' || arg.code === 'EADDRINUSE') {
         setInvalid("listenPort");
     }
 });
