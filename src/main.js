@@ -1,9 +1,4 @@
 const {app, BrowserWindow, ipcMain} = require('electron');
-if (require('electron-squirrel-startup')) {
-    app.quit()
-}
-;
-
 const path = require('path');
 const url = require('url');
 const http = require('http');
@@ -44,7 +39,7 @@ let image = nativeImage.createFromPath(path.join(__dirname, 'assets', 'Reversee.
 const icon = process.platform === 'linux' ? image : null;
 
 function createBreakpointWin() {
-    breakpointsEditWin = new BrowserWindow({width: 800, height: 600, icon: icon});
+    breakpointsEditWin = new BrowserWindow({ width: 800, height: 600, icon: icon });
     breakpointsEditWin.hide();
     menu.create(breakpointsEditWin, win);
     breakpointsEditWin.loadURL(url.format({
@@ -53,11 +48,10 @@ function createBreakpointWin() {
         slashes: true
     }));
     breakpointsEditWin.on('close', (event) => {
-            if (win) {
-                event.preventDefault()
-            }
-        }
-    )
+        breakpointsEditWin.webContents.send('window-closed', {});
+        breakpointsEditWin.hide()
+        event.preventDefault();
+    })
 }
 
 function createWindow() {

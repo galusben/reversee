@@ -61,3 +61,9 @@ class BreakPointConfig {
         this.id = BreakPointConfig.calcId(methods, path)
     }
 }
+
+ipcRenderer.on('window-closed', (event, arg) => {
+    hideBreakPointsWindow();
+})
+
+
