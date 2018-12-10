@@ -3,6 +3,8 @@ const https = require('https');
 const zlib = require("zlib");
 const path = require('path');
 const {URL} = require('url');
+require('request-to-curl');
+
 
 const interceptor = require(path.join(__dirname, 'interceptor.js'));
 let trafficId = 0;
@@ -19,7 +21,7 @@ function buildRequestParams(requestParams, userSettings, clientReq) {
     requestParams.headers = requestParams.headers || clientReq.headers;
 }
 
-function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
+function handleRequest(clientReq, clientRes, userSettings, notify, requestParams) {
     console.log('Path Hit: ' + clientReq.url);
     var responseView = {
         headers: {},
@@ -64,6 +66,8 @@ function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
             responseParams.body = Buffer.concat([responseParams.body, chunk]);
         });
         serverResponse.on('end', () => {
+            let start = new Date().getTime();
+            console.log('start on end: ' + start);
             if (userSettings.responseInterceptor && userSettings.interceptResponse) {
                 interceptor.interceptResponse(responseParams, userSettings.responseInterceptor, requestParams);
             }
@@ -102,14 +106,17 @@ function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
                     responseView.body = dezipped && dezipped.toString();
                     clientRes.write(responseParams.body);
                     clientRes.end();
-                    win.webContents.send('trip-data', trafficView)
+                    notify(trafficView)
+                    // notify.webContents.send('trip-data', trafficView)
                 });
             } else {
                 responseView.body = responseParams.body;
                 clientRes.write(responseParams.body);
                 clientRes.end();
-                win.webContents.send('trip-data', trafficView);
+                // notify.webContents.send('trip-data', trafficView);
+                notify(trafficView)
             }
+            console.log('end on end: ' + (new Date().getTime() - start));
         })
     });
     connector.on('error', function (err) {
@@ -117,7 +124,8 @@ function handleRequest(clientReq, clientRes, userSettings, win, requestParams) {
         clientRes.statusCode = 502;
         responseView.statusCode = 502;
         trafficView.connectorError = err;
-        win.webContents.send('trip-data', trafficView);
+        notify(trafficView)
+        // notify.webContents.send('trip-data', trafficView);
         clientRes.end();
     });
     if (requestParams.body) {

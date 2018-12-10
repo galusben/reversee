@@ -1,17 +1,11 @@
 const {app, BrowserWindow, ipcMain} = require('electron');
 const path = require('path');
 const url = require('url');
-const http = require('http');
-const https = require('https');
-const fs = require('fs');
 const nativeImage = require('electron').nativeImage;
 const windowStateKeeper = require('electron-window-state');
 const {autoUpdater} = require("electron-updater");
-const proxy = require(path.join(__dirname, 'proxy.js'));
-require('request-to-curl');
 const menu = require(path.join(__dirname, 'menu.js'));
 let stats;
-require('http-shutdown').extend();
 
 autoUpdater.logger = require("electron-log");
 autoUpdater.logger.transports.file.level = "info";
@@ -22,17 +16,10 @@ autoUpdater.checkForUpdatesAndNotify();
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
-const sslOptions = {
-    key: fs.readFileSync(path.join(__dirname, 'resources', 'localhost.key')),
-    cert: fs.readFileSync(path.join(__dirname, 'resources', 'localhost.cert'))
-};
-
 let win;
+let proxyWin;
 let server;
 let breakpointsEditWin;
-let haltedBreakpoints = {};
-let breakpointsSettings = {};
-let currentViewingBreakpoint = null;
 
 
 let image = nativeImage.createFromPath(path.join(__dirname, 'assets', 'Reversee.png'));
@@ -54,7 +41,7 @@ function createBreakpointWin() {
     })
 }
 
-function createWindow() {
+function createWindows() {
     let mainWindowState = windowStateKeeper({
         defaultWidth: 1000,
         defaultHeight: 600
@@ -88,12 +75,16 @@ function createWindow() {
         breakpointsEditWin.destroy();
         breakpointsEditWin = null;
     });
-
     createBreakpointWin();
-
+    proxyWin = new BrowserWindow({ width: 800, height: 600, show: true });
+    proxyWin.loadURL(url.format({
+        pathname: path.join(__dirname, 'proxyWin.html'),
+        protocol: 'file:',
+        slashes: true
+    }));
 }
 
-app.on('ready', createWindow);
+app.on('ready', createWindows);
 
 app.on('window-all-closed', () => {
     app.quit()
@@ -101,107 +92,19 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
     if (win === null) {
-        createWindow()
+        createWindows()
     }
 });
 
-
-function matchingBreakpoint(url, method) {
-    console.log('url ' + url);
-    for (let key in breakpointsSettings) {
-        let breakpointSetting = breakpointsSettings[key];
-        console.log('url ' + breakpointSetting.path);
-        if (breakpointSetting.methods.includes(method) && url.match(new RegExp(breakpointSetting.path))) {
-            return breakpointSetting;
-        }
-    }
-    return null;
-}
-
-
-var generateId = function generateId() {
-    var i = 0;
-    return function () {
-        return i++
-    };
-}();
-
-function startProxy(settings) {
-    console.log("starting proxy to: " + settings.dest);
-    const redirect = menu.getMenuInstance().getMenuItemById('redirects');
-    const hostRewrite = menu.getMenuInstance().getMenuItemById('host');
-    settings.redirect = redirect.checked;
-    settings.hostRewrite = hostRewrite.checked;
-    console.log('hostRewrite ' + settings.hostRewrite);
-    const handleRequestWrapper = (request, response) => {
-
-        const chunks = [];
-        request.on('data', chunk => chunks.push(chunk));
-        request.on('end', () => {
-            const body = Buffer.concat(chunks);
-
-            if (matchingBreakpoint(request.url, request.method)) {
-                var breakpointWin = new BrowserWindow({width: 400, height: 400, icon: icon});
-                breakpointWin.loadURL(url.format({
-                    pathname: path.join(__dirname, 'breakPoint.html'),
-                    protocol: 'file:',
-                    slashes: true
-                }));
-                breakpointWin.on('close', (event) => {
-                        if (win) {
-                            event.preventDefault()
-                        }
-                    }
-                );
-
-                var breakPointId = generateId();
-
-                breakpointWin.webContents.on('did-finish-load', () => {
-                    breakpointWin.webContents.send('breaking',
-                        {
-                            id: breakPointId,
-                            url: request.url,
-                            method: request.method,
-                            headers: new Object(request.headers),
-                            body: body
-                        });
-                });
-                haltedBreakpoints[breakPointId] = {
-                    action: function (requestParams) {
-                        proxy.handleRequest(request, response, settings, win, requestParams)
-                    }
-                    ,
-                    bwin: breakpointWin
-                };
-                if (currentViewingBreakpoint && currentViewingBreakpoint.bwin.isVisible()) {
-                    breakpointWin.hide()
-                } else {
-                    currentViewingBreakpoint = haltedBreakpoints[breakPointId]
-                }
-            } else {
-                proxy.handleRequest(request, response, settings, win, {body})
-            }
-        });
-
-    };
-    if (settings.listenProtocol == 'http') {
-        server = http.createServer(handleRequestWrapper).withShutdown();
-    } else {
-        server = https.createServer(sslOptions, handleRequestWrapper).withShutdown();
-    }
-    server.on('error', (err) => {
-        console.log("error on server!!!", err);
-        win.webContents.send('server-error', {code: err.code});
-    });
-    server.listen(settings.listenPort, function () {
-        console.log("Server listening on: %s://localhost:%s", settings.listenProtocol, settings.listenPort);
-    });
-    stats.reportProxyStarted();
-}
 
 ipcMain.on('message-settings', (event, settings) => {
-    startProxy(settings);
+    console.log(settings);
+    proxyWin.webContents.send('start-proxy', settings);
 });
+
+ipcMain.on('main-trip-data', (event, data) => {
+    win.webContents.send('trip-data', data);
+})
 
 ipcMain.on('stop-proxy', (event, settings) => {
     if (server) {
