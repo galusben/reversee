@@ -7,8 +7,11 @@ const {autoUpdater} = require("electron-updater");
 const menu = require(path.join(__dirname, 'menu.js'));
 let stats;
 
-autoUpdater.logger = require("electron-log");
-autoUpdater.logger.transports.file.level = "info";
+const logger = require("electron-log");
+autoUpdater.logger = logger;
+logger.transports.file.level = "info";
+logger.transports.console.level = "info";
+
 
 
 autoUpdater.setFeedURL("https://download.reversee.ninja");
@@ -26,7 +29,7 @@ let image = nativeImage.createFromPath(path.join(__dirname, 'assets', 'Reversee.
 const icon = process.platform === 'linux' ? image : null;
 
 function createBreakpointWin() {
-    breakpointsEditWin = new BrowserWindow({ width: 800, height: 600, icon: icon });
+    breakpointsEditWin = new BrowserWindow({width: 800, height: 600, icon: icon});
     breakpointsEditWin.hide();
     menu.create(breakpointsEditWin, win);
     breakpointsEditWin.loadURL(url.format({
@@ -76,7 +79,7 @@ function createWindows() {
         breakpointsEditWin = null;
     });
     createBreakpointWin();
-    proxyWin = new BrowserWindow({ width: 800, height: 600, show: true });
+    proxyWin = new BrowserWindow({width: 800, height: 600, show: true});
     proxyWin.loadURL(url.format({
         pathname: path.join(__dirname, 'proxyWin.html'),
         protocol: 'file:',
@@ -109,7 +112,7 @@ ipcMain.on('main-trip-data', (event, data) => {
 ipcMain.on('stop-proxy', (event, settings) => {
     if (server) {
         console.log('shutting down server')
-        server.shutdown(function() {
+        server.shutdown(function () {
             server = null;
         });
     }
@@ -133,4 +136,13 @@ ipcMain.on('continue', (event, data) => {
         currentViewingBreakpoint = null;
     }
     breakpoint.action({path: data.url, method: data.method, headers: data.headers, body: data.body});
+});
+
+ipcMain.on('proxy-started', (event, data) => {
+    logger.info("LOGGER proxy started main")
+    stats.reportProxyStarted()
+});
+
+ipcMain.on('server-error', (event, data) => {
+    win.webContents.send('server-error', data);
 });

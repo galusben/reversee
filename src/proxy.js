@@ -107,13 +107,11 @@ function handleRequest(clientReq, clientRes, userSettings, notify, requestParams
                     clientRes.write(responseParams.body);
                     clientRes.end();
                     notify(trafficView)
-                    // notify.webContents.send('trip-data', trafficView)
                 });
             } else {
                 responseView.body = responseParams.body;
                 clientRes.write(responseParams.body);
                 clientRes.end();
-                // notify.webContents.send('trip-data', trafficView);
                 notify(trafficView)
             }
             console.log('end on end: ' + (new Date().getTime() - start));
@@ -124,8 +122,7 @@ function handleRequest(clientReq, clientRes, userSettings, notify, requestParams
         clientRes.statusCode = 502;
         responseView.statusCode = 502;
         trafficView.connectorError = err;
-        notify(trafficView)
-        // notify.webContents.send('trip-data', trafficView);
+        notify(trafficView);
         clientRes.end();
     });
     if (requestParams.body) {

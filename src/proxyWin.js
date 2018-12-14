@@ -9,6 +9,7 @@ const {ipcRenderer} = require('electron');
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
+const logger = require("electron-log");
 require('http-shutdown').extend();
 
 
@@ -52,7 +53,7 @@ let generateId = function generateId() {
 
 
 function startProxy(settings) {
-    console.log("starting proxy to: " + settings.dest);
+    logger.info("LOGGER starting proxy to: " + settings.dest);
     // const redirect = menu.getMenuInstance().getMenuItemById('redirects');
     // const hostRewrite = menu.getMenuInstance().getMenuItemById('host');
     settings.redirect = true;
@@ -116,10 +117,11 @@ function startProxy(settings) {
     }
     server.on('error', (err) => {
         console.log("error on server!!!", err);
+        ipcRenderer.send('server-error', {code: err.code});
         // win.webContents.send('server-error', {code: err.code});
     });
     server.listen(settings.listenPort, function () {
         console.log("Server listening on: %s://localhost:%s", settings.listenProtocol, settings.listenPort);
     });
-    // stats.reportProxyStarted();
+    ipcRenderer.send('proxy-started', {});
 }
