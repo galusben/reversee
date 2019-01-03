@@ -1,10 +1,8 @@
-const {BrowserWindow} = require('electron').remote
 const path = require('path');
 let breakpointsSettings = {};
 let haltedBreakpoints = {};
 let currentViewingBreakpoint = null;
 const proxy = require(path.join(__dirname, 'proxy.js'));
-// stats = require(path.join(__dirname, 'reportingStats.js'));
 const {ipcRenderer} = require('electron');
 const http = require('http');
 const https = require('https');
@@ -17,12 +15,31 @@ ipcRenderer.on('start-proxy', (event, settings) => {
     startProxy(settings)
 });
 
+
+ipcRenderer.on('win-continue', (event, data) => {
+    logger.info('win-continue');
+    let breakpoint = haltedBreakpoints[data.id];
+    ipcRenderer.send('breakpoints-destroy-window', {breakPointId: data.id});
+    delete haltedBreakpoints[data.id];
+    let breakpointWindows = Object.values(haltedBreakpoints);
+    if (breakpointWindows.length > 0) {
+        currentViewingBreakpoint = breakpointWindows[0];
+        ipcRenderer.send('breakpoints-show-window', {breakPointId: data.id});
+    } else {
+        currentViewingBreakpoint = null;
+    }
+    breakpoint.action({path: data.url, method: data.method, headers: data.headers, body: data.body});
+});
+
+
+ipcRenderer.on('win-breakpoints-settings', (event, settings) => {
+    breakpointsSettings = settings
+});
+
 const sslOptions = {
     key: fs.readFileSync(path.join(__dirname, 'resources', 'localhost.key')),
     cert: fs.readFileSync(path.join(__dirname, 'resources', 'localhost.cert'))
 };
-
-
 
 let server;
 
@@ -30,8 +47,20 @@ function notify(data) {
     ipcRenderer.send('main-trip-data', data);
 }
 
+
+ipcRenderer.on('win-stop-proxy', (event, data) => {
+    if (server) {
+        console.log('shutting down server');
+        server.shutdown(function () {
+            server = null;
+        });
+    }
+});
+
+
 function matchingBreakpoint(url, method) {
-    console.log('url ' + url);
+    logger.info('searching for matching breakpoint. url: ' + url);
+    logger.info(breakpointsSettings);
     for (let key in breakpointsSettings) {
         let breakpointSetting = breakpointsSettings[key];
         console.log('url ' + breakpointSetting.path);
@@ -43,7 +72,6 @@ function matchingBreakpoint(url, method) {
 }
 
 
-
 let generateId = function generateId() {
     let i = 0;
     return function () {
@@ -51,56 +79,34 @@ let generateId = function generateId() {
     };
 }();
 
-
 function startProxy(settings) {
-    logger.info("LOGGER starting proxy to: " + settings.dest);
+    logger.info("starting proxy to: " + settings.dest);
     // const redirect = menu.getMenuInstance().getMenuItemById('redirects');
     // const hostRewrite = menu.getMenuInstance().getMenuItemById('host');
     settings.redirect = true;
     settings.hostRewrite = true;
-    console.log('hostRewrite ' + settings.hostRewrite);
+    logger.info('hostRewrite ' + settings.hostRewrite);
     const handleRequestWrapper = (request, response) => {
 
         const chunks = [];
         request.on('data', chunk => chunks.push(chunk));
         request.on('end', () => {
             const body = Buffer.concat(chunks);
-
+            logger.info("going to search for breakpoint");
             if (matchingBreakpoint(request.url, request.method)) {
-                const breakpointWin = new BrowserWindow({width: 400, height: 400, icon: icon});
-                breakpointWin.loadURL(url.format({
-                    pathname: path.join(__dirname, 'breakPoint.html'),
-                    protocol: 'file:',
-                    slashes: true
-                }));
-                breakpointWin.on('close', (event) => {
-                        // if (win) {
-                            event.preventDefault()
-                        // }
-                    }
-                );
-
                 let breakPointId = generateId();
+                // const breakpointWin = createBreakpointWindow(breakPointId, request, body)
+                ipcRenderer.send('breakpoints-create-window', {breakPointId, request, body});
 
-                breakpointWin.webContents.on('did-finish-load', () => {
-                    breakpointWin.webContents.send('breaking',
-                        {
-                            id: breakPointId,
-                            url: request.url,
-                            method: request.method,
-                            headers: new Object(request.headers),
-                            body: body
-                        });
-                });
                 haltedBreakpoints[breakPointId] = {
                     action: function (requestParams) {
                         proxy.handleRequest(request, response, settings, notify, requestParams)
                     }
-                    ,
-                    bwin: breakpointWin
                 };
-                if (currentViewingBreakpoint && currentViewingBreakpoint.bwin.isVisible()) {
-                    breakpointWin.hide()
+                //'breakpoints-hide-window'
+                if (currentViewingBreakpoint) {
+                    // breakpointWin.hide()
+                    ipcRenderer.send('breakpoints-hide-window', {breakPointId});
                 } else {
                     currentViewingBreakpoint = haltedBreakpoints[breakPointId]
                 }
@@ -110,18 +116,17 @@ function startProxy(settings) {
         });
 
     };
-    if (settings.listenProtocol == 'http') {
+    if (settings.listenProtocol === 'http') {
         server = http.createServer(handleRequestWrapper).withShutdown();
     } else {
         server = https.createServer(sslOptions, handleRequestWrapper).withShutdown();
     }
     server.on('error', (err) => {
-        console.log("error on server!!!", err);
+        logger.info("error on server!!!", err);
         ipcRenderer.send('server-error', {code: err.code});
-        // win.webContents.send('server-error', {code: err.code});
     });
     server.listen(settings.listenPort, function () {
-        console.log("Server listening on: %s://localhost:%s", settings.listenProtocol, settings.listenPort);
+        logger.info("Server listening on: %s://localhost:%s", settings.listenProtocol, settings.listenPort);
     });
     ipcRenderer.send('proxy-started', {});
 }

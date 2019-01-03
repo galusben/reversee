@@ -4,13 +4,13 @@ const zlib = require("zlib");
 const path = require('path');
 const {URL} = require('url');
 require('request-to-curl');
-
+const logger = require("electron-log");
 
 const interceptor = require(path.join(__dirname, 'interceptor.js'));
 let trafficId = 0;
 
 function getServerProtocol(protocol) {
-    return (protocol == 'https') ? https : http
+    return (protocol === 'https') ? https : http
 }
 
 function buildRequestParams(requestParams, userSettings, clientReq) {
@@ -22,8 +22,8 @@ function buildRequestParams(requestParams, userSettings, clientReq) {
 }
 
 function handleRequest(clientReq, clientRes, userSettings, notify, requestParams) {
-    console.log('Path Hit: ' + clientReq.url);
-    var responseView = {
+    logger.info('Path Hit: ' + clientReq.url);
+    let responseView = {
         headers: {},
         body: Buffer.alloc(0)
     };
@@ -33,41 +33,41 @@ function handleRequest(clientReq, clientRes, userSettings, notify, requestParams
         interceptor.interceptRequest(requestParams, userSettings.requestInterceptor);
     }
 
-    var requestView = {
+    let requestView = {
         url: requestParams.path,
         headers: requestParams.headers,
         method: requestParams.method,
         body: Buffer.alloc(0)
     };
 
-    var trafficView = {
+    let trafficView = {
         trafficId: trafficId++,
         request: requestView,
         response: responseView
     };
 
     const originalHost = requestView.headers.host;
-    console.log('originalHost: ' + originalHost);
+    logger.info('originalHost: ' + originalHost);
     if (userSettings.hostRewrite) {
         requestView.headers.host = userSettings.dest + ":" + userSettings.destPort;
     }
 
-    var connector = getServerProtocol(userSettings.destProtocol).request(requestParams, (serverResponse) => {
+    let connector = getServerProtocol(userSettings.destProtocol).request(requestParams, (serverResponse) => {
         requestView.curl = connector.toCurl();
-        var responseParams = {
+        let responseParams = {
             statusCode: serverResponse.statusCode,
             headers: Object.assign({}, serverResponse.headers),
             body: Buffer.alloc(0)
         };
 
 
-        console.log('status set');
+        logger.info('status set');
         serverResponse.on('data', (chunk) => {
             responseParams.body = Buffer.concat([responseParams.body, chunk]);
         });
         serverResponse.on('end', () => {
             let start = new Date().getTime();
-            console.log('start on end: ' + start);
+            logger.info('start on end: ' + start);
             if (userSettings.responseInterceptor && userSettings.interceptResponse) {
                 interceptor.interceptResponse(responseParams, userSettings.responseInterceptor, requestParams);
             }
@@ -80,20 +80,20 @@ function handleRequest(clientReq, clientRes, userSettings, notify, requestParams
                 responseView.headers[key] = responseParams.headers[key];
             }
 
-            console.log('redirect :' + userSettings.redirect);
+            logger.info('redirect :' + userSettings.redirect);
             if (userSettings.redirect && serverResponse.statusCode.toString().startsWith('30')) {
                 let location = serverResponse.headers['location'];
-                console.log('handling redirects, location:' + location);
+                logger.info('handling redirects, location:' + location);
                 if (location) {
                     try {
                         let url = new URL(location);
-                        console.log('originalHost: ' + originalHost);
+                        logger.info('originalHost: ' + originalHost);
                         url.host = originalHost || url.host;
                         url.protocol = userSettings.listenProtocol;
                         clientRes.setHeader('location', url.href);
                         responseView.headers['location'] = url.href;
                     } catch (e) {
-                        console.log(e);
+                        logger.info(e);
                     }
                 }
             }
@@ -101,7 +101,7 @@ function handleRequest(clientReq, clientRes, userSettings, notify, requestParams
             if (responseView.headers['content-encoding'] === 'gzip') {
                 zlib.gunzip(responseParams.body, function (err, dezipped) {
                     if (err) {
-                        console.log(err)
+                        logger.info(err)
                     }
                     responseView.body = dezipped && dezipped.toString();
                     clientRes.write(responseParams.body);
@@ -114,11 +114,11 @@ function handleRequest(clientReq, clientRes, userSettings, notify, requestParams
                 clientRes.end();
                 notify(trafficView)
             }
-            console.log('end on end: ' + (new Date().getTime() - start));
+            logger.info('end on end: ' + (new Date().getTime() - start));
         })
     });
     connector.on('error', function (err) {
-        console.log(err);
+        logger.info(err);
         clientRes.statusCode = 502;
         responseView.statusCode = 502;
         trafficView.connectorError = err;

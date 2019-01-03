@@ -1,8 +1,6 @@
 const { ipcRenderer, remote, clipboard } = require('electron');
 const { Menu, MenuItem } = remote;
-var beautify_js = require('js-beautify');
-var beautify_css = require('js-beautify').css;
-var beautify_html = require('js-beautify').html;
+const logger = require("electron-log");
 
 function addContextMenu(element, curl) {
     const menu = new Menu();
@@ -40,7 +38,7 @@ function addCopyToClipInternalTextEditor(element, cmKey) {
     const menu = new Menu();
     menu.append(new MenuItem({
         label: 'Copy To Clipboard', click() {
-            clipboard.writeText(cm[cmKey].getValue());
+            clipboard.writeText(readOnlyEditors[cmKey].getValue());
         }
     }));
     element[0].addEventListener('contextmenu', (e) => {
@@ -49,53 +47,12 @@ function addCopyToClipInternalTextEditor(element, cmKey) {
     }, false);
 }
 
-var proxySet = false;
-var traffic = {};
+let proxySet = false;
+let traffic = {};
 
 let requestInterceptorEditor;
 let responseInterceptorEditor;
-
-function format(body, headers) {
-    if (!body) {
-        return '';
-    }
-    body = body.toString();
-    const contentType = headers['content-type'] || headers['Content-Type']
-    if (contentType && contentType.includes('json')) {
-        try {
-            let parsed = JSON.parse(body);
-            return JSON.stringify(parsed, null, 4);
-        } catch (e) {
-            return body;
-        }
-    }
-    else if (contentType && (contentType.includes('html') || contentType.includes('xml'))) {
-        try {
-            return beautify_html(body, { indent_size: 4 });
-        } catch (e) {
-            console.log(e);
-            return body;
-        }
-    }
-    else if (contentType && contentType.includes('css')) {
-        try {
-            return beautify_css(body, { indent_size: 4 });
-        } catch (e) {
-            console.log(e);
-            return body;
-        }
-    }
-    else if (contentType && contentType.includes('javascript')) {
-        try {
-            return beautify_js(body, { indent_size: 4 });
-        } catch (e) {
-            console.log(e);
-            return body;
-        }
-    }
-    return body;
-}
-const cm = {};
+const readOnlyEditors = {};
 
 function calcMode(headersMap) {
     let contentType = headersMap['content-type'] || headersMap['Content-Type'];
@@ -116,18 +73,13 @@ function createReadOnlyEditor(element, text, mode, editor) {
             formatOnType: true
         });
     } else {
-        monaco.editor.setModelLanguage(editor.getModel(), mode)
+        monaco.editor.setModelLanguage(editor.getModel(), mode);
         editor.setValue(text);
     }
-    editor.updateOptions({ readOnly: false, automaticLayout: true,  autoIndent: true,  formatOnType: true})
+    editor.updateOptions({ readOnly: false});
     editor.getAction('editor.action.formatDocument').run().then(() => {
         editor.updateOptions({ readOnly: true })
-    })
-    // editor.trigger('any', 'editor.action.formatDocument');
-    // setTimeout(()=>{
-    //     editor.updateOptions({ readOnly: true })
-    // }, 300)
-    
+    });
     return editor;
 }
 
@@ -137,28 +89,24 @@ function setDirection(direction, element) {
     const formattedBodyElement = $(`#${direction}-body-formatted`);
     headersElement.empty();
     let trafficKey = $(element).attr('trafficId');
-    var headersMap = traffic[trafficKey][direction].headers;
+    let headersMap = traffic[trafficKey][direction].headers;
     const bodyText = traffic[trafficKey][direction].body && traffic[trafficKey][direction].body.toString();
-    console.log('after format')
+    logger.info('after format');
     const mode = calcMode(headersMap);
-    var headersText = '';
+    logger.info('mode:', mode);
+    let headersText = '';
     for (let key in headersMap) {
         headersText += key + " : " + headersMap[key] + "\n";
     }
-    var headers = $('<pre>').text(headersText);
+    let headers = $('<pre>').text(headersText);
     headersElement.append(headers);
-    console.log('creating plain editor')
-    cm[direction + '-plain'] = createReadOnlyEditor(bodyElement, bodyText, null, cm[direction + '-plain']);
-    console.log('creating formatted editor')
-    cm[direction + '-formatted'] = createReadOnlyEditor(formattedBodyElement, bodyText, mode, cm[direction + '-formatted']);
-    console.log('done')
+    logger.info('creating plain editor');
+    readOnlyEditors[direction + '-plain'] = createReadOnlyEditor(bodyElement, bodyText, null, readOnlyEditors[direction + '-plain']);
+    logger.info('creating formatted editor');
+    readOnlyEditors[direction + '-formatted'] = createReadOnlyEditor(formattedBodyElement, bodyText, mode, readOnlyEditors[direction + '-formatted']);
+    logger.info('done')
 
 }
-
-$(".nav-tabs").on("shown.bs.tab", function (event) {
-    for (let k in cm) {
-    }
-});
 
 function rowClicked(element) {
     setDirection('response', element);
@@ -173,7 +121,7 @@ function setProxy() {
     let settings = {
         dest: document.getElementById("dest").value,
         destProtocol: document.getElementById("destProtocol").value,
-        destPort: document.getElementById("destPort").value || (document.getElementById("destProtocol").value == 'http' ? '80' : '443'),
+        destPort: document.getElementById("destPort").value || (document.getElementById("destProtocol").value === 'http' ? '80' : '443'),
         listenPort: document.getElementById("listenPort").value,
         listenProtocol: document.getElementById("listenProtocol").value,
         requestInterceptor: requestInterceptorEditor.getValue(),
@@ -181,24 +129,24 @@ function setProxy() {
         interceptRequest: $('#intercept-request').is(':checked'),
         interceptResponse: $('#intercept-response').is(':checked')
     };
-    console.log('userSettings: ' + JSON.stringify(settings));
+    logger.info('userSettings: ' + JSON.stringify(settings));
     localStorage.setItem('userSettings', JSON.stringify(settings));
     $('.ng-invalid').removeClass('ng-invalid');
-    var validations = [];
+    let validations = [];
     $('.form-control').not("[optional='true']").map(function (index, element) {
         validations.push(notifyInvalid(element.id))
     });
     validations.push({valid : validatePort(settings.listenPort)});
-    var valid = true;
-    for (var i = 0; i < validations.length; i++) {
+    let valid = true;
+    for (let i = 0; i < validations.length; i++) {
         valid = valid && validations[i].valid;
     }
     if (!valid) {
         return false;
     }
     $('.form-control, input[type=checkbox]').not('button').prop('disabled', 'true');
-    requestInterceptorEditor.updateOptions({ readOnly: true })
-    responseInterceptorEditor.updateOptions({ readOnly: true })
+    requestInterceptorEditor.updateOptions({ readOnly: true });
+    responseInterceptorEditor.updateOptions({ readOnly: true });
     ipcRenderer.send('message-settings', settings);
 
 
@@ -219,7 +167,7 @@ function  validatePort(port) {
 
 function notifyInvalid(id) {
     let jqueryId = $(`#${id}`);
-    var val = jqueryId.val();
+    let val = jqueryId.val();
     if (!val || val.length <= 0) {
         jqueryId.addClass('ng-invalid');
         return { valid: false };
@@ -246,7 +194,7 @@ function getClassForTripData(statusCode) {
     return ""
 }
 
-var scrolLocked = true;
+let scrolLocked = true;
 
 function toggleScollLock() {
     const lockIcon = $('#scroll-lock');
@@ -264,9 +212,9 @@ function toggleScollLock() {
 
 ipcRenderer.on('trip-data', (event, arg) => {
     traffic[arg.trafficId] = arg;
-    var tableBody = $('#traffic-table-body');
-    var statusCode = arg.response.statusCode;
-    var tr = $(`<tr class="${getClassForTripData(statusCode)}">` +
+    let tableBody = $('#traffic-table-body');
+    let statusCode = arg.response.statusCode;
+    let tr = $(`<tr class="${getClassForTripData(statusCode)}">` +
         '<td></td>' +
         '<td>' + arg.request.method + '</td>' +
         '<td>' + arg.request.url + '</td>' +
@@ -274,9 +222,9 @@ ipcRenderer.on('trip-data', (event, arg) => {
         '<td>' + (arg.response.headers["content-type"] ? arg.response.headers["content-type"] : '') + '</td>' +
         '</tr>');
     tr.attr('trafficId', arg.trafficId);
-    var oldTr = $(`[trafficId='${arg.trafficId}']`);
+    let oldTr = $(`[trafficId='${arg.trafficId}']`);
     if (oldTr.length > 0) {
-        if (oldTr.attr('selected-r') == 'true') {
+        if (oldTr.attr('selected-r') === 'true') {
             tr.attr('selected-r', 'true');
             rowClicked(tr[0])
         }
@@ -308,7 +256,7 @@ $('.btn-toggle').click(function () {
             return false;
         }
     } else {
-        var setRes = true;
+        let setRes = true;
         try {
             setRes = setProxy()
         } catch (e) {
@@ -341,10 +289,10 @@ $('form').submit(function () {
 });
 
 ipcRenderer.on('server-error', (event, arg) => {
-    console.log('got server error event');
+    logger.info('got server error event');
     unSetProxy();
     proxySet = false;
-    var btnGroup = $('#btn-group');
+    let btnGroup = $('#btn-group');
     btnGroup.find('.btn').toggleClass('active');
 
     if (btnGroup.find('.btn-primary').length > 0) {
@@ -387,7 +335,7 @@ function showHideResponseInterceptor() {
 }
 
 function resetTable() {
-    var tableBody = $('#traffic-table-body');
+    let tableBody = $('#traffic-table-body');
     tableBody.empty();
     traffic = {}
 }
@@ -402,10 +350,10 @@ window.Split(['#table-container', '#details-component'], {
 const konami = [38, 38, 40, 40, 37, 39, 37, 39];
 let konamiIdx = 0;
 $(window).on('keydown', function (e) {
-    var code = (e.keyCode ? e.keyCode : e.which);
-    if (code == konami[konamiIdx]) {
-        if (konamiIdx == konami.length - 1) {
-            console.log('KONAMI CODE!!');
+    let code = (e.keyCode ? e.keyCode : e.which);
+    if (code === konami[konamiIdx]) {
+        if (konamiIdx === konami.length - 1) {
+            logger.info('KONAMI CODE!!');
             $('#overlay').toggle(true);
             setTimeout(function () {
                 $('#overlay').toggle(false);
@@ -445,8 +393,8 @@ function createInterceptorEditor(id, settings, text) {
 }
 
 function setupInterceptors(settings) {
-    let defaultRequestVal = "/*Request interceptor. Use javascript. \nYou can use requestParams object to access the request data. \nfollowing attributes are available for manipulation: host, path, method, port, headers and body\nExample: \nrequestParams.headers['custom']='custom val'*/"
-    let defaultResponseVal = "/*Response interceptor. Use javascript. \nYou can use responseParams object to access the response data. \ncurrently supported attributes are statusCode, headers and body. Also the requestParams object is available for read \nExample: \nresponseParams.headers['custom']='custom val'*/"
+    let defaultRequestVal = "/*Request interceptor. Use javascript. \nYou can use requestParams object to access the request data. \nfollowing attributes are available for manipulation: host, path, method, port, headers and body\nExample: \nrequestParams.headers['custom']='custom val'*/";
+    let defaultResponseVal = "/*Response interceptor. Use javascript. \nYou can use responseParams object to access the response data. \ncurrently supported attributes are statusCode, headers and body. Also the requestParams object is available for read \nExample: \nresponseParams.headers['custom']='custom val'*/";
     requestInterceptorEditor = createInterceptorEditor('request-interceptor', settings, settings && settings.requestInterceptor ? settings.requestInterceptor : defaultRequestVal);
     responseInterceptorEditor = createInterceptorEditor('response-interceptor', settings, settings && settings.responseInterceptor ? settings.responseInterceptor : defaultResponseVal);
 }
@@ -461,12 +409,12 @@ editorLoadedEmitter.once('loaded', () => {
     let settings = readFromLocalStorage();
     setupInterceptors(settings);
    
-    cm['request' + '-plain'] = createReadOnlyEditor($(`#request-body`), '', 'html', null);
-    cm['request' + '-formatted'] = createReadOnlyEditor($(`#request-body-formatted`), '', 'json', null);
-    cm['response' + '-plain'] = createReadOnlyEditor($(`#response-body`), '', 'css', null);
-    cm['response' + '-formatted'] = createReadOnlyEditor($(`#response-body-formatted`), '', 'javascript', null);
+    readOnlyEditors['request' + '-plain'] = createReadOnlyEditor($(`#request-body`), '', 'html', null);
+    readOnlyEditors['request' + '-formatted'] = createReadOnlyEditor($(`#request-body-formatted`), '', 'json', null);
+    readOnlyEditors['response' + '-plain'] = createReadOnlyEditor($(`#response-body`), '', 'css', null);
+    readOnlyEditors['response' + '-formatted'] = createReadOnlyEditor($(`#response-body-formatted`), '', 'javascript', null);
 
-})
+});
 
 function registerCopyToClip() {
     let headersElement = $(`#request-headers`);

@@ -5,6 +5,8 @@ const nativeImage = require('electron').nativeImage;
 const windowStateKeeper = require('electron-window-state');
 const {autoUpdater} = require("electron-updater");
 const menu = require(path.join(__dirname, 'menu.js'));
+
+const breakpointWindows = {};
 let stats;
 
 const logger = require("electron-log");
@@ -21,14 +23,13 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 let win;
 let proxyWin;
-let server;
 let breakpointsEditWin;
 
 
 let image = nativeImage.createFromPath(path.join(__dirname, 'assets', 'Reversee.png'));
 const icon = process.platform === 'linux' ? image : null;
 
-function createBreakpointWin() {
+function createBreakpointsEditWin() {
     breakpointsEditWin = new BrowserWindow({width: 800, height: 600, icon: icon});
     breakpointsEditWin.hide();
     menu.create(breakpointsEditWin, win);
@@ -39,7 +40,7 @@ function createBreakpointWin() {
     }));
     breakpointsEditWin.on('close', (event) => {
         breakpointsEditWin.webContents.send('window-closed', {});
-        breakpointsEditWin.hide()
+        breakpointsEditWin.hide();
         event.preventDefault();
     })
 }
@@ -77,9 +78,11 @@ function createWindows() {
         win = null;
         breakpointsEditWin.destroy();
         breakpointsEditWin = null;
+        proxyWin.destroy();
+        proxyWin = null;
     });
-    createBreakpointWin();
-    proxyWin = new BrowserWindow({width: 800, height: 600, show: true});
+    createBreakpointsEditWin();
+    proxyWin = new BrowserWindow({width: 80, height: 60, show: false});
     proxyWin.loadURL(url.format({
         pathname: path.join(__dirname, 'proxyWin.html'),
         protocol: 'file:',
@@ -107,39 +110,76 @@ ipcMain.on('message-settings', (event, settings) => {
 
 ipcMain.on('main-trip-data', (event, data) => {
     win.webContents.send('trip-data', data);
-})
+});
 
-ipcMain.on('stop-proxy', (event, settings) => {
-    if (server) {
-        console.log('shutting down server')
-        server.shutdown(function () {
-            server = null;
-        });
+ipcMain.on('stop-proxy', (event, data) => {
+    if (proxyWin != null) {
+        proxyWin.webContents.send('win-stop-proxy', data);
+        stats.reportProxyStopped();
     }
-    stats.reportProxyStopped();
 });
 
 ipcMain.on('breakpoints-settings', (event, data) => {
-    breakpointsEditWin.hide();
-    breakpointsSettings = data
+    if (proxyWin != null) {
+        proxyWin.webContents.send('win-breakpoints-settings', data);
+    }
+    if(breakpointsEditWin) {
+        breakpointsEditWin.hide();
+    }
 });
 
+ipcMain.on('breakpoints-create-window', (event, data) => {
+    breakpointWindows[data.breakPointId] = createBreakpointWindow(data.breakPointId, data.request, data.body);
+});
+
+ipcMain.on('breakpoints-hide-window', (event, data) => {
+    breakpointWindows[data.breakPointId].hide();
+});
+
+ipcMain.on('breakpoints-destroy-window', (event, data) => {
+    breakpointWindows[data.breakPointId].destroy();
+});
+
+ipcMain.on('breakpoints-show-window', (event, data) => {
+    breakpointWindows[data.breakPointId].show();
+});
+
+
+function createBreakpointWindow(breakPointId, request, body) {
+    const breakpointWin = new BrowserWindow({width: 400, height: 400, icon: icon});
+    breakpointWin.loadURL(url.format({
+        pathname: path.join(__dirname, 'breakPoint.html'),
+        protocol: 'file:',
+        slashes: true
+    }));
+    breakpointWin.on('close', (event) => {
+            // if (win) {
+            event.preventDefault()
+            // }
+        }
+    );
+
+    breakpointWin.webContents.on('did-finish-load', () => {
+        breakpointWin.webContents.send('breaking',
+            {
+                id: breakPointId,
+                url: request.url,
+                method: request.method,
+                headers: new Object(request.headers),
+                body: body
+            });
+    });
+    return breakpointWin;
+}
+
+
 ipcMain.on('continue', (event, data) => {
-    let breakpoint = haltedBreakpoints[data.id];
-    breakpoint.bwin.destroy();
-    delete haltedBreakpoints[data.id];
-    var breakpointWindows = Object.values(haltedBreakpoints);
-    if (breakpointWindows.length > 0) {
-        currentViewingBreakpoint = breakpointWindows[0];
-        currentViewingBreakpoint.bwin.show()
-    } else {
-        currentViewingBreakpoint = null;
-    }
-    breakpoint.action({path: data.url, method: data.method, headers: data.headers, body: data.body});
+    logger.info('got continue');
+    proxyWin.webContents.send('win-continue', data);
 });
 
 ipcMain.on('proxy-started', (event, data) => {
-    logger.info("LOGGER proxy started main")
+    logger.info("proxy started");
     stats.reportProxyStarted()
 });
 
