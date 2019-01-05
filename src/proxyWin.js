@@ -8,6 +8,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const logger = require("electron-log");
+const { Menu } = require('electron').remote
 require('http-shutdown').extend();
 
 
@@ -17,7 +18,6 @@ ipcRenderer.on('start-proxy', (event, settings) => {
 
 
 ipcRenderer.on('win-continue', (event, data) => {
-    logger.info('win-continue');
     let breakpoint = haltedBreakpoints[data.id];
     ipcRenderer.send('breakpoints-destroy-window', {breakPointId: data.id});
     delete haltedBreakpoints[data.id];
@@ -59,8 +59,7 @@ ipcRenderer.on('win-stop-proxy', (event, data) => {
 
 
 function matchingBreakpoint(url, method) {
-    logger.info('searching for matching breakpoint. url: ' + url);
-    logger.info(breakpointsSettings);
+    logger.debug(breakpointsSettings);
     for (let key in breakpointsSettings) {
         let breakpointSetting = breakpointsSettings[key];
         console.log('url ' + breakpointSetting.path);
@@ -81,21 +80,18 @@ let generateId = function generateId() {
 
 function startProxy(settings) {
     logger.info("starting proxy to: " + settings.dest);
-    // const redirect = menu.getMenuInstance().getMenuItemById('redirects');
-    // const hostRewrite = menu.getMenuInstance().getMenuItemById('host');
-    settings.redirect = true;
-    settings.hostRewrite = true;
-    logger.info('hostRewrite ' + settings.hostRewrite);
-    const handleRequestWrapper = (request, response) => {
 
+    const redirect = Menu.getApplicationMenu().getMenuItemById('redirects');
+    const hostRewrite = Menu.getApplicationMenu().getMenuItemById('host');
+    settings.redirect = redirect.checked;
+    settings.hostRewrite = hostRewrite.checked;
+    const handleRequestWrapper = (request, response) => {
         const chunks = [];
         request.on('data', chunk => chunks.push(chunk));
         request.on('end', () => {
             const body = Buffer.concat(chunks);
-            logger.info("going to search for breakpoint");
             if (matchingBreakpoint(request.url, request.method)) {
                 let breakPointId = generateId();
-                // const breakpointWin = createBreakpointWindow(breakPointId, request, body)
                 ipcRenderer.send('breakpoints-create-window', {breakPointId, request, body});
 
                 haltedBreakpoints[breakPointId] = {
@@ -103,7 +99,6 @@ function startProxy(settings) {
                         proxy.handleRequest(request, response, settings, notify, requestParams)
                     }
                 };
-                //'breakpoints-hide-window'
                 if (currentViewingBreakpoint) {
                     // breakpointWin.hide()
                     ipcRenderer.send('breakpoints-hide-window', {breakPointId});
@@ -122,7 +117,7 @@ function startProxy(settings) {
         server = https.createServer(sslOptions, handleRequestWrapper).withShutdown();
     }
     server.on('error', (err) => {
-        logger.info("error on server!!!", err);
+        logger.error("error on server!!!", err);
         ipcRenderer.send('server-error', {code: err.code});
     });
     server.listen(settings.listenPort, function () {

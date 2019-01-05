@@ -15,7 +15,6 @@ logger.transports.file.level = "info";
 logger.transports.console.level = "info";
 
 
-
 autoUpdater.setFeedURL("https://download.reversee.ninja");
 autoUpdater.checkForUpdatesAndNotify();
 
@@ -174,7 +173,7 @@ function createBreakpointWindow(breakPointId, request, body) {
 
 
 ipcMain.on('continue', (event, data) => {
-    logger.info('got continue');
+    logger.debug('got continue');
     proxyWin.webContents.send('win-continue', data);
 });
 
