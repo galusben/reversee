@@ -11,8 +11,8 @@ let stats;
 
 const logger = require("electron-log");
 autoUpdater.logger = logger;
-logger.transports.file.level = "info";
-logger.transports.console.level = "info";
+logger.transports.file.level = "warn";
+logger.transports.console.level = "warn";
 
 
 autoUpdater.setFeedURL("https://download.reversee.ninja");
