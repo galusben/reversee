@@ -12,6 +12,7 @@ branches:
 # using pre-defined build variables
 # full list http://docs.shippable.com/ci/advancedOptions/environmentVariables/
 env:
+  - secure: oUP8tq5SmKjoaNJ7UTrPkZfqrOFTQ/TA0kpiMDh1oqZXxaYunMe14FUBjg8tDx11I12ZG+BHiGVmfppDrg7f3m1WFbDPmwxAZB8Goqj3cOuP+xTZVb9zDqEdl0aCX7zZKyCDPUDgSwvEm5Wffn2RoGmxZ6KIC8t5h5lm2LW4h+Xn6VMAU64RGMyliuRf4R3OKhBbUVD6QQ3gU6R5oH0pbEUwICujFKK9j22d+2oelXAZjBQ+LYfVL1L8pTJlidv+K46Z3wMLzkNWO+qJ1KifKJlEHACq0eh2eLyUiOeg7D4ebVpt1PS7VLdRuJXAW2+Nt34z//svDdnTGKys5YR4bg==
   global:
 #    - TEST_RESULTS_DIR=$SHIPPABLE_REPO_DIR/shippable/testresults
 #    - CODE_COVERAGE_DIR=$SHIPPABLE_REPO_DIR/shippable/codecoverage
