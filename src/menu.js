@@ -2,6 +2,8 @@ const {Menu} = require('electron');
 const pkg = require('./../package.json');
 const about = require('about-window').default;
 const join = require('path').join;
+const certs = require(join(__dirname, 'certs', 'cert'));
+
 
 Menu.prototype.getMenuItemById = function (id) {
     const items = this.items;
@@ -55,7 +57,7 @@ function create(breakpointsEditWin, main) {
                 {
                     label: 'Edit',
                     accelerator: 'CmdOrCtrl+B',
-                    click (item, focusedWindow) {
+                    click(item, focusedWindow) {
                         console.log('Breakpoints clicked');
                         breakpointsEditWin.show();
                     }
@@ -63,7 +65,7 @@ function create(breakpointsEditWin, main) {
                 {
                     label: 'Toggle Developer Tools',
                     accelerator: process.platform === 'darwin' ? 'Alt+Command+I' : 'Ctrl+Shift+I',
-                    click (item, focusedWindow) {
+                    click(item, focusedWindow) {
                         if (focusedWindow) focusedWindow.webContents.toggleDevTools()
                     }
                 }]
@@ -89,6 +91,13 @@ function create(breakpointsEditWin, main) {
                     click() {
                         main.webContents.send('reset-cache', {})
                     }
+                },
+                {
+                    label: 'Save Root Cert',
+                    id: 'reset',
+                    click() {
+                        certs.downloadRoot(main);
+                    }
                 }]
         },
         {
@@ -97,14 +106,14 @@ function create(breakpointsEditWin, main) {
                 {
                     label: 'Reload',
                     accelerator: 'CmdOrCtrl+R',
-                    click (item, focusedWindow) {
+                    click(item, focusedWindow) {
                         if (focusedWindow) focusedWindow.reload()
                     }
                 },
                 {
                     label: 'Toggle Developer Tools',
                     accelerator: process.platform === 'darwin' ? 'Alt+Command+I' : 'Ctrl+Shift+I',
-                    click (item, focusedWindow) {
+                    click(item, focusedWindow) {
                         if (focusedWindow) focusedWindow.webContents.toggleDevTools()
                     }
                 },
@@ -144,17 +153,17 @@ function create(breakpointsEditWin, main) {
             submenu: [
                 {
                     label: 'Learn More',
-                    click () {
+                    click() {
                         require('electron').shell.openExternal('https://reversee.ninja')
                     }
                 },
                 {
                     role: 'about',
-                    click: function () { 
+                    click: function () {
                         const aboutWin = about(
                             {
-                                icon_path: join(__dirname, 'assets','Reversee.png'), 
-                                css_path: join(__dirname, 'assets','about-window.css'),
+                                icon_path: join(__dirname, 'assets', 'Reversee.png'),
+                                css_path: join(__dirname, 'assets', 'about-window.css'),
                                 win_options: {show: false}
                             }
                         )
@@ -162,7 +171,7 @@ function create(breakpointsEditWin, main) {
                             aboutWin.show();
                             aboutWin.focus();
                         });
-                        
+
                     }
                 }
             ]
@@ -251,4 +260,6 @@ function create(breakpointsEditWin, main) {
 }
 
 exports.create = create;
-exports.getMenuInstance = function () {return Menu.getApplicationMenu()};
+exports.getMenuInstance = function () {
+    return Menu.getApplicationMenu()
+};

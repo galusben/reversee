@@ -5,20 +5,22 @@ const nativeImage = require('electron').nativeImage;
 const windowStateKeeper = require('electron-window-state');
 const {autoUpdater} = require("electron-updater");
 const menu = require(path.join(__dirname, 'menu.js'));
+const cert = require(path.join(__dirname,'certs', 'cert.js'));
 
 const breakpointWindows = {};
 let stats;
 
 const logger = require("electron-log");
 autoUpdater.logger = logger;
-logger.transports.file.level = "warn";
-logger.transports.console.level = "warn";
-
+logger.transports.file.level = "info";
+logger.transports.console.level = "info";
 
 autoUpdater.setFeedURL("https://download.reversee.ninja");
 autoUpdater.checkForUpdatesAndNotify();
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
+let pem = cert.generateAndSignCert();
 
 let win;
 let proxyWin;
@@ -103,7 +105,13 @@ app.on('activate', () => {
 
 
 ipcMain.on('message-settings', (event, settings) => {
-    console.log(settings);
+    console.info(settings);
+    const sslOptions = {
+        key: pem.privateKey,
+        cert : pem.certificate
+    };
+    logger.info('ssl-options main: ', sslOptions);
+    settings.sslOptions = sslOptions;
     proxyWin.webContents.send('start-proxy', settings);
 });
 

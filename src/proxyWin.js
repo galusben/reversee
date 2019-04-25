@@ -6,10 +6,11 @@ const proxy = require(path.join(__dirname, 'proxy.js'));
 const {ipcRenderer} = require('electron');
 const http = require('http');
 const https = require('https');
-const fs = require('fs');
 const logger = require("electron-log");
-const { Menu } = require('electron').remote
+const { Menu } = require('electron').remote;
 require('http-shutdown').extend();
+
+// const cert = require(path.join(__dirname,'certs', 'cert.js'));
 
 
 ipcRenderer.on('start-proxy', (event, settings) => {
@@ -36,10 +37,6 @@ ipcRenderer.on('win-breakpoints-settings', (event, settings) => {
     breakpointsSettings = settings
 });
 
-const sslOptions = {
-    key: fs.readFileSync(path.join(__dirname, 'resources', 'localhost.key')),
-    cert: fs.readFileSync(path.join(__dirname, 'resources', 'localhost.cert'))
-};
 
 let server;
 
@@ -80,6 +77,8 @@ let generateId = function generateId() {
 
 function startProxy(settings) {
     logger.info("starting proxy to: " + settings.dest);
+    let sslOptions = settings.sslOptions;
+    console.log('sslOptions: ' + sslOptions);
 
     const redirect = Menu.getApplicationMenu().getMenuItemById('redirects');
     const hostRewrite = Menu.getApplicationMenu().getMenuItemById('host');
