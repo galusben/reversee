@@ -1,14 +1,10 @@
 const join = require('path').join;
 const root = require(join(__dirname, 'root.js'));
 const csr = require(join(__dirname, 'csr.js'));
-const {download} = require('electron-dl');
-const {app} = require('electron');
+const {dialog} = require('electron');
 const fs = require('fs');
 const Config = require('electron-config');
 const config = new Config();
-
-const dataDir = app.getPath('userData');
-
 let rootCertPem = config.get('root.cert.pem');
 
 function generateAndSignCert() {
@@ -19,12 +15,19 @@ function generateAndSignCert() {
     return csr.generateAndSignCert(rootCertPem);
 }
 
-function downloadRoot(main) {
-    const fileLocation = join(dataDir, 'root.cert.pem');
-    fs.writeFile(fileLocation, rootCertPem.certificate, 'UTF8', () => {
-        download(main, 'file://' + join(dataDir, 'root.cert.pem'), {saveAs: true})
-    });
+let options = {
+    title: 'Save Reversee Root Cert',
+    defaultPath: 'reversee.root',
+    filters: [
+        {name: 'pem', extensions: ['pem']},
+        {name: 'All Files', extensions: ['*']}
+    ]
+};
 
+function downloadRoot(main) {
+    dialog.showSaveDialog(main, options, (filename) =>{
+        fs.writeFile(filename, rootCertPem.certificate, 'UTF8')
+    })
 }
 
 exports.generateAndSignCert = generateAndSignCert;

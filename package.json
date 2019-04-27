@@ -1,6 +1,6 @@
 {
   "name": "Reversee",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "main": "src/main.js",
   "productName": "Reversee",
   "description": "Reverse Proxy Web Debugger",
@@ -28,7 +28,6 @@
     "bootstrap-select": "^1.12.2",
     "electron-compile": "^6.4.3",
     "electron-config": "^1.0.0",
-    "electron-dl": "^1.14.0",
     "electron-google-analytics": "^0.1.0",
     "electron-log": "^2.2.14",
     "electron-updater": "4.0.6",
