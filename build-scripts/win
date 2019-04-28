@@ -1,2 +1,2 @@
-CSC_LINK=C:/vagrant/reversee.cert.p12
-CSC_KEY_PASSWORD=
+export CSC_LINK=C:/vagrant/reversee.cert.p12
+export CSC_KEY_PASSWORD=
