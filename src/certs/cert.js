@@ -26,9 +26,18 @@ let options = {
 
 function downloadRoot(main) {
     dialog.showSaveDialog(main, options, (filename) =>{
-        fs.writeFile(filename, rootCertPem.certificate, 'UTF8')
+        if (filename) {
+            fs.writeFile(filename, rootCertPem.certificate, 'UTF8')
+        }
     })
+}
+
+function certificateTrustDialog(main) {
+    let cert = {data: rootCertPem.certificate};
+    const message = "To proxy https clients that can not trust Self Signed Certificates, Click 'Show Certificate' and select 'Always Trust.'";
+    dialog.showCertificateTrustDialog(main, {certificate: cert, message}, ()=>{});
 }
 
 exports.generateAndSignCert = generateAndSignCert;
 exports.downloadRoot = downloadRoot;
+exports.certificateTrustDialog = certificateTrustDialog;

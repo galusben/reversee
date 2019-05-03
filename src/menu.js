@@ -93,12 +93,20 @@ function create(breakpointsEditWin, main) {
                     }
                 },
                 {
-                    label: 'Save Root Cert',
+                    label: 'Export Root Cert',
                     id: 'reset',
                     click() {
                         certs.downloadRoot(main);
                     }
-                }]
+                },
+                {
+                    label: 'Manage Root Cert',
+                    id: 'reset',
+                    click() {
+                        certs.certificateTrustDialog(main);
+                    }
+                }
+            ]
         },
         {
             label: 'View',
