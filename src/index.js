@@ -1,5 +1,5 @@
-const { ipcRenderer, remote, clipboard } = require('electron');
-const { Menu, MenuItem } = remote;
+const {ipcRenderer, remote, clipboard} = require('electron');
+const {Menu, MenuItem} = remote;
 const logger = require("electron-log");
 
 function addContextMenu(element, curl) {
@@ -76,9 +76,9 @@ function createReadOnlyEditor(element, text, mode, editor) {
         monaco.editor.setModelLanguage(editor.getModel(), mode);
         editor.setValue(text);
     }
-    editor.updateOptions({ readOnly: false});
+    editor.updateOptions({readOnly: false});
     editor.getAction('editor.action.formatDocument').run().then(() => {
-        editor.updateOptions({ readOnly: true })
+        editor.updateOptions({readOnly: true})
     });
     return editor;
 }
@@ -91,9 +91,7 @@ function setDirection(direction, element) {
     let trafficKey = $(element).attr('trafficId');
     let headersMap = traffic[trafficKey][direction].headers;
     const bodyText = traffic[trafficKey][direction].body && traffic[trafficKey][direction].body.toString();
-    logger.info('after format');
     const mode = calcMode(headersMap);
-    logger.info('mode:', mode);
     let headersText = '';
     for (let key in headersMap) {
         headersText += key + " : " + headersMap[key] + "\n";
@@ -104,13 +102,29 @@ function setDirection(direction, element) {
     readOnlyEditors[direction + '-plain'] = createReadOnlyEditor(bodyElement, bodyText, null, readOnlyEditors[direction + '-plain']);
     logger.info('creating formatted editor');
     readOnlyEditors[direction + '-formatted'] = createReadOnlyEditor(formattedBodyElement, bodyText, mode, readOnlyEditors[direction + '-formatted']);
-    logger.info('done')
+}
 
+function extractTimingsText(timings) {
+    let timingsText = '';
+    timingsText += 'Start timestamp' + " : " + timings['start'] + "\n";
+    timingsText += 'DNS Lookup' + " : " + timings['dnsLookup'] / 1000000.0 + " ms \n";
+    timingsText += 'Time till first byte received' + " : " + (timings['firstByte'] ? timings['firstByte'] / 1000000.0 : 0)+ " ms \n";
+    timingsText += 'TCP Connection' + " : " + (timings['tcpConnection'] ? timings['tcpConnection'] / 1000000.0 : 0) + " ms \n";
+    timingsText += 'TLS handshake' + " : " + (timings['tlsHandshake'] ? timings['tlsHandshake'] / 1000000.0 : 0) + " ms \n";
+    timingsText += 'Total' + " : " + (timings['total'] ? timings['total'] / 1000000.0 : 0) + " ms \n";
+    return timingsText;
 }
 
 function rowClicked(element) {
     setDirection('response', element);
     setDirection('request', element);
+    const summeryElement = $(`#summery`);
+    let trafficKey = $(element).attr('trafficId');
+    let timings = traffic[trafficKey].timings;
+    logger.debug("timings", timings);
+    let timingsText = extractTimingsText(timings);
+    summeryElement.empty();
+    summeryElement.append($('<pre>').text(timingsText));
     $('.font-bold').removeClass('font-bold');
     $(element).addClass('font-bold');
     $("[selected-r='true']").attr('selected-r', 'false');
@@ -136,7 +150,7 @@ function setProxy() {
     $('.form-control').not("[optional='true']").map(function (index, element) {
         validations.push(notifyInvalid(element.id))
     });
-    validations.push({valid : validatePort(settings.listenPort)});
+    validations.push({valid: validatePort(settings.listenPort)});
     let valid = true;
     for (let i = 0; i < validations.length; i++) {
         valid = valid && validations[i].valid;
@@ -145,8 +159,8 @@ function setProxy() {
         return false;
     }
     $('.form-control, input[type=checkbox]').not('button').prop('disabled', 'true');
-    requestInterceptorEditor.updateOptions({ readOnly: true });
-    responseInterceptorEditor.updateOptions({ readOnly: true });
+    requestInterceptorEditor.updateOptions({readOnly: true});
+    responseInterceptorEditor.updateOptions({readOnly: true});
     ipcRenderer.send('message-settings', settings);
 
 
@@ -156,7 +170,7 @@ function setProxy() {
     return true;
 }
 
-function  validatePort(port) {
+function validatePort(port) {
     if (!isNaN(port) && port > 0 && port < 65536) {
         return true
     } else {
@@ -170,9 +184,9 @@ function notifyInvalid(id) {
     let val = jqueryId.val();
     if (!val || val.length <= 0) {
         jqueryId.addClass('ng-invalid');
-        return { valid: false };
+        return {valid: false};
     }
-    return { valid: true };
+    return {valid: true};
 }
 
 function setInvalid(id) {
@@ -242,8 +256,8 @@ ipcRenderer.on('trip-data', (event, arg) => {
 
 function unSetProxy() {
     ipcRenderer.send('stop-proxy', '');
-    requestInterceptorEditor.updateOptions({ readOnly: false });
-    responseInterceptorEditor.updateOptions({ readOnly: false });
+    requestInterceptorEditor.updateOptions({readOnly: false});
+    responseInterceptorEditor.updateOptions({readOnly: false});
     $('.form-control, input[type=checkbox]').not('button').prop('disabled', false);
 }
 
@@ -408,7 +422,7 @@ $(document).ready(() => {
 editorLoadedEmitter.once('loaded', () => {
     let settings = readFromLocalStorage();
     setupInterceptors(settings);
-   
+
     readOnlyEditors['request' + '-plain'] = createReadOnlyEditor($(`#request-body`), '', 'html', null);
     readOnlyEditors['request' + '-formatted'] = createReadOnlyEditor($(`#request-body-formatted`), '', 'json', null);
     readOnlyEditors['response' + '-plain'] = createReadOnlyEditor($(`#response-body`), '', 'css', null);

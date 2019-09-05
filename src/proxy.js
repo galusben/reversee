@@ -5,6 +5,8 @@ const path = require('path');
 const {URL} = require('url');
 require('request-to-curl');
 const logger = require("electron-log");
+const process = require('process');
+
 
 const interceptor = require(path.join(__dirname, 'interceptor.js'));
 let trafficId = 0;
@@ -22,6 +24,11 @@ function buildRequestParams(requestParams, userSettings, clientReq) {
 }
 
 function handleRequest(clientReq, clientRes, userSettings, notify, requestParams) {
+    const timings = {
+        start: new Date(),
+        startAt: process.hrtime.bigint(),
+    };
+
     logger.info('Path Hit: ' + clientReq.url);
     let responseView = {
         headers: {},
@@ -43,7 +50,8 @@ function handleRequest(clientReq, clientRes, userSettings, notify, requestParams
     let trafficView = {
         trafficId: trafficId++,
         request: requestView,
-        response: responseView
+        response: responseView,
+        timings: timings
     };
 
     const originalHost = requestView.headers.host;
@@ -60,14 +68,16 @@ function handleRequest(clientReq, clientRes, userSettings, notify, requestParams
             body: Buffer.alloc(0)
         };
 
-
+        serverResponse.once('readable', () => {
+            timings.firstByte = parseInt(process.hrtime.bigint() - timings.startAt);
+        });
         logger.info('status set');
         serverResponse.on('data', (chunk) => {
             responseParams.body = Buffer.concat([responseParams.body, chunk]);
         });
         serverResponse.on('end', () => {
+            timings.total = parseInt(process.hrtime.bigint() - timings.startAt);
             let start = new Date().getTime();
-            logger.info('start on end: ' + start);
             if (userSettings.responseInterceptor && userSettings.interceptResponse) {
                 interceptor.interceptResponse(responseParams, userSettings.responseInterceptor, requestParams);
             }
@@ -114,9 +124,20 @@ function handleRequest(clientReq, clientRes, userSettings, notify, requestParams
                 clientRes.end();
                 notify(trafficView)
             }
-            logger.info('end on end: ' + (new Date().getTime() - start));
         })
     });
+    connector.on('socket', (socket) => {
+        socket.on('lookup', () => {
+            timings.dnsLookup = parseInt(process.hrtime.bigint() - timings.startAt)
+        });
+        socket.on('connect', () => {
+            timings.tcpConnection = parseInt(process.hrtime.bigint()  - timings.startAt)
+        });
+        socket.on('secureConnect', () => {
+            timings.tlsHandshake = parseInt(process.hrtime.bigint()  - timings.startAt)
+        })
+    });
+
     connector.on('error', function (err) {
         logger.info(err);
         clientRes.statusCode = 502;

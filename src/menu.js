@@ -98,13 +98,6 @@ function create(breakpointsEditWin, main) {
                     click() {
                         certs.downloadRoot(main);
                     }
-                },
-                {
-                    label: 'Manage Root Cert',
-                    id: 'reset',
-                    click() {
-                        certs.certificateTrustDialog(main);
-                    }
                 }
             ]
         },
@@ -238,30 +231,18 @@ function create(breakpointsEditWin, main) {
                 ]
             }
         );
-        // Window menu.
-        template[3].submenu.push = [
-            {
-                label: 'Close',
-                accelerator: 'CmdOrCtrl+W',
-                role: 'close'
-            },
-            {
-                label: 'Minimize',
-                accelerator: 'CmdOrCtrl+M',
-                role: 'minimize'
-            },
-            {
-                label: 'Zoom',
-                role: 'zoom'
-            },
-            {
-                type: 'separator'
-            },
-            {
-                label: 'Bring All to Front',
-                role: 'front'
-            }
-        ]
+        // Proxy
+        const opsys = process.platform;
+        if (opsys == "darwin") {
+            template[3].submenu.push(
+                {
+                    label: 'Manage Root Cert',
+                    id: 'reset',
+                    click() {
+                        certs.certificateTrustDialog(main);
+                    }
+                });
+        }
     }
     const menu = Menu.buildFromTemplate(template);
     Menu.setApplicationMenu(menu);
