@@ -1,14 +1,14 @@
 const uuid = require('uuid4');
 const Config = require('electron-config');
 const config = new Config();
-import Analytics from 'electron-google-analytics';
+const Analytics  = require('electron-google-analytics');
 const fakeClientId = 'bf234a38-ffba-4b25-995a-5495f8bb425e';
 const devMode = process.argv[2] === 'dev';
 const {app, session} = require('electron');
 
 console.log('devMode: ' + devMode);
 const userAgent = session.defaultSession.getUserAgent();
-const analytics = new Analytics(getPropertyId(),{userAgent : userAgent});
+const analytics = new Analytics.default(getPropertyId(),{userAgent : userAgent});
 analytics.set('ua', userAgent);
 const clientId = getClientId();
 

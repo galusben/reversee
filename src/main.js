@@ -31,7 +31,10 @@ let image = nativeImage.createFromPath(path.join(__dirname, 'assets', 'Reversee.
 const icon = process.platform === 'linux' ? image : null;
 
 function createBreakpointsEditWin() {
-    breakpointsEditWin = new BrowserWindow({width: 800, height: 600, icon: icon});
+    breakpointsEditWin = new BrowserWindow({width: 800, height: 600, icon: icon,
+        webPreferences: {
+            nodeIntegration: true
+        }});
     breakpointsEditWin.hide();
     menu.create(breakpointsEditWin, win);
     breakpointsEditWin.loadURL(url.format({
@@ -60,7 +63,10 @@ function createWindows() {
         'width': mainWindowState.width,
         'height': mainWindowState.height,
         icon: icon,
-        show: false
+        show: false,
+        webPreferences: {
+            nodeIntegration: true
+        }
     });
     mainWindowState.manage(win);
 
@@ -83,7 +89,10 @@ function createWindows() {
         proxyWin = null;
     });
     createBreakpointsEditWin();
-    proxyWin = new BrowserWindow({width: 80, height: 60, show: false});
+    proxyWin = new BrowserWindow({width: 80, height: 60, show: false,
+        webPreferences: {
+        nodeIntegration: true
+    }});
     proxyWin.loadURL(url.format({
         pathname: path.join(__dirname, 'proxyWin.html'),
         protocol: 'file:',
@@ -153,7 +162,10 @@ ipcMain.on('breakpoints-show-window', (event, data) => {
 
 
 function createBreakpointWindow(breakPointId, request, body) {
-    const breakpointWin = new BrowserWindow({width: 400, height: 400, icon: icon});
+    const breakpointWin = new BrowserWindow({width: 400, height: 400, icon: icon,
+        webPreferences: {
+        nodeIntegration: true
+    }});
     breakpointWin.loadURL(url.format({
         pathname: path.join(__dirname, 'breakPoint.html'),
         protocol: 'file:',
