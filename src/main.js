@@ -6,6 +6,7 @@ const windowStateKeeper = require('electron-window-state');
 const {autoUpdater} = require("electron-updater");
 const menu = require(path.join(__dirname, 'menu.js'));
 const cert = require(path.join(__dirname,'certs', 'cert.js'));
+const license = require(path.join(__dirname,'licence.js'));
 
 const breakpointWindows = {};
 let stats;
@@ -36,7 +37,6 @@ function createBreakpointsEditWin() {
             nodeIntegration: true
         }});
     breakpointsEditWin.hide();
-    menu.create(breakpointsEditWin, win);
     breakpointsEditWin.loadURL(url.format({
         pathname: path.join(__dirname, 'breakPointsEdit.html'),
         protocol: 'file:',
@@ -46,7 +46,25 @@ function createBreakpointsEditWin() {
         breakpointsEditWin.webContents.send('window-closed', {});
         breakpointsEditWin.hide();
         event.preventDefault();
-    })
+    });
+}
+
+function createAddLicenseWin() {
+    let addLicenseWin = new BrowserWindow({width: 800, height: 600, icon: icon,
+        webPreferences: {
+            nodeIntegration: true
+        }});
+    addLicenseWin.hide();
+    addLicenseWin.loadURL(url.format({
+        pathname: path.join(__dirname, 'addLicenseWin.html'),
+        protocol: 'file:',
+        slashes: true
+    }));
+    breakpointsEditWin.on('close', (event) => {
+        breakpointsEditWin.hide();
+        event.preventDefault();
+    });
+    return addLicenseWin;
 }
 
 function createWindows() {
@@ -89,6 +107,8 @@ function createWindows() {
         proxyWin = null;
     });
     createBreakpointsEditWin();
+    let licenseWin = createAddLicenseWin();
+    menu.create(breakpointsEditWin, win, licenseWin);
     proxyWin = new BrowserWindow({width: 80, height: 60, show: false,
         webPreferences: {
         nodeIntegration: true
@@ -205,4 +225,12 @@ ipcMain.on('proxy-started', (event, data) => {
 ipcMain.on('server-error', (event, data) => {
     win.webContents.send('server-error', data);
 
+});
+
+ipcMain.on('licence-inserted', (event, data) => {
+    logger.info('got licence-inserted');
+    let licenseOk = license.verify(data.licence);
+    if (licenseOk) {
+        logger.info('license ok');
+    }
 });

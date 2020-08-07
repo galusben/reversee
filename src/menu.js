@@ -16,7 +16,7 @@ Menu.prototype.getMenuItemById = function (id) {
     return found
 };
 
-function create(breakpointsEditWin, main) {
+function create(breakpointsEditWin, main, licenceWindow) {
 
     const template = [
         {
@@ -167,12 +167,19 @@ function create(breakpointsEditWin, main) {
                                 css_path: join(__dirname, 'assets', 'about-window.css'),
                                 win_options: {show: false}
                             }
-                        )
+                        );
                         aboutWin.on('ready-to-show', function () {
                             aboutWin.show();
                             aboutWin.focus();
                         });
 
+                    }
+                },
+                {
+                    label: 'Enter License',
+                    click() {
+                        console.log('Licence window clicked');
+                        licenceWindow.show();
                     }
                 }
             ]
