@@ -3,7 +3,7 @@ const pkg = require('./../package.json');
 const about = require('about-window').default;
 const join = require('path').join;
 const certs = require(join(__dirname, 'certs', 'cert'));
-
+const license = require(join(__dirname,'licence.js'));
 
 Menu.prototype.getMenuItemById = function (id) {
     const items = this.items;
@@ -159,12 +159,17 @@ function create(breakpointsEditWin, main, licenceWindow) {
                     }
                 },
                 {
-                    role: 'about',
+                    label: 'About Reversee',
                     click: function () {
+                        let productName = 'Reversee';
+                        if (license.isPro()) {
+                            productName = 'Reversee - Pro'
+                        }
                         const aboutWin = about(
                             {
+                                product_name : productName,
                                 icon_path: join(__dirname, 'assets', 'Reversee.png'),
-                                css_path: join(__dirname, 'assets', 'about-window.css'),
+                                use_version_info: false,
                                 win_options: {show: false}
                             }
                         );
@@ -172,7 +177,6 @@ function create(breakpointsEditWin, main, licenceWindow) {
                             aboutWin.show();
                             aboutWin.focus();
                         });
-
                     }
                 },
                 {

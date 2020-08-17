@@ -7,6 +7,7 @@ const {autoUpdater} = require("electron-updater");
 const menu = require(path.join(__dirname, 'menu.js'));
 const cert = require(path.join(__dirname,'certs', 'cert.js'));
 const license = require(path.join(__dirname,'licence.js'));
+const fs = require('fs');
 
 const breakpointWindows = {};
 let stats;
@@ -118,6 +119,7 @@ function createWindows() {
         protocol: 'file:',
         slashes: true
     }));
+    checkLicense()
 }
 
 app.on('ready', createWindows);
@@ -229,8 +231,25 @@ ipcMain.on('server-error', (event, data) => {
 
 ipcMain.on('licence-inserted', (event, data) => {
     logger.info('got licence-inserted');
-    let licenseOk = license.verify(data.licence);
-    if (licenseOk) {
-        logger.info('license ok');
+    let parsed = license.verify(data.licence);
+    logger.info('lic body:' + parsed);
+    if (!parsed) {
+        return;
     }
+    license.makeLicensed(parsed);
+    let filename = path.join(app.getPath('userData'), 'reversee.lic');
+    fs.writeFileSync(filename, data.licence, 'UTF8')
 });
+
+function checkLicense() {
+    let filename = path.join(app.getPath('userData'), 'reversee.lic');
+    fs.promises.readFile(filename, {encoding: 'UTF8'}).then((lic) => {
+        if (lic) {
+            let parsed = license.verify(lic);
+            if (!parsed) {
+                return;
+            }
+            license.makeLicensed(parsed)
+        }
+    }).catch(() => {})
+}
