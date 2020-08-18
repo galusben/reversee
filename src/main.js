@@ -107,6 +107,7 @@ function createWindows() {
         breakpointsEditWin = null;
         proxyWin.destroy();
         proxyWin = null;
+        addLicenseWin.destroy();
     });
     createBreakpointsEditWin();
     let licenseWin = createAddLicenseWin();
