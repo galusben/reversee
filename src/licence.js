@@ -27,6 +27,14 @@ function isPro () {
     return customerLicense != null;
 }
 
+function getRegisteredEmail() {
+    if (!isPro()) {
+        return null;
+    }
+    return customerLicense.payerEmail;
+}
+
 exports.verify = verify;
 exports.makeLicensed = makeLicensed;
 exports.isPro = isPro;
+exports.getRegisteredEmail = getRegisteredEmail;

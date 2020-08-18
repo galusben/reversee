@@ -18,14 +18,17 @@ Menu.prototype.getMenuItemById = function (id) {
 
 const clickAbout = function () {
     let productName = 'Reversee';
+    let copyright = 'Unregistered copy'
     if (license.isPro()) {
         productName = 'Reversee - Pro'
+        copyright = 'Licenced to: ' + license.getRegisteredEmail()
     }
     const aboutWin = about(
         {
             product_name: productName,
             icon_path: join(__dirname, 'assets', 'Reversee.png'),
             use_version_info: false,
+            copyright: copyright,
             win_options: {show: false}
         }
     );

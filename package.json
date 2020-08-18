@@ -1,6 +1,6 @@
 {
   "name": "Reversee",
-  "version": "1.0.5-snapshot",
+  "version": "1.0.5",
   "main": "src/main.js",
   "productName": "Reversee",
   "description": "Reverse Proxy Web Debugger",
