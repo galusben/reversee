@@ -204,4 +204,5 @@ ipcMain.on('proxy-started', (event, data) => {
 
 ipcMain.on('server-error', (event, data) => {
     win.webContents.send('server-error', data);
+
 });
