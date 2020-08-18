@@ -62,8 +62,8 @@ function createAddLicenseWin() {
         protocol: 'file:',
         slashes: true
     }));
-    breakpointsEditWin.on('close', (event) => {
-        breakpointsEditWin.hide();
+    addLicenseWin.on('close', (event) => {
+        addLicenseWin.hide();
         event.preventDefault();
     });
     return addLicenseWin;
@@ -230,7 +230,7 @@ ipcMain.on('server-error', (event, data) => {
 
 });
 
-function showMessage() {
+function showMessage(message) {
     dialog.showMessageBox(addLicenseWin, {type: 'info', message: message, icon: image});
 }
 
