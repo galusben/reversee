@@ -1,4 +1,4 @@
-const {app, BrowserWindow, ipcMain} = require('electron');
+const {app, BrowserWindow, ipcMain, dialog} = require('electron');
 const path = require('path');
 const url = require('url');
 const nativeImage = require('electron').nativeImage;
@@ -27,6 +27,7 @@ let pem = cert.generateAndSignCert();
 let win;
 let proxyWin;
 let breakpointsEditWin;
+let addLicenseWin;
 
 
 let image = nativeImage.createFromPath(path.join(__dirname, 'assets', 'Reversee.png'));
@@ -51,7 +52,7 @@ function createBreakpointsEditWin() {
 }
 
 function createAddLicenseWin() {
-    let addLicenseWin = new BrowserWindow({width: 800, height: 600, icon: icon,
+    addLicenseWin = new BrowserWindow({width: 800, height: 450, icon: icon,
         webPreferences: {
             nodeIntegration: true
         }});
@@ -229,16 +230,34 @@ ipcMain.on('server-error', (event, data) => {
 
 });
 
+function showMessage() {
+    dialog.showMessageBox(addLicenseWin, {type: 'info', message: message, icon: image});
+}
+
 ipcMain.on('licence-inserted', (event, data) => {
     logger.info('got licence-inserted');
-    let parsed = license.verify(data.licence);
+    if (!data.licence) {
+        showMessage('Invalid License, please try again');
+        return;
+    }
+    data.licence = data.licence && data.licence.trim();
+    let parsed;
+    try {
+        parsed = license.verify(data.licence);
+    } catch (e) {
+        showMessage('Invalid License, please try again');
+        return;
+    }
     logger.info('lic body:' + parsed);
     if (!parsed) {
+        showMessage('Invalid License, please try again');
         return;
     }
     license.makeLicensed(parsed);
     let filename = path.join(app.getPath('userData'), 'reversee.lic');
-    fs.writeFileSync(filename, data.licence, 'UTF8')
+    fs.writeFileSync(filename, data.licence, 'UTF8');
+    showMessage('Thank you for purchasing Reversee - Pro!');
+    addLicenseWin.hide()
 });
 
 function checkLicense() {

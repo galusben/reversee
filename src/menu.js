@@ -16,6 +16,25 @@ Menu.prototype.getMenuItemById = function (id) {
     return found
 };
 
+const clickAbout = function () {
+    let productName = 'Reversee';
+    if (license.isPro()) {
+        productName = 'Reversee - Pro'
+    }
+    const aboutWin = about(
+        {
+            product_name: productName,
+            icon_path: join(__dirname, 'assets', 'Reversee.png'),
+            use_version_info: false,
+            win_options: {show: false}
+        }
+    );
+    aboutWin.on('ready-to-show', function () {
+        aboutWin.show();
+        aboutWin.focus();
+    });
+};
+
 function create(breakpointsEditWin, main, licenceWindow) {
 
     const template = [
@@ -160,24 +179,7 @@ function create(breakpointsEditWin, main, licenceWindow) {
                 },
                 {
                     label: 'About Reversee',
-                    click: function () {
-                        let productName = 'Reversee';
-                        if (license.isPro()) {
-                            productName = 'Reversee - Pro'
-                        }
-                        const aboutWin = about(
-                            {
-                                product_name : productName,
-                                icon_path: join(__dirname, 'assets', 'Reversee.png'),
-                                use_version_info: false,
-                                win_options: {show: false}
-                            }
-                        );
-                        aboutWin.on('ready-to-show', function () {
-                            aboutWin.show();
-                            aboutWin.focus();
-                        });
-                    }
+                    click: clickAbout
                 },
                 {
                     label: 'Enter License',
@@ -196,7 +198,8 @@ function create(breakpointsEditWin, main, licenceWindow) {
             label: name,
             submenu: [
                 {
-                    role: 'about'
+                    label: 'About Reversee',
+                    click: clickAbout
                 },
                 {
                     type: 'separator'
