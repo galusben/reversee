@@ -10,7 +10,6 @@ const license = require(path.join(__dirname,'licence.js'));
 const fs = require('fs');
 
 const breakpointWindows = {};
-let stats;
 
 const logger = require("electron-log");
 autoUpdater.logger = logger;
@@ -74,9 +73,6 @@ function createWindows() {
         defaultWidth: 1000,
         defaultHeight: 600
     });
-    stats = require(path.join(__dirname, 'reportingStats.js'));
-    stats.reportAppLoaded();
-
     win = new BrowserWindow({
         'x': mainWindowState.x,
         'y': mainWindowState.y,
@@ -155,7 +151,6 @@ ipcMain.on('main-trip-data', (event, data) => {
 ipcMain.on('stop-proxy', (event, data) => {
     if (proxyWin != null) {
         proxyWin.webContents.send('win-stop-proxy', data);
-        stats.reportProxyStopped();
     }
 });
 
@@ -223,7 +218,6 @@ ipcMain.on('continue', (event, data) => {
 
 ipcMain.on('proxy-started', (event, data) => {
     logger.info("proxy started");
-    stats.reportProxyStarted()
 });
 
 ipcMain.on('server-error', (event, data) => {
