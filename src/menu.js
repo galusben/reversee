@@ -183,13 +183,6 @@ function create(breakpointsEditWin, main, licenceWindow) {
                 {
                     label: 'About Reversee',
                     click: clickAbout
-                },
-                {
-                    label: 'Enter License',
-                    click() {
-                        console.log('Licence window clicked');
-                        licenceWindow.show();
-                    }
                 }
             ]
         }
