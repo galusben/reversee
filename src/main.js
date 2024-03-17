@@ -8,6 +8,7 @@ const menu = require(path.join(__dirname, 'menu.js'));
 const cert = require(path.join(__dirname,'certs', 'cert.js'));
 const license = require(path.join(__dirname,'licence.js'));
 const fs = require('fs');
+require('@electron/remote/main').initialize()
 
 const breakpointWindows = {};
 
@@ -35,8 +36,11 @@ const icon = process.platform === 'linux' ? image : null;
 function createBreakpointsEditWin() {
     breakpointsEditWin = new BrowserWindow({width: 800, height: 600, icon: icon,
         webPreferences: {
-            nodeIntegration: true
+            nodeIntegration: true,
+            contextIsolation: false,
+            enableRemoteModule: true
         }});
+    require('@electron/remote/main').enable(breakpointsEditWin.webContents)
     breakpointsEditWin.hide();
     breakpointsEditWin.loadURL(url.format({
         pathname: path.join(__dirname, 'breakPointsEdit.html'),
@@ -53,8 +57,12 @@ function createBreakpointsEditWin() {
 function createAddLicenseWin() {
     addLicenseWin = new BrowserWindow({width: 800, height: 450, icon: icon,
         webPreferences: {
-            nodeIntegration: true
+            nodeIntegration: true,
+            contextIsolation: false,
+            enableRemoteModule: true
         }});
+    require('@electron/remote/main').enable(addLicenseWin.webContents)
+
     addLicenseWin.hide();
     addLicenseWin.loadURL(url.format({
         pathname: path.join(__dirname, 'addLicenseWin.html'),
@@ -81,9 +89,13 @@ function createWindows() {
         icon: icon,
         show: false,
         webPreferences: {
-            nodeIntegration: true
+            nodeIntegration: true,
+            contextIsolation: false,
+            enableRemoteModule: true
         }
     });
+    require('@electron/remote/main').enable(win.webContents)
+
     mainWindowState.manage(win);
 
     win.loadURL(url.format({
@@ -108,10 +120,19 @@ function createWindows() {
     createBreakpointsEditWin();
     let licenseWin = createAddLicenseWin();
     menu.create(breakpointsEditWin, win, licenseWin);
-    proxyWin = new BrowserWindow({width: 80, height: 60, show: false,
-        webPreferences: {
-        nodeIntegration: true
-    }});
+    proxyWin = new BrowserWindow(
+        {
+            width: 80,
+            height: 60,
+            show: false,
+            webPreferences: {
+                nodeIntegration: true,
+                contextIsolation: false,
+                enableRemoteModule: true
+            }
+        });
+    require('@electron/remote/main').enable(proxyWin.webContents)
+
     proxyWin.loadURL(url.format({
         pathname: path.join(__dirname, 'proxyWin.html'),
         protocol: 'file:',
@@ -141,6 +162,7 @@ ipcMain.on('message-settings', (event, settings) => {
     };
     logger.info('ssl-options main: ', sslOptions);
     settings.sslOptions = sslOptions;
+    console.log("sending start-proxy event")
     proxyWin.webContents.send('start-proxy', settings);
 });
 
@@ -183,8 +205,12 @@ ipcMain.on('breakpoints-show-window', (event, data) => {
 function createBreakpointWindow(breakPointId, request, body) {
     const breakpointWin = new BrowserWindow({width: 400, height: 400, icon: icon,
         webPreferences: {
-        nodeIntegration: true
+            nodeIntegration: true,
+            contextIsolation: false,
+            enableRemoteModule: true
     }});
+    require('@electron/remote/main').enable(breakpointWin.webContents)
+
     breakpointWin.loadURL(url.format({
         pathname: path.join(__dirname, 'breakPoint.html'),
         protocol: 'file:',

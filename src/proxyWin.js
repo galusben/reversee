@@ -7,7 +7,8 @@ const {ipcRenderer} = require('electron');
 const http = require('http');
 const https = require('https');
 const logger = require("electron-log");
-const { Menu } = require('electron').remote;
+// const { Menu } = require('electron');
+const { Menu } = require('@electron/remote')
 require('http-shutdown').extend();
 
 // const cert = require(path.join(__dirname,'certs', 'cert.js'));
@@ -77,13 +78,18 @@ let generateId = function generateId() {
 
 function startProxy(settings) {
     logger.info("starting proxy to: " + settings.dest);
-    let sslOptions = settings.sslOptions;
-    console.log('sslOptions: ' + sslOptions);
+    let localSslOptions = settings.sslOptions;
+    logger.info('sslOptions: ' + localSslOptions);
+    logger.info('Menu: ' + Menu);
 
     const redirect = Menu.getApplicationMenu().getMenuItemById('redirects');
     const hostRewrite = Menu.getApplicationMenu().getMenuItemById('host');
+    logger.info('Menu functions: ');
+
     settings.redirect = redirect.checked;
     settings.hostRewrite = hostRewrite.checked;
+    logger.info('Creating handleRequestWrapper: ');
+
     const handleRequestWrapper = (request, response) => {
         const chunks = [];
         request.on('data', chunk => chunks.push(chunk));
@@ -110,10 +116,13 @@ function startProxy(settings) {
         });
 
     };
+    logger.info('settings.listenProtocol: ' + settings.listenProtocol);
     if (settings.listenProtocol === 'http') {
+        logger.info('creating http server: ');
         server = http.createServer(handleRequestWrapper).withShutdown();
+        logger.info('created http server: ');
     } else {
-        server = https.createServer(sslOptions, handleRequestWrapper).withShutdown();
+        server = https.createServer(localSslOptions, handleRequestWrapper).withShutdown();
     }
     server.on('error', (err) => {
         logger.error("error on server!!!", err);

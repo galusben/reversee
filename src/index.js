@@ -1,5 +1,6 @@
-const {ipcRenderer, remote, clipboard} = require('electron');
-const {Menu, MenuItem} = remote;
+const {remote, ipcRenderer, clipboard} = require('electron');
+// const {Menu, MenuItem, BrowserWindow} = remote;
+const { Menu, MenuItem, BrowserWindow } = require('@electron/remote')
 const logger = require("electron-log");
 
 function addContextMenu(element, curl) {
@@ -132,6 +133,7 @@ function rowClicked(element) {
 }
 
 function setProxy() {
+    console.log("set proxy")
     let settings = {
         dest: document.getElementById("dest").value,
         destProtocol: document.getElementById("destProtocol").value,
