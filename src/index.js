@@ -1,7 +1,8 @@
-const {remote, ipcRenderer, clipboard} = require('electron');
-const { Menu, MenuItem, BrowserWindow } = require('@electron/remote')
+const {ipcRenderer, clipboard} = require('electron');
+const remote = require('@electron/remote')
 const logger = require("electron-log");
-
+const Menu = remote.Menu;
+const MenuItem = remote.MenuItem;
 function addContextMenu(element, curl) {
     const menu = new Menu();
     menu.append(new MenuItem({
