@@ -11,7 +11,6 @@ const logger = require("electron-log");
 const { Menu } = require('@electron/remote')
 require('http-shutdown').extend();
 
-// const cert = require(path.join(__dirname,'certs', 'cert.js'));
 
 
 ipcRenderer.on('start-proxy', (event, settings) => {

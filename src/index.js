@@ -1,5 +1,4 @@
 const {remote, ipcRenderer, clipboard} = require('electron');
-// const {Menu, MenuItem, BrowserWindow} = remote;
 const { Menu, MenuItem, BrowserWindow } = require('@electron/remote')
 const logger = require("electron-log");
 
@@ -91,7 +90,7 @@ function setDirection(direction, element) {
     headersElement.empty();
     let trafficKey = $(element).attr('trafficId');
     let headersMap = traffic[trafficKey][direction].headers;
-    const bodyText = traffic[trafficKey][direction].body && traffic[trafficKey][direction].body.toString();
+    const bodyText = traffic[trafficKey][direction].body && traffic[trafficKey][direction].body.toString("utf8");
     const mode = calcMode(headersMap);
     let headersText = '';
     for (let key in headersMap) {

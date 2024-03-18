@@ -124,7 +124,7 @@ function createWindows() {
         {
             width: 80,
             height: 60,
-            show: false,
+            show: true,
             webPreferences: {
                 nodeIntegration: true,
                 contextIsolation: false,
