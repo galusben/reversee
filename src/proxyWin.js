@@ -93,7 +93,7 @@ function startProxy(settings) {
         const chunks = [];
         request.on('data', chunk => chunks.push(chunk));
         request.on('end', () => {
-            const body = Buffer.concat(chunks);
+            const body = Buffer.concat(chunks).toString();
             if (matchingBreakpoint(request.url, request.method)) {
                 let breakPointId = generateId();
                 ipcRenderer.send('breakpoints-create-window', {breakPointId, request, body});

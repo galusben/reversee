@@ -119,9 +119,9 @@ function handleRequest(clientReq, clientRes, userSettings, notify, requestParams
                     notify(trafficView)
                 });
             } else {
-                responseView.body = responseParams.body;
                 clientRes.write(responseParams.body);
                 clientRes.end();
+                responseView.body = responseParams.body.toString();
                 notify(trafficView)
             }
         })
