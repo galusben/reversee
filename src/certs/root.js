@@ -1,6 +1,7 @@
 const forge = require('node-forge');
 
 function createRootCert() {
+    console.log('Creating root certificate...');
     console.log('Generating 1024-bit key-pair...');
     var keys = forge.pki.rsa.generateKeyPair(2048);
 
