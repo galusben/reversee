@@ -5,3 +5,5 @@ build-scripts/reversee/
 .vscode/
 .DS_Store
 *.log
+test-results/
+playwright-report/
