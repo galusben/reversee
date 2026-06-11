@@ -1,12 +1,6 @@
 // Unit tests for the vm-sandboxed user interceptor engine (src/interceptor.js).
 import { describe, it, expect } from 'vitest';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
-
-const require = createRequire(import.meta.url);
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const interceptor = require(path.join(__dirname, '..', '..', 'src', 'interceptor.js'));
+import * as interceptor from '../../src/proxy/core/interceptor';
 
 describe('interceptor engine', () => {
   it('request interceptor mutates requestParams', () => {

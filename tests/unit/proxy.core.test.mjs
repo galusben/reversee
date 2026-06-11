@@ -262,6 +262,33 @@ describe('proxy core', () => {
     expect(traffic.response.statusCode).toBe(502);
   });
 
+  it('holds gated requests and forwards the edited params on resume', async () => {
+    let seenHeader;
+    const upstream = await startUpstream((req, res) => {
+      seenHeader = req.headers['x-edited'];
+      res.end('ok');
+    });
+    let release;
+    const gate = (req, body) =>
+      req.url === '/hold'
+        ? new Promise((resolve) => {
+            release = () =>
+              resolve({ body, headers: { ...req.headers, 'x-edited': 'by breakpoint' } });
+          })
+        : null;
+    const settings = makeSettings(upstream.port);
+    const proxyServer = await startProxyServer(settings, { gate });
+    openServers.push(upstream.server, proxyServer.server);
+
+    const resPromise = request({ port: proxyServer.port, path: '/hold' });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(seenHeader).toBeUndefined(); // still held
+    release();
+    const res = await resPromise;
+    expect(res.statusCode).toBe(200);
+    expect(seenHeader).toBe('by breakpoint');
+  });
+
   it('records traffic with request view, response view, curl and timings', async () => {
     const { proxyServer } = await setup((req, res) => res.end('got request'), {
       settings: { dest: 'localhost' },

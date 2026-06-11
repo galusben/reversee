@@ -1,17 +1,13 @@
-// Test harness that drives src/proxy.js headlessly, replicating the listening
-// server wrapper from src/proxyWin.js (collect request body, then call
-// proxy.handleRequest(req, res, settings, notify, {body})).
+// Test harness that drives the proxy core (src/proxy/core) headlessly using
+// the real createProxyServer, against real http/https fixture upstreams.
 import http from 'node:http';
 import https from 'node:https';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
+import { createProxyServer } from '../../src/proxy/core/server';
 
-const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-const proxy = require(path.join(__dirname, '..', '..', 'src', 'proxy.js'));
 
 export const sslOptions = {
   key: fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'resources', 'localhost.key')),
@@ -31,8 +27,7 @@ export async function startUpstream(handler, { tls = false } = {}) {
   return { server, port };
 }
 
-// Mirrors handleRequestWrapper in src/proxyWin.js (without breakpoints).
-export async function startProxyServer(settings) {
+export async function startProxyServer(settings, { gate } = {}) {
   const traffic = [];
   const waiters = [];
   const notify = (trafficView) => {
@@ -40,21 +35,14 @@ export async function startProxyServer(settings) {
     while (waiters.length) waiters.shift()(trafficView);
   };
 
-  const handler = (request, response) => {
-    const chunks = [];
-    request.on('data', (chunk) => chunks.push(chunk));
-    request.on('end', () => {
-      const body = Buffer.concat(chunks);
-      proxy.handleRequest(request, response, settings, notify, { body });
-    });
-  };
-
-  const server =
-    settings.listenProtocol === 'https'
-      ? https.createServer(settings.sslOptions || sslOptions, handler)
-      : http.createServer(handler);
-  const port = await listen(server);
-  settings.listenPort = settings.listenPort || port;
+  settings.listenPort = settings.listenPort ?? 0;
+  const server = createProxyServer({
+    settings,
+    notify,
+    sslOptions: settings.listenProtocol === 'https' ? sslOptions : undefined,
+    gate,
+  });
+  const port = await server.listen();
 
   return {
     server,
@@ -87,10 +75,15 @@ export function closeAll(...servers) {
   return Promise.all(
     servers
       .filter(Boolean)
-      .map((s) => new Promise((resolve) => {
-        s.closeAllConnections?.();
-        s.close(() => resolve());
-      }))
+      .map((s) => {
+        if (typeof s.listen === 'function' && typeof s.close === 'function' && !(s instanceof http.Server)) {
+          return s.close(); // ProxyServer handle
+        }
+        return new Promise((resolve) => {
+          s.closeAllConnections?.();
+          s.close(() => resolve());
+        });
+      })
   );
 }
 
@@ -100,6 +93,7 @@ export function makeSettings(upstreamPort, overrides = {}) {
     dest: '127.0.0.1',
     destProtocol: 'http',
     destPort: upstreamPort,
+    listenPort: 0,
     listenProtocol: 'http',
     redirect: false,
     hostRewrite: false,

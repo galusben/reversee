@@ -1,12 +1,8 @@
 // Unit tests for the local curl command builder (src/curl.js).
 import { describe, it, expect } from 'vitest';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
+import { buildCurl } from '../../src/proxy/core/curl';
 
-const require = createRequire(import.meta.url);
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const curl = require(path.join(__dirname, '..', '..', 'src', 'curl.js'));
+const curl = { build: buildCurl };
 
 describe('curl builder', () => {
   it('builds a basic GET', () => {
