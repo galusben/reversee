@@ -1,38 +1,97 @@
-import { app, BrowserWindow } from 'electron';
-import path from 'node:path';
+import { app, BrowserWindow, ipcMain } from 'electron';
+import log from 'electron-log';
+import { IPC, type StartProxyResult } from '../shared/ipc';
+import { toProxySettings } from '../shared/settings-schema';
+import {
+  getSettings,
+  setSettings,
+  migrateLegacySettings,
+  onSettingsChanged,
+} from './settings';
+import { ensureCertificates, type LeafCert } from './certs/certs';
+import { ProxyHost } from './proxy-host';
+import { createMainWindow } from './windows';
 
-// Minimal shell scaffold; the real main process (windows, settings, proxy
-// host, menu) lands in the next milestones.
-function createWindow(): void {
-  const win = new BrowserWindow({
-    width: 1100,
-    height: 700,
-    show: false,
-    webPreferences: {
-      preload: path.join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  });
+log.transports.file.level = 'info';
+log.transports.console.level = 'info';
 
-  win.on('ready-to-show', () => win.show());
+let win: BrowserWindow | null = null;
+let leafCert: LeafCert | null = null;
 
-  if (process.env['ELECTRON_RENDERER_URL']) {
-    void win.loadURL(process.env['ELECTRON_RENDERER_URL']);
-  } else {
-    void win.loadFile(path.join(__dirname, '../renderer/index.html'));
-  }
+function sendToRenderer(channel: string, payload: unknown): void {
+  if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
 }
 
-app.whenReady().then(() => {
-  createWindow();
+const proxyHost = new ProxyHost({
+  onTraffic: (entry) => sendToRenderer(IPC.trafficEvent, entry),
+  onStateChanged: (running, port) => sendToRenderer(IPC.proxyStateEvent, { running, port }),
+  onServerError: (error) => sendToRenderer(IPC.proxyErrorEvent, error),
+  onBreakpointHit: () => {
+    // Breakpoint UI lands in a later milestone; requests are never gated until
+    // breakpoint rules exist, so nothing can be held here yet.
+  },
+  onBreakpointErrors: (errors) => log.warn('invalid breakpoint patterns', errors),
+});
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+function registerIpc(): void {
+  ipcMain.handle(IPC.proxyStart, async (): Promise<StartProxyResult> => {
+    const settings = getSettings();
+    if (!settings.dest) {
+      return { ok: false, error: { message: 'Destination host is required' } };
+    }
+    try {
+      const sslOptions =
+        settings.listenProtocol === 'https' && leafCert
+          ? { key: leafCert.privateKey, cert: leafCert.certificate }
+          : undefined;
+      const port = await proxyHost.start({ settings: toProxySettings(settings), sslOptions });
+      return { ok: true, port };
+    } catch (error) {
+      const e = error as { code?: string; message?: string };
+      return { ok: false, error: { code: e.code, message: e.message ?? String(error) } };
+    }
   });
-});
 
-app.on('window-all-closed', () => {
+  ipcMain.handle(IPC.proxyStop, () => {
+    proxyHost.stop();
+  });
+
+  ipcMain.handle(IPC.settingsGet, () => getSettings());
+  ipcMain.handle(IPC.settingsSet, (_event, patch: unknown) => setSettings(patch));
+  ipcMain.handle(IPC.settingsMigrateLegacy, (_event, old: unknown) => {
+    migrateLegacySettings(old);
+  });
+  ipcMain.handle(IPC.appVersion, () => app.getVersion());
+
+  onSettingsChanged((settings) => sendToRenderer(IPC.settingsChangedEvent, settings));
+}
+
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
   app.quit();
-});
+} else {
+  app.on('second-instance', () => {
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+  });
+
+  app.whenReady().then(() => {
+    const { leaf } = ensureCertificates();
+    leafCert = leaf;
+    registerIpc();
+    win = createMainWindow();
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        win = createMainWindow();
+      }
+    });
+  });
+
+  app.on('window-all-closed', () => {
+    proxyHost.kill();
+    app.quit();
+  });
+}

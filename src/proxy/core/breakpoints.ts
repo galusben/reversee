@@ -1,19 +1,15 @@
 // Breakpoint rule compilation and matching. Rules are compiled once when set;
 // invalid regular expressions are reported back instead of throwing on every
 // incoming request (which is what the original per-request `new RegExp` did).
-import type { BreakpointRule } from '../../shared/types';
+import type { BreakpointCompileError, BreakpointRule } from '../../shared/types';
+
+export type { BreakpointCompileError };
 
 export interface CompiledBreakpoint {
   id: string;
   path: string;
   methods: string[];
   regex: RegExp;
-}
-
-export interface BreakpointCompileError {
-  id: string;
-  path: string;
-  error: string;
 }
 
 export interface CompiledBreakpoints {

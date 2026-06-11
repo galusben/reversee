@@ -76,6 +76,12 @@ export interface BreakpointRule {
   methods: string[];
 }
 
+export interface BreakpointCompileError {
+  id: string;
+  path: string;
+  error: string;
+}
+
 export interface Logger {
   debug(...args: unknown[]): void;
   info(...args: unknown[]): void;
