@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { ArrowRight, Play, Square } from 'lucide-react';
+import { ArrowRight, OctagonPause, Play, Square } from 'lucide-react';
 import { useProxyStore } from '../stores/proxyStore';
+import { useBreakpointStore } from '../stores/breakpointStore';
 import { isValidPort, type AppSettings } from '../../../shared/settings-schema';
 import type { Protocol } from '../../../shared/types';
 
@@ -70,6 +71,8 @@ export function SettingsBar(): React.JSX.Element | null {
   const updateSettings = useProxyStore((s) => s.updateSettings);
   const start = useProxyStore((s) => s.start);
   const stop = useProxyStore((s) => s.stop);
+  const openBreakpoints = useBreakpointStore((s) => s.setEditorOpen);
+  const ruleCount = useBreakpointStore((s) => s.rules.length);
 
   if (!settings) return null;
 
@@ -116,6 +119,15 @@ export function SettingsBar(): React.JSX.Element | null {
         onCommit={(port) => set({ destPort: port })}
       />
       <div className="grow" />
+      <button
+        type="button"
+        onClick={() => openBreakpoints(true)}
+        title="Edit breakpoints (Cmd/Ctrl+B)"
+        className="flex items-center gap-1.5 rounded-md border border-neutral-300 px-2.5 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50"
+      >
+        <OctagonPause className="h-3.5 w-3.5" aria-hidden />
+        Breakpoints{ruleCount > 0 ? ` (${ruleCount})` : ''}
+      </button>
       {running ? (
         <button
           type="button"

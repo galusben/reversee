@@ -20,12 +20,18 @@ export const IPC = {
   trafficGetAll: 'traffic:get-all',
   trafficClear: 'traffic:clear',
   clipboardWrite: 'clipboard:write',
+  breakpointsGet: 'breakpoints:get',
+  breakpointsSet: 'breakpoints:set',
+  breakpointResume: 'breakpoint:resume',
   // main -> renderer events
   trafficEvent: 'proxy:traffic',
   trafficClearedEvent: 'proxy:traffic-cleared',
   proxyStateEvent: 'proxy:state',
   proxyErrorEvent: 'proxy:error',
   settingsChangedEvent: 'settings:changed',
+  breakpointHitEvent: 'breakpoint:hit',
+  breakpointErrorsEvent: 'breakpoint:errors',
+  openBreakpointsEvent: 'ui:open-breakpoints',
 } as const;
 
 export interface ProxyState {
@@ -67,8 +73,14 @@ export interface RevAPI {
   getTraffic(): Promise<TrafficEntry[]>;
   clearTraffic(): Promise<void>;
   copyToClipboard(text: string): Promise<void>;
+  getBreakpoints(): Promise<BreakpointRule[]>;
+  setBreakpoints(rules: BreakpointRule[]): Promise<void>;
+  resumeBreakpoint(id: number, params: BreakpointResume): Promise<void>;
   onTraffic(cb: (entry: TrafficEntry) => void): () => void;
   onTrafficCleared(cb: () => void): () => void;
+  onBreakpointHit(cb: (hit: BreakpointHit) => void): () => void;
+  onBreakpointErrors(cb: (errors: BreakpointCompileError[]) => void): () => void;
+  onOpenBreakpoints(cb: () => void): () => void;
   onProxyState(cb: (state: ProxyState) => void): () => void;
   onProxyError(cb: (error: ProxyErrorInfo) => void): () => void;
   onSettingsChanged(cb: (settings: AppSettings) => void): () => void;

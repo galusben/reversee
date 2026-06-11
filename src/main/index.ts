@@ -1,6 +1,7 @@
 import { app, BrowserWindow, clipboard, ipcMain } from 'electron';
 import log from 'electron-log';
-import { IPC, type StartProxyResult } from '../shared/ipc';
+import { IPC, type BreakpointResume, type StartProxyResult } from '../shared/ipc';
+import type { BreakpointRule } from '../shared/types';
 import { toProxySettings } from '../shared/settings-schema';
 import {
   getSettings,
@@ -29,12 +30,15 @@ const proxyHost = new ProxyHost({
   onTraffic: (entry) => sendToRenderer(IPC.trafficEvent, trafficStore.add(entry)),
   onStateChanged: (running, port) => sendToRenderer(IPC.proxyStateEvent, { running, port }),
   onServerError: (error) => sendToRenderer(IPC.proxyErrorEvent, error),
-  onBreakpointHit: () => {
-    // Breakpoint UI lands in a later milestone; requests are never gated until
-    // breakpoint rules exist, so nothing can be held here yet.
+  onBreakpointHit: (hit) => sendToRenderer(IPC.breakpointHitEvent, hit),
+  onBreakpointErrors: (errors) => {
+    log.warn('invalid breakpoint patterns', errors);
+    sendToRenderer(IPC.breakpointErrorsEvent, errors);
   },
-  onBreakpointErrors: (errors) => log.warn('invalid breakpoint patterns', errors),
 });
+
+// Breakpoint rules are session-scoped (as in 1.x — they were never persisted).
+let breakpointRules: BreakpointRule[] = [];
 
 function registerIpc(): void {
   ipcMain.handle(IPC.proxyStart, async (): Promise<StartProxyResult> => {
@@ -73,6 +77,15 @@ function registerIpc(): void {
   });
   ipcMain.handle(IPC.clipboardWrite, (_event, text: unknown) => {
     if (typeof text === 'string') clipboard.writeText(text);
+  });
+
+  ipcMain.handle(IPC.breakpointsGet, () => breakpointRules);
+  ipcMain.handle(IPC.breakpointsSet, (_event, rules: BreakpointRule[]) => {
+    breakpointRules = rules;
+    proxyHost.setBreakpoints(rules);
+  });
+  ipcMain.handle(IPC.breakpointResume, (_event, id: number, params: BreakpointResume) => {
+    proxyHost.resumeBreakpoint(id, params);
   });
 
   onSettingsChanged((settings) => sendToRenderer(IPC.settingsChangedEvent, settings));
