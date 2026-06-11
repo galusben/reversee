@@ -15,10 +15,17 @@ import { ProxyHost } from './proxy-host';
 import { TrafficStore } from './traffic-store';
 import { createMainWindow } from './windows';
 import { createMenu } from './menu';
+import { setupUpdater } from './updater';
 import iconAsset from '../../resources/icon.png?asset';
 
 log.transports.file.level = 'info';
 log.transports.console.level = 'info';
+
+// Test isolation: e2e runs point this at a temp dir so settings, certs, and
+// window state never touch (or depend on) the real profile.
+if (process.env['REVERSEE_USER_DATA']) {
+  app.setPath('userData', process.env['REVERSEE_USER_DATA']);
+}
 
 let win: BrowserWindow | null = null;
 let leafCert: LeafCert | null = null;
@@ -106,6 +113,7 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
+    setupUpdater();
     const { root, leaf } = ensureCertificates();
     leafCert = leaf;
     registerIpc();

@@ -63,26 +63,53 @@
   },
   "build": {
     "appId": "ninja.reversee",
+    "productName": "Reversee",
+    "files": [
+      "out/**"
+    ],
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "asar": true,
     "mac": {
-      "category": "public.app-category.developer-tools"
+      "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "target": "nsis"
     },
     "linux": {
+      "category": "Development",
       "target": [
         "AppImage",
-        "deb",
-        "zip"
+        "deb"
       ]
     },
     "publish": {
       "provider": "github",
       "owner": "galusben",
       "repo": "reversee"
-    },
-    "files": [
-      "out/**",
-      "!build-scripts",
-      "!tests"
-    ]
+    }
   },
   "author": {
     "name": "Gal Ben Ami",

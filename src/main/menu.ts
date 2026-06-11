@@ -6,6 +6,7 @@ import { app, Menu, shell, type BrowserWindow, type MenuItemConstructorOptions }
 import { IPC } from '../shared/ipc';
 import { getSettings, setSettings, onSettingsChanged, type RootCertPem } from './settings';
 import { certificateTrustDialog, exportRootCert } from './certs/certs';
+import { checkForUpdatesInteractive } from './updater';
 
 const HOMEPAGE = 'https://github.com/galusben/reversee';
 
@@ -125,6 +126,10 @@ export function createMenu(
         {
           label: 'Learn More',
           click: () => void shell.openExternal(HOMEPAGE),
+        },
+        {
+          label: 'Check for Updates…',
+          click: () => void checkForUpdatesInteractive(win),
         },
         ...(!isMac
           ? [
