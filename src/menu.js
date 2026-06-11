@@ -3,7 +3,6 @@ const pkg = require('./../package.json');
 const about = require('about-window').default;
 const join = require('path').join;
 const certs = require(join(__dirname, 'certs', 'cert'));
-const license = require(join(__dirname,'licence.js'));
 
 Menu.prototype.getMenuItemById = function (id) {
     const items = this.items;
@@ -17,18 +16,11 @@ Menu.prototype.getMenuItemById = function (id) {
 };
 
 const clickAbout = function () {
-    let productName = 'Reversee';
-    let copyright = 'Unregistered copy'
-    if (license.isPro()) {
-        productName = 'Reversee - Pro'
-        copyright = 'Licenced to: ' + license.getRegisteredEmail()
-    }
     const aboutWin = about(
         {
-            product_name: productName,
+            product_name: 'Reversee',
             icon_path: join(__dirname, 'assets', 'Reversee.png'),
             use_version_info: false,
-            copyright: copyright,
             win_options: {show: false}
         }
     );
@@ -38,7 +30,7 @@ const clickAbout = function () {
     });
 };
 
-function create(breakpointsEditWin, main, licenceWindow) {
+function create(breakpointsEditWin, main) {
 
     const template = [
         {

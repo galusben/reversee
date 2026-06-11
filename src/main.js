@@ -1,4 +1,4 @@
-const {app, BrowserWindow, ipcMain, dialog} = require('electron');
+const {app, BrowserWindow, ipcMain} = require('electron');
 const path = require('path');
 const url = require('url');
 const nativeImage = require('electron').nativeImage;
@@ -6,8 +6,6 @@ const windowStateKeeper = require('electron-window-state');
 const {autoUpdater} = require("electron-updater");
 const menu = require(path.join(__dirname, 'menu.js'));
 const cert = require(path.join(__dirname,'certs', 'cert.js'));
-const license = require(path.join(__dirname,'licence.js'));
-const fs = require('fs');
 
 const breakpointWindows = {};
 
@@ -26,7 +24,6 @@ let pem = cert.generateAndSignCert();
 let win;
 let proxyWin;
 let breakpointsEditWin;
-let addLicenseWin;
 
 
 let image = nativeImage.createFromPath(path.join(__dirname, 'assets', 'Reversee.png'));
@@ -48,24 +45,6 @@ function createBreakpointsEditWin() {
         breakpointsEditWin.hide();
         event.preventDefault();
     });
-}
-
-function createAddLicenseWin() {
-    addLicenseWin = new BrowserWindow({width: 800, height: 450, icon: icon,
-        webPreferences: {
-            nodeIntegration: true
-        }});
-    addLicenseWin.hide();
-    addLicenseWin.loadURL(url.format({
-        pathname: path.join(__dirname, 'addLicenseWin.html'),
-        protocol: 'file:',
-        slashes: true
-    }));
-    addLicenseWin.on('close', (event) => {
-        addLicenseWin.hide();
-        event.preventDefault();
-    });
-    return addLicenseWin;
 }
 
 function createWindows() {
@@ -103,11 +82,9 @@ function createWindows() {
         breakpointsEditWin = null;
         proxyWin.destroy();
         proxyWin = null;
-        addLicenseWin.destroy();
     });
     createBreakpointsEditWin();
-    let licenseWin = createAddLicenseWin();
-    menu.create(breakpointsEditWin, win, licenseWin);
+    menu.create(breakpointsEditWin, win);
     proxyWin = new BrowserWindow({width: 80, height: 60, show: false,
         webPreferences: {
         nodeIntegration: true
@@ -117,7 +94,6 @@ function createWindows() {
         protocol: 'file:',
         slashes: true
     }));
-    checkLicense()
 }
 
 app.on('ready', createWindows);
@@ -224,46 +200,3 @@ ipcMain.on('server-error', (event, data) => {
     win.webContents.send('server-error', data);
 
 });
-
-function showMessage(message) {
-    dialog.showMessageBox(addLicenseWin, {type: 'info', message: message, icon: image});
-}
-
-ipcMain.on('licence-inserted', (event, data) => {
-    logger.info('got licence-inserted');
-    if (!data.licence) {
-        showMessage('Invalid License, please try again');
-        return;
-    }
-    data.licence = data.licence && data.licence.trim();
-    let parsed;
-    try {
-        parsed = license.verify(data.licence);
-    } catch (e) {
-        showMessage('Invalid License, please try again');
-        return;
-    }
-    logger.info('lic body:' + parsed);
-    if (!parsed) {
-        showMessage('Invalid License, please try again');
-        return;
-    }
-    license.makeLicensed(parsed);
-    let filename = path.join(app.getPath('userData'), 'reversee.lic');
-    fs.writeFileSync(filename, data.licence, 'UTF8');
-    showMessage('Thank you for purchasing Reversee - Pro!');
-    addLicenseWin.hide()
-});
-
-function checkLicense() {
-    let filename = path.join(app.getPath('userData'), 'reversee.lic');
-    fs.promises.readFile(filename, {encoding: 'UTF8'}).then((lic) => {
-        if (lic) {
-            let parsed = license.verify(lic);
-            if (!parsed) {
-                return;
-            }
-            license.makeLicensed(parsed)
-        }
-    }).catch(() => {})
-}
