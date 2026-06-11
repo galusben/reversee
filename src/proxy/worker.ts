@@ -3,23 +3,21 @@
 // restart is a cheap kill+respawn. Speaks typed messages with main over
 // process.parentPort.
 import { createProxyServer, type ProxyServer } from './core/server';
-import {
-  compileBreakpoints,
-  matchBreakpoint,
-  type CompiledBreakpoint,
-} from './core/breakpoints';
+import { compileBreakpoints, matchBreakpoint, type CompiledBreakpoint } from './core/breakpoints';
 import type { RequestGate } from './core/server';
 import type { WorkerInbound, WorkerOutbound, BreakpointResume } from '../shared/ipc';
 import type { Logger, RequestParams } from '../shared/types';
 
 // Electron's utilityProcess parentPort; typed loosely to keep this file free
 // of the electron module (it must be bundleable as a plain node entry).
-const parentPort = (process as unknown as {
-  parentPort: {
-    postMessage(message: unknown): void;
-    on(event: 'message', listener: (e: { data: unknown }) => void): void;
-  };
-}).parentPort;
+const parentPort = (
+  process as unknown as {
+    parentPort: {
+      postMessage(message: unknown): void;
+      on(event: 'message', listener: (e: { data: unknown }) => void): void;
+    };
+  }
+).parentPort;
 
 const logger: Logger = {
   debug: (...args) => console.debug('[proxy]', ...args),

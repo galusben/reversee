@@ -23,11 +23,7 @@ describe('interceptor engine', () => {
   it('response interceptor gets a shallow copy of requestParams', () => {
     const requestParams = { path: '/orig', headers: {} };
     const responseParams = { headers: {} };
-    interceptor.interceptResponse(
-      responseParams,
-      "requestParams.path = '/mutated'",
-      requestParams
-    );
+    interceptor.interceptResponse(responseParams, "requestParams.path = '/mutated'", requestParams);
     expect(requestParams.path).toBe('/orig');
   });
 

@@ -113,7 +113,12 @@ export function handleRequest(
       serverResponse.on('end', () => {
         timings.total = Number(process.hrtime.bigint() - startAt);
         if (userSettings.responseInterceptor && userSettings.interceptResponse) {
-          interceptResponse(responseParams, userSettings.responseInterceptor, requestParams, logger);
+          interceptResponse(
+            responseParams,
+            userSettings.responseInterceptor,
+            requestParams,
+            logger
+          );
           // The interceptor may have replaced the body; a stale
           // content-length makes keep-alive clients hang or truncate.
           if (responseParams.headers['content-length'] !== undefined) {

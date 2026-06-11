@@ -63,7 +63,10 @@ export function createProxyServer(options: ProxyServerOptions): ProxyServer {
 
   const server =
     settings.listenProtocol === 'https'
-      ? https.createServer({ key: options.sslOptions?.key, cert: options.sslOptions?.cert }, handler)
+      ? https.createServer(
+          { key: options.sslOptions?.key, cert: options.sslOptions?.cert },
+          handler
+        )
       : http.createServer(handler);
 
   server.on('error', (err: NodeJS.ErrnoException) => {

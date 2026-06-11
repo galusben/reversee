@@ -13,13 +13,21 @@ describe('curl builder', () => {
       method: 'GET',
       headers: { accept: 'application/json' },
     });
-    expect(cmd).toBe("curl -X GET 'http://example.com:8080/api/users' -H 'accept: application/json'");
+    expect(cmd).toBe(
+      "curl -X GET 'http://example.com:8080/api/users' -H 'accept: application/json'"
+    );
   });
 
   it('omits default ports', () => {
-    expect(curl.build('http', { host: 'h', port: 80, path: '/', method: 'GET' })).toContain("'http://h/'");
-    expect(curl.build('https', { host: 'h', port: 443, path: '/', method: 'GET' })).toContain("'https://h/'");
-    expect(curl.build('https', { host: 'h', port: 8443, path: '/', method: 'GET' })).toContain("'https://h:8443/'");
+    expect(curl.build('http', { host: 'h', port: 80, path: '/', method: 'GET' })).toContain(
+      "'http://h/'"
+    );
+    expect(curl.build('https', { host: 'h', port: 443, path: '/', method: 'GET' })).toContain(
+      "'https://h/'"
+    );
+    expect(curl.build('https', { host: 'h', port: 8443, path: '/', method: 'GET' })).toContain(
+      "'https://h:8443/'"
+    );
   });
 
   it('includes the request body', () => {

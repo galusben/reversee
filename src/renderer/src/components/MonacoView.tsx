@@ -17,9 +17,7 @@ export function MonacoView(props: {
   onChange?: (value: string) => void;
 }): React.JSX.Element {
   return (
-    <Suspense
-      fallback={<div className="p-3 text-xs text-neutral-400">Loading editor…</div>}
-    >
+    <Suspense fallback={<div className="p-3 text-xs text-neutral-400">Loading editor…</div>}>
       <Impl {...props} />
     </Suspense>
   );

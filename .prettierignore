@@ -2,10 +2,4 @@ out/
 dist/
 node_modules/
 build/
-yarn.lock
-# Legacy Electron-5-era sources awaiting deletion during the rewrite.
-src/*.js
-src/*.html
-src/certs/
-tests/reverse-proxy.js
-tests/ui-sanity.js
+package-lock.json

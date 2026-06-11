@@ -3,9 +3,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 
 export default tseslint.config(
   {
-    // Legacy Electron-5-era sources awaiting deletion during the rewrite,
-    // plus build output. Lint covers TypeScript only.
-    ignores: ['out/**', 'dist/**', 'node_modules/**', 'build/**', 'src/*.js', 'src/certs/**', 'tests/reverse-proxy.js', 'tests/ui-sanity.js'],
+    ignores: ['out/**', 'dist/**', 'node_modules/**', 'build/**'],
   },
   ...tseslint.configs.recommended,
   {
@@ -18,7 +16,17 @@ export default tseslint.config(
     // utilityProcess and be unit-tested headlessly.
     files: ['src/proxy/core/**/*.ts', 'src/shared/**/*.ts'],
     rules: {
-      'no-restricted-imports': ['error', { paths: [{ name: 'electron', message: 'The proxy core and shared types must not depend on Electron.' }] }],
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'electron',
+              message: 'The proxy core and shared types must not depend on Electron.',
+            },
+          ],
+        },
+      ],
     },
   }
 );

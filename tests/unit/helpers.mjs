@@ -10,8 +10,8 @@ import { createProxyServer } from '../../src/proxy/core/server';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const sslOptions = {
-  key: fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'resources', 'localhost.key')),
-  cert: fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'resources', 'localhost.cert')),
+  key: fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'localhost.key')),
+  cert: fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'localhost.cert')),
 };
 
 function listen(server) {
@@ -52,7 +52,14 @@ export async function startProxyServer(settings, { gate } = {}) {
   };
 }
 
-export function request({ tls = false, port, path: reqPath = '/', method = 'GET', headers = {}, body = null }) {
+export function request({
+  tls = false,
+  port,
+  path: reqPath = '/',
+  method = 'GET',
+  headers = {},
+  body = null,
+}) {
   const mod = tls ? https : http;
   return new Promise((resolve, reject) => {
     const req = mod.request(
@@ -73,17 +80,19 @@ export function request({ tls = false, port, path: reqPath = '/', method = 'GET'
 
 export function closeAll(...servers) {
   return Promise.all(
-    servers
-      .filter(Boolean)
-      .map((s) => {
-        if (typeof s.listen === 'function' && typeof s.close === 'function' && !(s instanceof http.Server)) {
-          return s.close(); // ProxyServer handle
-        }
-        return new Promise((resolve) => {
-          s.closeAllConnections?.();
-          s.close(() => resolve());
-        });
-      })
+    servers.filter(Boolean).map((s) => {
+      if (
+        typeof s.listen === 'function' &&
+        typeof s.close === 'function' &&
+        !(s instanceof http.Server)
+      ) {
+        return s.close(); // ProxyServer handle
+      }
+      return new Promise((resolve) => {
+        s.closeAllConnections?.();
+        s.close(() => resolve());
+      });
+    })
   );
 }
 

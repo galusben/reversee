@@ -6,8 +6,7 @@ import iconAsset from '../../resources/icon.png?asset';
 export function createMainWindow(): BrowserWindow {
   const state = windowStateKeeper({ defaultWidth: 1100, defaultHeight: 700 });
 
-  const icon =
-    process.platform === 'linux' ? nativeImage.createFromPath(iconAsset) : undefined;
+  const icon = process.platform === 'linux' ? nativeImage.createFromPath(iconAsset) : undefined;
 
   const win = new BrowserWindow({
     x: state.x,

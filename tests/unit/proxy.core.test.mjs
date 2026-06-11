@@ -3,13 +3,7 @@
 // (gzip, host rewrite, upstream errors, timings, request bodies).
 import { describe, it, expect, afterEach } from 'vitest';
 import zlib from 'node:zlib';
-import {
-  startUpstream,
-  startProxyServer,
-  request,
-  closeAll,
-  makeSettings,
-} from './helpers.mjs';
+import { startUpstream, startProxyServer, request, closeAll, makeSettings } from './helpers.mjs';
 
 let openServers = [];
 afterEach(async () => {
@@ -71,29 +65,43 @@ describe('proxy core', () => {
   // interceptor desyncs the header and keep-alive clients hang. Fixed in A5,
   // which adds a content-length test.
   it('response interceptor sets header and body from request context', async () => {
-    const { proxyServer } = await setup((req, res) => { res.writeHead(200); res.write('got request'); res.end(); }, {
-      upstreamTls: true,
-      settings: {
-        listenProtocol: 'https',
-        responseInterceptor:
-          "responseParams.headers['custom']='custom val'; \n responseParams.body = requestParams.path",
-        interceptResponse: true,
+    const { proxyServer } = await setup(
+      (req, res) => {
+        res.writeHead(200);
+        res.write('got request');
+        res.end();
       },
-    });
+      {
+        upstreamTls: true,
+        settings: {
+          listenProtocol: 'https',
+          responseInterceptor:
+            "responseParams.headers['custom']='custom val'; \n responseParams.body = requestParams.path",
+          interceptResponse: true,
+        },
+      }
+    );
     const res = await request({ tls: true, port: proxyServer.port, path: '/bla' });
     expect(res.headers['custom']).toBe('custom val');
     expect(res.body.toString()).toBe('/bla');
   });
 
   it('response interceptor replaces the body', async () => {
-    const { proxyServer } = await setup((req, res) => { res.writeHead(200); res.write('got request'); res.end(); }, {
-      upstreamTls: true,
-      settings: {
-        listenProtocol: 'https',
-        responseInterceptor: "responseParams.body='custom val'",
-        interceptResponse: true,
+    const { proxyServer } = await setup(
+      (req, res) => {
+        res.writeHead(200);
+        res.write('got request');
+        res.end();
       },
-    });
+      {
+        upstreamTls: true,
+        settings: {
+          listenProtocol: 'https',
+          responseInterceptor: "responseParams.body='custom val'",
+          interceptResponse: true,
+        },
+      }
+    );
     const res = await request({ tls: true, port: proxyServer.port });
     expect(res.body.toString()).toBe('custom val');
   });
@@ -139,10 +147,13 @@ describe('proxy core', () => {
 
   it('rewrites the host header when hostRewrite is on', async () => {
     let seenHost;
-    const { upstream, proxyServer } = await setup((req, res) => {
-      seenHost = req.headers.host;
-      res.end('ok');
-    }, { settings: { hostRewrite: true } });
+    const { upstream, proxyServer } = await setup(
+      (req, res) => {
+        seenHost = req.headers.host;
+        res.end('ok');
+      },
+      { settings: { hostRewrite: true } }
+    );
     await request({ port: proxyServer.port });
     expect(seenHost).toBe(`127.0.0.1:${upstream.port}`);
   });
@@ -218,7 +229,8 @@ describe('proxy core', () => {
   it('updates content-length when a response interceptor replaces a fixed-length body', async () => {
     const { proxyServer } = await setup((req, res) => res.end('got request'), {
       settings: {
-        responseInterceptor: "responseParams.body='replaced body that is much longer than the original'",
+        responseInterceptor:
+          "responseParams.body='replaced body that is much longer than the original'",
         interceptResponse: true,
       },
     });

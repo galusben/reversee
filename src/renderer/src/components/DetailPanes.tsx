@@ -17,7 +17,7 @@ function headerText(view: RequestView | ResponseView): string {
 
 // Same fields and ms conversions as the 1.x timings panel.
 export function timingsText(timings: Timings): string {
-  const ms = (v?: number): string => `${(v ? v / 1_000_000.0 : 0)} ms`;
+  const ms = (v?: number): string => `${v ? v / 1_000_000.0 : 0} ms`;
   return (
     `Start timestamp : ${timings.start}\n` +
     `DNS Lookup : ${ms(timings.dnsLookup)}\n` +
@@ -31,7 +31,9 @@ export function timingsText(timings: Timings): string {
 function CopyablePre({ text }: { text: string }): React.JSX.Element {
   return (
     <WithContextMenu
-      items={[{ label: 'Copy To Clipboard', onSelect: () => void window.reversee.copyToClipboard(text) }]}
+      items={[
+        { label: 'Copy To Clipboard', onSelect: () => void window.reversee.copyToClipboard(text) },
+      ]}
     >
       <pre className="h-full overflow-auto p-3 font-mono text-xs leading-5">{text}</pre>
     </WithContextMenu>

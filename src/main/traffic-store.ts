@@ -6,10 +6,7 @@ import type { TrafficEntry } from '../shared/types';
 export const TRAFFIC_CAP = 1000;
 export const BODY_DISPLAY_CAP = 2 * 1024 * 1024; // 2 MB
 
-function truncateBody(view: {
-  body?: Uint8Array | string;
-  truncated?: boolean;
-}): void {
+function truncateBody(view: { body?: Uint8Array | string; truncated?: boolean }): void {
   const body = view.body;
   if (body && typeof body !== 'string' && body.length > BODY_DISPLAY_CAP) {
     view.body = body.slice(0, BODY_DISPLAY_CAP);

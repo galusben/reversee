@@ -47,7 +47,11 @@ export function BreakpointsDialog(): React.JSX.Element {
           <div className="mb-2 flex flex-wrap items-center gap-2">
             {METHODS.map((m) => (
               <label key={m} className="flex items-center gap-1 text-xs">
-                <input type="checkbox" checked={methods.includes(m)} onChange={() => toggleMethod(m)} />
+                <input
+                  type="checkbox"
+                  checked={methods.includes(m)}
+                  onChange={() => toggleMethod(m)}
+                />
                 {m}
               </label>
             ))}
@@ -73,7 +77,10 @@ export function BreakpointsDialog(): React.JSX.Element {
           </div>
 
           {compileErrors.length > 0 && (
-            <div role="alert" className="mb-3 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+            <div
+              role="alert"
+              className="mb-3 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700"
+            >
               {compileErrors.map((e) => (
                 <div key={e.id}>
                   Invalid pattern “{e.path}”: {e.error}
