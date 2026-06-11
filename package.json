@@ -26,7 +26,10 @@
   },
   "devDependencies": {
     "@monaco-editor/react": "^4.7.0",
+    "@radix-ui/react-context-menu": "^2.3.0",
+    "@radix-ui/react-tabs": "^1.1.14",
     "@tailwindcss/vite": "^4.3.0",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^25.9.3",
     "@types/node-forge": "^1.3.14",
     "@types/react": "^19.2.17",
@@ -41,6 +44,7 @@
     "electron-window-state": "^5.0.3",
     "eslint": "^10.4.1",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "jsdom": "^29.1.1",
     "lucide-react": "^1.17.0",
     "monaco-editor": "^0.55.1",
     "node-forge": "^1.4.0",

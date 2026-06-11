@@ -3,8 +3,21 @@ import type { AppSettings } from '../../../shared/settings-schema';
 import type { ProxyErrorInfo } from '../../../shared/ipc';
 import type { TrafficEntry } from '../../../shared/types';
 
-// Renderer-side mirror until the main-process TrafficStore lands.
+// Mirror of the main-process TrafficStore ring buffer.
 const TRAFFIC_CAP = 1000;
+
+function upsert(traffic: TrafficEntry[], entry: TrafficEntry): TrafficEntry[] {
+  const index = traffic.findIndex((e) => e.trafficId === entry.trafficId);
+  let next;
+  if (index >= 0) {
+    next = traffic.slice();
+    next[index] = entry;
+  } else {
+    next = [...traffic, entry];
+    if (next.length > TRAFFIC_CAP) next.splice(0, next.length - TRAFFIC_CAP);
+  }
+  return next;
+}
 
 interface ProxyStore {
   settings: AppSettings | null;
@@ -13,13 +26,16 @@ interface ProxyStore {
   error: ProxyErrorInfo | null;
   traffic: TrafficEntry[];
   selectedId: number | null;
+  /** When locked (default), the table does not auto-scroll to new traffic. */
+  scrollLocked: boolean;
 
   init(): Promise<void>;
   updateSettings(patch: Partial<AppSettings>): Promise<void>;
   start(): Promise<void>;
   stop(): Promise<void>;
-  clearTraffic(): void;
+  clearTraffic(): Promise<void>;
   select(id: number | null): void;
+  toggleScrollLock(): void;
   dismissError(): void;
 }
 
@@ -30,6 +46,7 @@ export const useProxyStore = create<ProxyStore>((set, get) => ({
   error: null,
   traffic: [],
   selectedId: null,
+  scrollLocked: true,
 
   async init() {
     // One-time import of pre-2.0 settings persisted in renderer localStorage.
@@ -43,17 +60,17 @@ export const useProxyStore = create<ProxyStore>((set, get) => ({
       localStorage.removeItem('userSettings');
     }
 
-    const settings = await window.reversee.getSettings();
-    set({ settings });
+    const [settings, traffic] = await Promise.all([
+      window.reversee.getSettings(),
+      window.reversee.getTraffic(),
+    ]);
+    set({ settings, traffic });
 
     window.reversee.onSettingsChanged((settings) => set({ settings }));
     window.reversee.onProxyState(({ running, port }) => set({ running, port }));
     window.reversee.onProxyError((error) => set({ error, running: false }));
-    window.reversee.onTraffic((entry) => {
-      const traffic = [...get().traffic, entry];
-      if (traffic.length > TRAFFIC_CAP) traffic.splice(0, traffic.length - TRAFFIC_CAP);
-      set({ traffic });
-    });
+    window.reversee.onTraffic((entry) => set({ traffic: upsert(get().traffic, entry) }));
+    window.reversee.onTrafficCleared(() => set({ traffic: [], selectedId: null }));
   },
 
   async updateSettings(patch) {
@@ -73,12 +90,17 @@ export const useProxyStore = create<ProxyStore>((set, get) => ({
     await window.reversee.stopProxy();
   },
 
-  clearTraffic() {
+  async clearTraffic() {
+    await window.reversee.clearTraffic();
     set({ traffic: [], selectedId: null });
   },
 
   select(id) {
     set({ selectedId: id });
+  },
+
+  toggleScrollLock() {
+    set({ scrollLocked: !get().scrollLocked });
   },
 
   dismissError() {

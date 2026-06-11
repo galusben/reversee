@@ -17,8 +17,12 @@ export const IPC = {
   settingsSet: 'settings:set',
   settingsMigrateLegacy: 'settings:migrate-legacy',
   appVersion: 'app:version',
+  trafficGetAll: 'traffic:get-all',
+  trafficClear: 'traffic:clear',
+  clipboardWrite: 'clipboard:write',
   // main -> renderer events
   trafficEvent: 'proxy:traffic',
+  trafficClearedEvent: 'proxy:traffic-cleared',
   proxyStateEvent: 'proxy:state',
   proxyErrorEvent: 'proxy:error',
   settingsChangedEvent: 'settings:changed',
@@ -60,7 +64,11 @@ export interface RevAPI {
   /** One-time import of pre-2.0 settings persisted in renderer localStorage. */
   migrateLegacySettings(old: unknown): Promise<void>;
   getVersion(): Promise<string>;
+  getTraffic(): Promise<TrafficEntry[]>;
+  clearTraffic(): Promise<void>;
+  copyToClipboard(text: string): Promise<void>;
   onTraffic(cb: (entry: TrafficEntry) => void): () => void;
+  onTrafficCleared(cb: () => void): () => void;
   onProxyState(cb: (state: ProxyState) => void): () => void;
   onProxyError(cb: (error: ProxyErrorInfo) => void): () => void;
   onSettingsChanged(cb: (settings: AppSettings) => void): () => void;

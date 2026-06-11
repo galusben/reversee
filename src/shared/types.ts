@@ -41,6 +41,8 @@ export interface RequestView {
   headers: Headers;
   body?: Uint8Array;
   curl?: string;
+  /** True when the stored body was cut at the display cap. */
+  truncated?: boolean;
 }
 
 export interface ResponseView {
@@ -50,6 +52,8 @@ export interface ResponseView {
   body?: Uint8Array | string;
   /** Set when displayed-body decompression failed (body falls back to raw bytes). */
   decodeError?: string;
+  /** True when the stored body was cut at the display cap. */
+  truncated?: boolean;
 }
 
 export interface Timings {
