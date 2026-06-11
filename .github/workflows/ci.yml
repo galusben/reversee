@@ -7,17 +7,16 @@ on:
     branches: [main]
 
 jobs:
-  unit:
-    name: Unit tests
+  checks:
+    name: Lint, typecheck, unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: yarn
-      # --ignore-scripts: unit tests run the proxy core headlessly and do not
-      # need the Electron binary (which has no postinstall-era arm64/CI builds
-      # for the pinned Electron 5 anyway). Revisit when the toolchain migrates.
-      - run: yarn install --frozen-lockfile --ignore-scripts --ignore-engines
-      - run: yarn test
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
