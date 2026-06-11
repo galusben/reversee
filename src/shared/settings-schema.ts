@@ -26,9 +26,19 @@ export const defaultSettings: AppSettings = {
   dest: '',
   destPort: 443,
   interceptRequest: false,
-  requestInterceptor: "requestParams.headers['custom-header'] = 'custom value'",
+  requestInterceptor:
+    '/*Request interceptor. Use javascript. \n' +
+    'You can use requestParams object to access the request data. \n' +
+    'following attributes are available for manipulation: host, path, method, port, headers and body\n' +
+    'Example: \n' +
+    "requestParams.headers['custom']='custom val'*/",
   interceptResponse: false,
-  responseInterceptor: "responseParams.headers['custom-header'] = 'custom value'",
+  responseInterceptor:
+    '/*Response interceptor. Use javascript. \n' +
+    'You can use responseParams object to access the response data. \n' +
+    'currently supported attributes are statusCode, headers and body. Also the requestParams object is available for read \n' +
+    'Example: \n' +
+    "responseParams.headers['custom']='custom val'*/",
   // The old app's menu checkboxes defaulted to checked.
   rewriteRedirects: true,
   rewriteHost: true,

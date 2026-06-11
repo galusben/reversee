@@ -13,6 +13,8 @@ export function MonacoView(props: {
   value: string;
   language: string;
   format?: boolean;
+  readOnly?: boolean;
+  onChange?: (value: string) => void;
 }): React.JSX.Element {
   return (
     <Suspense

@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useProxyStore } from './stores/proxyStore';
 import { SettingsBar } from './components/SettingsBar';
+import { InterceptorPanel } from './components/InterceptorPanel';
 import { TrafficTable } from './components/TrafficTable';
 import { DetailPanes } from './components/DetailPanes';
 
@@ -20,6 +21,7 @@ export default function App(): React.JSX.Element {
   return (
     <div className="flex h-screen flex-col bg-neutral-100">
       <SettingsBar />
+      <InterceptorPanel />
       {error && (
         <div
           role="alert"
