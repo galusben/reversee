@@ -1,14 +1,13 @@
 import { BrowserWindow, nativeImage } from 'electron';
 import windowStateKeeper from 'electron-window-state';
 import path from 'node:path';
+import iconAsset from '../../resources/icon.png?asset';
 
 export function createMainWindow(): BrowserWindow {
   const state = windowStateKeeper({ defaultWidth: 1100, defaultHeight: 700 });
 
-  const image = nativeImage.createFromPath(
-    path.join(import.meta.dirname, '../renderer/assets/Reversee.png')
-  );
-  const icon = process.platform === 'linux' ? image : undefined;
+  const icon =
+    process.platform === 'linux' ? nativeImage.createFromPath(iconAsset) : undefined;
 
   const win = new BrowserWindow({
     x: state.x,

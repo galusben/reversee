@@ -8,11 +8,14 @@ import {
   setSettings,
   migrateLegacySettings,
   onSettingsChanged,
+  resetCache,
 } from './settings';
 import { ensureCertificates, type LeafCert } from './certs/certs';
 import { ProxyHost } from './proxy-host';
 import { TrafficStore } from './traffic-store';
 import { createMainWindow } from './windows';
+import { createMenu } from './menu';
+import iconAsset from '../../resources/icon.png?asset';
 
 log.transports.file.level = 'info';
 log.transports.console.level = 'info';
@@ -103,14 +106,31 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
-    const { leaf } = ensureCertificates();
+    const { root, leaf } = ensureCertificates();
     leafCert = leaf;
     registerIpc();
     win = createMainWindow();
 
+    app.setAboutPanelOptions({
+      applicationName: 'Reversee',
+      applicationVersion: app.getVersion(),
+      website: 'https://github.com/galusben/reversee',
+      iconPath: iconAsset,
+    });
+
+    const menuHooks = {
+      onResetCache: (): void => {
+        resetCache();
+        trafficStore.clear();
+        sendToRenderer(IPC.trafficClearedEvent, undefined);
+      },
+    };
+    createMenu(win, root, menuHooks);
+
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
         win = createMainWindow();
+        createMenu(win, root, menuHooks);
       }
     });
   });
