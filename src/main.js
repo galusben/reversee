@@ -17,8 +17,6 @@ logger.transports.console.level = "info";
 autoUpdater.setFeedURL("https://download.reversee.ninja");
 autoUpdater.checkForUpdatesAndNotify();
 
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
 let pem = cert.generateAndSignCert();
 
 let win;

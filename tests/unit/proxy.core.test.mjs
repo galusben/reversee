@@ -11,11 +11,6 @@ import {
   makeSettings,
 } from './helpers.mjs';
 
-// Replicates src/main.js:22 — the old app disables TLS verification globally
-// so the proxy can reach self-signed upstreams. Replaced by a per-request
-// rejectUnauthorized setting in milestone A5.
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-
 let openServers = [];
 afterEach(async () => {
   await closeAll(...openServers);
@@ -203,9 +198,53 @@ describe('proxy core', () => {
     const res = await request({ port: proxyServer.port });
     expect(res.body.equals(notActuallyGzip)).toBe(true);
     const traffic = await trafficPromise;
-    // Current behavior: the displayed body is lost on decode failure.
-    // Milestone A5 changes this to keep the raw body + a decodeError flag.
-    expect(traffic.response.body).toBeUndefined();
+    expect(traffic.response.body.equals(notActuallyGzip)).toBe(true);
+    expect(traffic.response.decodeError).toBeTruthy();
+  });
+
+  it('decodes brotli responses for the traffic view', async () => {
+    const compressed = zlib.brotliCompressSync('hello brotli');
+    const { proxyServer } = await setup((req, res) => {
+      res.writeHead(200, { 'content-encoding': 'br' });
+      res.end(compressed);
+    });
+    const trafficPromise = proxyServer.nextTraffic();
+    const res = await request({ port: proxyServer.port });
+    expect(res.body.equals(compressed)).toBe(true);
+    const traffic = await trafficPromise;
+    expect(traffic.response.body.toString()).toBe('hello brotli');
+  });
+
+  it('updates content-length when a response interceptor replaces a fixed-length body', async () => {
+    const { proxyServer } = await setup((req, res) => res.end('got request'), {
+      settings: {
+        responseInterceptor: "responseParams.body='replaced body that is much longer than the original'",
+        interceptResponse: true,
+      },
+    });
+    const res = await request({ port: proxyServer.port });
+    expect(res.body.toString()).toBe('replaced body that is much longer than the original');
+    expect(res.headers['content-length']).toBe(String(res.body.length));
+  });
+
+  it('reaches self-signed upstreams by default', async () => {
+    const { proxyServer } = await setup((req, res) => res.end('ok'), {
+      upstreamTls: true,
+    });
+    const res = await request({ port: proxyServer.port });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('rejects self-signed upstreams when allowSelfSignedUpstream is false', async () => {
+    const { proxyServer } = await setup((req, res) => res.end('ok'), {
+      upstreamTls: true,
+      settings: { allowSelfSignedUpstream: false },
+    });
+    const trafficPromise = proxyServer.nextTraffic();
+    const res = await request({ port: proxyServer.port });
+    expect(res.statusCode).toBe(502);
+    const traffic = await trafficPromise;
+    expect(String(traffic.connectorError)).toMatch(/self.signed|certificate/i);
   });
 
   it('responds 502 and reports connectorError when the upstream is unreachable', async () => {
@@ -234,7 +273,8 @@ describe('proxy core', () => {
     expect(traffic.trafficId).toBeTypeOf('number');
     expect(traffic.request.url).toBe('/timed');
     expect(traffic.request.method).toBe('GET');
-    expect(traffic.request.curl).toContain('curl-stub');
+    expect(traffic.request.curl).toContain("curl -X GET 'http://localhost:");
+    expect(traffic.request.curl).toContain('/timed');
     expect(traffic.response.statusCode).toBe(200);
     expect(traffic.response.body.toString()).toBe('got request');
     expect(traffic.timings.start).toBeInstanceOf(Date);

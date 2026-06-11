@@ -11,23 +11,6 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// request-to-curl monkey-patches http internals via process.binding at require
-// time, which aborts the process on modern Node. Seed the require cache with a
-// stub before proxy.js loads it; its curl output is not under test here and
-// the dependency is removed entirely in milestone A5.
-const requestToCurlPath = require.resolve('request-to-curl', {
-  paths: [path.join(__dirname, '..', '..')],
-});
-require.cache[requestToCurlPath] = {
-  id: requestToCurlPath,
-  filename: requestToCurlPath,
-  loaded: true,
-  exports: {},
-};
-http.ClientRequest.prototype.toCurl = function () {
-  return `curl-stub ${this.method} ${this.path}`;
-};
-
 const proxy = require(path.join(__dirname, '..', '..', 'src', 'proxy.js'));
 
 export const sslOptions = {

@@ -5181,11 +5181,6 @@ repeating@^2.0.0:
   dependencies:
     is-finite "^1.0.0"
 
-request-to-curl@^0.1.1:
-  version "0.1.1"
-  resolved "https://registry.yarnpkg.com/request-to-curl/-/request-to-curl-0.1.1.tgz#7e77148e8a90b0fef67849fc5e38193274789657"
-  integrity sha1-fncUjoqQsP72eEn8XjgZMnR4llc=
-
 request@2.81.0:
   version "2.81.0"
   resolved "https://registry.yarnpkg.com/request/-/request-2.81.0.tgz#c6928946a0e06c5f8d6f8a9333469ffda46298a0"

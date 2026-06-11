@@ -3,7 +3,7 @@ const https = require('https');
 const zlib = require("zlib");
 const path = require('path');
 const {URL} = require('url');
-require('request-to-curl');
+const curl = require(path.join(__dirname, 'curl.js'));
 const logger = require("electron-log");
 const process = require('process');
 
@@ -21,6 +21,11 @@ function buildRequestParams(requestParams, userSettings, clientReq) {
     requestParams.method = requestParams.method || clientReq.method;
     requestParams.port = requestParams.port || userSettings.destPort;
     requestParams.headers = requestParams.headers || clientReq.headers;
+    // Self-signed upstreams are the common dev use case, so verification is
+    // opt-in. Scoped to this request instead of the old global
+    // NODE_TLS_REJECT_UNAUTHORIZED=0, which disabled TLS validation for the
+    // entire app (auto-updater included).
+    requestParams.rejectUnauthorized = userSettings.allowSelfSignedUpstream === false;
 }
 
 function handleRequest(clientReq, clientRes, userSettings, notify, requestParams) {
@@ -59,9 +64,9 @@ function handleRequest(clientReq, clientRes, userSettings, notify, requestParams
     if (userSettings.hostRewrite) {
         requestView.headers.host = userSettings.dest + ":" + userSettings.destPort;
     }
+    requestView.curl = curl.build(userSettings.destProtocol, requestParams);
 
     let connector = getServerProtocol(userSettings.destProtocol).request(requestParams, (serverResponse) => {
-        requestView.curl = connector.toCurl();
         let responseParams = {
             statusCode: serverResponse.statusCode,
             headers: Object.assign({}, serverResponse.headers),
@@ -80,6 +85,11 @@ function handleRequest(clientReq, clientRes, userSettings, notify, requestParams
             let start = new Date().getTime();
             if (userSettings.responseInterceptor && userSettings.interceptResponse) {
                 interceptor.interceptResponse(responseParams, userSettings.responseInterceptor, requestParams);
+                // The interceptor may have replaced the body; a stale
+                // content-length makes keep-alive clients hang or truncate.
+                if (responseParams.headers['content-length'] !== undefined) {
+                    responseParams.headers['content-length'] = Buffer.byteLength(responseParams.body);
+                }
             }
 
             clientRes.statusCode = responseParams.statusCode;
@@ -108,21 +118,33 @@ function handleRequest(clientReq, clientRes, userSettings, notify, requestParams
                 }
             }
 
-            if (responseView.headers['content-encoding'] === 'gzip') {
-                zlib.gunzip(responseParams.body, function (err, dezipped) {
-                    if (err) {
-                        logger.info(err)
-                    }
-                    responseView.body = dezipped && dezipped.toString();
-                    clientRes.write(responseParams.body);
-                    clientRes.end();
-                    notify(trafficView)
-                });
-            } else {
-                responseView.body = responseParams.body;
+            // Decompression is for the traffic view only; the wire body is
+            // always passed through unmodified.
+            const finish = () => {
                 clientRes.write(responseParams.body);
                 clientRes.end();
                 notify(trafficView)
+            };
+            const decoders = {
+                gzip: zlib.gunzip,
+                br: zlib.brotliDecompress,
+                deflate: zlib.inflate
+            };
+            const decode = decoders[responseView.headers['content-encoding']];
+            if (decode) {
+                decode(responseParams.body, function (err, decoded) {
+                    if (err) {
+                        logger.info(err);
+                        responseView.body = responseParams.body;
+                        responseView.decodeError = err.message;
+                    } else {
+                        responseView.body = decoded;
+                    }
+                    finish();
+                });
+            } else {
+                responseView.body = responseParams.body;
+                finish();
             }
         })
     });
