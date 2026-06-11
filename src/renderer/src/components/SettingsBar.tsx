@@ -10,11 +10,13 @@ function PortInput({
   disabled,
   label,
   onCommit,
+  onValidity,
 }: {
   value: number;
   disabled: boolean;
   label: string;
   onCommit: (port: number) => void;
+  onValidity: (valid: boolean) => void;
 }): React.JSX.Element {
   const [text, setText] = useState(String(value));
   const parsed = Number(text);
@@ -25,6 +27,7 @@ function PortInput({
       type="text"
       inputMode="numeric"
       aria-label={label}
+      aria-invalid={!valid}
       title={valid ? label : `${label}: must be an integer between 1 and 65535`}
       className={`w-20 rounded-md border px-2 py-1 text-sm ${
         valid ? 'border-neutral-300' : 'border-red-500 bg-red-50'
@@ -34,7 +37,9 @@ function PortInput({
       onChange={(e) => {
         setText(e.target.value);
         const port = Number(e.target.value);
-        if (isValidPort(port)) onCommit(port);
+        const ok = isValidPort(port);
+        onValidity(ok);
+        if (ok) onCommit(port);
       }}
     />
   );
@@ -74,11 +79,17 @@ export function SettingsBar(): React.JSX.Element | null {
   const openBreakpoints = useBreakpointStore((s) => s.setEditorOpen);
   const ruleCount = useBreakpointStore((s) => s.rules.length);
 
+  const [invalidPorts, setInvalidPorts] = useState({ listen: false, dest: false });
+
   if (!settings) return null;
 
   const set = (patch: Partial<AppSettings>): void => void updateSettings(patch);
   const startDisabled =
-    !settings.dest || !isValidPort(settings.listenPort) || !isValidPort(settings.destPort);
+    !settings.dest ||
+    invalidPorts.listen ||
+    invalidPorts.dest ||
+    !isValidPort(settings.listenPort) ||
+    !isValidPort(settings.destPort);
 
   return (
     <div className="flex items-center gap-2 border-b border-neutral-200 bg-white px-3 py-2">
@@ -94,6 +105,7 @@ export function SettingsBar(): React.JSX.Element | null {
         value={settings.listenPort}
         disabled={running}
         onCommit={(port) => set({ listenPort: port })}
+        onValidity={(valid) => setInvalidPorts((p) => ({ ...p, listen: !valid }))}
       />
       <ArrowRight className="h-4 w-4 text-neutral-400" aria-hidden />
       <span className="text-sm font-medium text-neutral-600">Destination</span>
@@ -117,6 +129,7 @@ export function SettingsBar(): React.JSX.Element | null {
         value={settings.destPort}
         disabled={running}
         onCommit={(port) => set({ destPort: port })}
+        onValidity={(valid) => setInvalidPorts((p) => ({ ...p, dest: !valid }))}
       />
       <div className="grow" />
       <button

@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@monaco-editor/react": "^4.7.0",
+    "@playwright/test": "^1.60.0",
     "@radix-ui/react-context-menu": "^2.3.0",
     "@radix-ui/react-dialog": "^1.1.16",
     "@radix-ui/react-tabs": "^1.1.14",
