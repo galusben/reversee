@@ -1,8 +1,10 @@
 import { useEffect } from 'react';
 import { X } from 'lucide-react';
+import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useProxyStore } from './stores/proxyStore';
 import { SettingsBar } from './components/SettingsBar';
 import { TrafficTable } from './components/TrafficTable';
+import { DetailPanes } from './components/DetailPanes';
 
 export default function App(): React.JSX.Element {
   const init = useProxyStore((s) => s.init);
@@ -32,7 +34,15 @@ export default function App(): React.JSX.Element {
           </button>
         </div>
       )}
-      <TrafficTable />
+      <Group orientation="vertical" className="min-h-0 grow">
+        <Panel defaultSize="50%" minSize="15%" className="flex flex-col">
+          <TrafficTable />
+        </Panel>
+        <Separator className="h-1.5 bg-neutral-200 transition-colors hover:bg-blue-300 data-[separator-state=drag]:bg-blue-400" />
+        <Panel defaultSize="50%" minSize="20%">
+          <DetailPanes />
+        </Panel>
+      </Group>
       <div className="border-t border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-500">
         {running ? `Proxy running on port ${port}` : 'Proxy stopped'}
       </div>
