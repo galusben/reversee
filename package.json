@@ -9,6 +9,9 @@
   "engines": {
     "node": ">=22"
   },
+  "workspaces": [
+    "mcp"
+  ],
   "scripts": {
     "start": "electron-vite dev",
     "dev": "electron-vite dev",
@@ -16,7 +19,8 @@
     "pack": "electron-vite build && electron-builder --dir",
     "dist": "electron-vite build && electron-builder",
     "test": "vitest run",
-    "typecheck": "tsc --build",
+    "build:mcp": "npm run build -w reversee-mcp",
+    "typecheck": "tsc --build && tsc -p mcp --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
