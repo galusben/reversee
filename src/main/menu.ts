@@ -1,0 +1,199 @@
+// Application menu. The proxy-behavior checkboxes write to settings (the 1.x
+// menu was read directly by the proxy at start time via the remote module);
+// snapshot-at-start semantics are preserved because settings are captured in
+// the proxy:start payload.
+import {
+  app,
+  clipboard,
+  dialog,
+  Menu,
+  shell,
+  type BrowserWindow,
+  type MenuItemConstructorOptions,
+} from 'electron';
+import { IPC } from '../shared/ipc';
+import { getSettings, setSettings, onSettingsChanged, type RootCertPem } from './settings';
+import { certificateTrustDialog, exportRootCert } from './certs/certs';
+import { checkForUpdatesInteractive } from './updater';
+
+const HOMEPAGE = 'https://github.com/galusben/reversee';
+const MCP_SETUP_COMMAND = 'claude mcp add reversee -- npx reversee-mcp';
+
+export function createMenu(
+  win: BrowserWindow,
+  root: RootCertPem,
+  hooks: { onResetCache(): void }
+): void {
+  const isMac = process.platform === 'darwin';
+  const settings = getSettings();
+
+  const template: MenuItemConstructorOptions[] = [
+    ...(isMac
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { role: 'about' },
+              { type: 'separator' },
+              { role: 'services' },
+              { type: 'separator' },
+              { role: 'hide' },
+              { role: 'hideOthers' },
+              { role: 'unhide' },
+              { type: 'separator' },
+              { role: 'quit' },
+            ],
+          } as MenuItemConstructorOptions,
+        ]
+      : []),
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'pasteAndMatchStyle' },
+        { role: 'delete' },
+        { role: 'selectAll' },
+        ...(isMac
+          ? ([
+              { type: 'separator' },
+              {
+                label: 'Speech',
+                submenu: [{ role: 'startSpeaking' }, { role: 'stopSpeaking' }],
+              },
+            ] as MenuItemConstructorOptions[])
+          : []),
+      ],
+    },
+    {
+      label: 'Breakpoints',
+      submenu: [
+        {
+          label: 'Edit',
+          accelerator: 'CmdOrCtrl+B',
+          click: () => win.webContents.send(IPC.openBreakpointsEvent),
+        },
+      ],
+    },
+    {
+      label: 'Proxy Settings',
+      submenu: [
+        {
+          label: 'Rewrite Redirects (3xx)',
+          type: 'checkbox',
+          checked: settings.rewriteRedirects,
+          id: 'redirects',
+          click: (item) => setSettings({ rewriteRedirects: item.checked }),
+        },
+        {
+          label: 'Rewrite host',
+          type: 'checkbox',
+          checked: settings.rewriteHost,
+          id: 'host',
+          click: (item) => setSettings({ rewriteHost: item.checked }),
+        },
+        { type: 'separator' },
+        {
+          label: 'Enable MCP Integration',
+          type: 'checkbox',
+          checked: settings.mcpEnabled,
+          id: 'mcp-enabled',
+          click: (item) => setSettings({ mcpEnabled: item.checked }),
+        },
+        {
+          label: 'Allow MCP to Control the Proxy',
+          type: 'checkbox',
+          checked: settings.mcpAllowControl,
+          id: 'mcp-control',
+          click: (item) => setSettings({ mcpAllowControl: item.checked }),
+        },
+        { type: 'separator' },
+        {
+          label: 'Reset Cache',
+          click: () => hooks.onResetCache(),
+        },
+        {
+          label: 'Export Root Cert',
+          click: () => void exportRootCert(win, root),
+        },
+        ...(isMac
+          ? [
+              {
+                label: 'Manage Root Cert',
+                click: (): void => certificateTrustDialog(win, root),
+              },
+            ]
+          : []),
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+    { role: 'windowMenu' },
+    {
+      role: 'help',
+      submenu: [
+        {
+          label: 'Learn More',
+          click: () => void shell.openExternal(HOMEPAGE),
+        },
+        {
+          label: 'Check for Updates…',
+          click: () => void checkForUpdatesInteractive(win),
+        },
+        {
+          label: 'Set Up MCP (Claude Code)…',
+          click: () => {
+            clipboard.writeText(MCP_SETUP_COMMAND);
+            void dialog.showMessageBox(win, {
+              type: 'info',
+              message: 'MCP setup command copied to clipboard',
+              detail:
+                `Run this in your terminal:\n\n${MCP_SETUP_COMMAND}\n\n` +
+                'For Cursor, add reversee with command "npx" and args ["reversee-mcp"] ' +
+                'to ~/.cursor/mcp.json. See the README for details.',
+            });
+          },
+        },
+        ...(!isMac
+          ? [
+              {
+                label: 'About Reversee',
+                click: (): void => app.showAboutPanel(),
+              },
+            ]
+          : []),
+      ],
+    },
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+
+  // Keep the checkboxes in sync when settings change from elsewhere
+  // (renderer, reset cache, or MCP later).
+  onSettingsChanged((next) => {
+    const menu = Menu.getApplicationMenu();
+    const sync = (id: string, checked: boolean): void => {
+      const item = menu?.getMenuItemById(id);
+      if (item) item.checked = checked;
+    };
+    sync('redirects', next.rewriteRedirects);
+    sync('host', next.rewriteHost);
+    sync('mcp-enabled', next.mcpEnabled);
+    sync('mcp-control', next.mcpAllowControl);
+  });
+}

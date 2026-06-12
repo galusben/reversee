@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main, modernize]
+  pull_request:
+    branches: [main]
+
+env:
+  # Bundling the monaco renderer chunk brushes against the default ~2 GB
+  # heap on macOS runners and OOMs intermittently.
+  NODE_OPTIONS: --max-old-space-size=4096
+
+jobs:
+  checks:
+    name: Lint, typecheck, unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+  e2e:
+    name: E2E (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright test
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7
+
+  e2e-windows:
+    name: E2E (Windows)
+    runs-on: windows-latest
+    # Informational while the suite stabilizes on Windows runners.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright test
+
+  package:
+    name: Package (${{ matrix.os }})
+    needs: [checks]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      # Unsigned artifacts: signing happens in the release workflow when
+      # secrets are configured.
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx electron-builder --publish=never
+      - uses: actions/upload-artifact@v7
+        with:
+          name: reversee-${{ matrix.os }}
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.exe
+            dist/*.AppImage
+            dist/*.deb
+          retention-days: 7

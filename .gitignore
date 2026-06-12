@@ -1,4 +1,9 @@
-build-scripts/reversee/**
-dist/**
-node_modules/**
-.vscode/**
+node_modules/
+out/
+dist/
+build-scripts/reversee/
+.vscode/
+.DS_Store
+*.log
+test-results/
+playwright-report/

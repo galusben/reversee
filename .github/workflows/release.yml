@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+env:
+  NODE_OPTIONS: --max-old-space-size=4096
+
+jobs:
+  release:
+    name: Build and publish (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # Signing/notarization activate only when the secrets exist:
+      #   mac: CSC_LINK + CSC_KEY_PASSWORD (+ APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD,
+      #        APPLE_TEAM_ID for notarization)
+      #   win: CSC_LINK + CSC_KEY_PASSWORD
+      - run: npx electron-builder --publish=always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' }}
