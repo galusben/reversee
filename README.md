@@ -48,12 +48,7 @@ claude mcp add reversee -- npx -y reversee-mcp
 }
 ```
 
-**From a checkout (before the npm package is published):**
-
-```sh
-npm install && npm run build:mcp
-claude mcp add reversee -- node /path/to/reversee/mcp/dist/cli.js
-```
+The package is published as [`reversee-mcp`](https://www.npmjs.com/package/reversee-mcp). When developing against a checkout, use the local build instead: `npm run build:mcp`, then `claude mcp add reversee -- node /path/to/reversee/mcp/dist/cli.js`.
 
 ### Tools
 
