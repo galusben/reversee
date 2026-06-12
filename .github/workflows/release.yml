@@ -4,6 +4,9 @@ on:
   push:
     tags: ['v*']
 
+env:
+  NODE_OPTIONS: --max-old-space-size=4096
+
 jobs:
   release:
     name: Build and publish (${{ matrix.os }})
