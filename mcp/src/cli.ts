@@ -2,7 +2,7 @@
 // reversee-mcp: stdio MCP server bridging Claude Code / Cursor to a running
 // Reversee app over its local control socket.
 //
-// One-line setup:   claude mcp add reversee -- npx reversee-mcp
+// One-line setup:   claude mcp add reversee -- npx -y reversee-mcp
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';

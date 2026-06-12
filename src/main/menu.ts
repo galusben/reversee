@@ -17,7 +17,7 @@ import { certificateTrustDialog, exportRootCert } from './certs/certs';
 import { checkForUpdatesInteractive } from './updater';
 
 const HOMEPAGE = 'https://github.com/galusben/reversee';
-const MCP_SETUP_COMMAND = 'claude mcp add reversee -- npx reversee-mcp';
+const MCP_SETUP_COMMAND = 'claude mcp add reversee -- npx -y reversee-mcp';
 
 export function createMenu(
   win: BrowserWindow,
@@ -164,7 +164,7 @@ export function createMenu(
               message: 'MCP setup command copied to clipboard',
               detail:
                 `Run this in your terminal:\n\n${MCP_SETUP_COMMAND}\n\n` +
-                'For Cursor, add reversee with command "npx" and args ["reversee-mcp"] ' +
+                'For Cursor, add reversee with command "npx" and args ["-y", "reversee-mcp"] ' +
                 'to ~/.cursor/mcp.json. See the README for details.',
             });
           },
