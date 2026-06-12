@@ -13,9 +13,27 @@ Reversee sits between your client and a destination server. Point your client at
 - **Redirect & host rewriting** — keep redirect chains and Host headers pointed at the proxy.
 - **MCP integration** — let Claude Code, Cursor, or any MCP client inspect and (optionally) control the proxy. See below.
 
+## Install
+
+**macOS (Homebrew):**
+
+```sh
+brew install --cask galusben/reversee/reversee
+```
+
+**macOS / Linux (one-liner):**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/galusben/reversee/main/install.sh | bash
+```
+
+**Windows / manual:** download the installer for your OS from [Releases](https://github.com/galusben/reversee/releases).
+
+macOS builds are signed and notarized; the app updates itself from GitHub Releases.
+
 ## Getting started
 
-1. Download the build for your OS from [Releases](https://github.com/galusben/reversee/releases) and launch it.
+1. Install and launch Reversee.
 2. Pick a listen protocol and port (ports below 1024 need admin/root).
 3. Pick the destination protocol, host, and port.
 4. Click **Start**.
