@@ -16,6 +16,8 @@ import { TrafficStore } from './traffic-store';
 import { createMainWindow } from './windows';
 import { createMenu } from './menu';
 import { setupUpdater } from './updater';
+import { createMcpHandlers, MCP_MUTATING_METHODS } from './mcp/handlers';
+import { startControlServer, type ControlServer } from './mcp/control-server';
 import iconAsset from '../../resources/icon.png?asset';
 
 log.transports.file.level = 'info';
@@ -50,24 +52,27 @@ const proxyHost = new ProxyHost({
 // Breakpoint rules are session-scoped (as in 1.x — they were never persisted).
 let breakpointRules: BreakpointRule[] = [];
 
+/** Shared by the renderer IPC handler and the MCP start_proxy tool. */
+async function startProxyFromSettings(): Promise<StartProxyResult> {
+  const settings = getSettings();
+  if (!settings.dest) {
+    return { ok: false, error: { message: 'Destination host is required' } };
+  }
+  try {
+    const sslOptions =
+      settings.listenProtocol === 'https' && leafCert
+        ? { key: leafCert.privateKey, cert: leafCert.certificate }
+        : undefined;
+    const port = await proxyHost.start({ settings: toProxySettings(settings), sslOptions });
+    return { ok: true, port };
+  } catch (error) {
+    const e = error as { code?: string; message?: string };
+    return { ok: false, error: { code: e.code, message: e.message ?? String(error) } };
+  }
+}
+
 function registerIpc(): void {
-  ipcMain.handle(IPC.proxyStart, async (): Promise<StartProxyResult> => {
-    const settings = getSettings();
-    if (!settings.dest) {
-      return { ok: false, error: { message: 'Destination host is required' } };
-    }
-    try {
-      const sslOptions =
-        settings.listenProtocol === 'https' && leafCert
-          ? { key: leafCert.privateKey, cert: leafCert.certificate }
-          : undefined;
-      const port = await proxyHost.start({ settings: toProxySettings(settings), sslOptions });
-      return { ok: true, port };
-    } catch (error) {
-      const e = error as { code?: string; message?: string };
-      return { ok: false, error: { code: e.code, message: e.message ?? String(error) } };
-    }
-  });
+  ipcMain.handle(IPC.proxyStart, () => startProxyFromSettings());
 
   ipcMain.handle(IPC.proxyStop, () => {
     proxyHost.stop();
@@ -101,6 +106,42 @@ function registerIpc(): void {
   onSettingsChanged((settings) => sendToRenderer(IPC.settingsChangedEvent, settings));
 }
 
+// ---- MCP control socket ----
+
+let controlServer: ControlServer | null = null;
+let controlServerBusy = false;
+
+async function syncControlServer(): Promise<void> {
+  if (controlServerBusy) return;
+  controlServerBusy = true;
+  try {
+    const enabled = getSettings().mcpEnabled;
+    if (enabled && !controlServer) {
+      controlServer = await startControlServer({
+        dir: app.getPath('userData'),
+        appVersion: app.getVersion(),
+        isControlAllowed: () => getSettings().mcpAllowControl,
+        mutatingMethods: MCP_MUTATING_METHODS,
+        handlers: createMcpHandlers({
+          proxyHost,
+          trafficStore,
+          getBreakpointRules: () => breakpointRules,
+          startProxy: startProxyFromSettings,
+        }),
+        logger: log,
+      });
+    } else if (!enabled && controlServer) {
+      const server = controlServer;
+      controlServer = null;
+      await server.close();
+    }
+  } catch (error) {
+    log.error('failed to toggle MCP control server', error);
+  } finally {
+    controlServerBusy = false;
+  }
+}
+
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
@@ -117,6 +158,8 @@ if (!gotLock) {
     const { root, leaf } = ensureCertificates();
     leafCert = leaf;
     registerIpc();
+    void syncControlServer();
+    onSettingsChanged(() => void syncControlServer());
     win = createMainWindow();
 
     app.setAboutPanelOptions({
@@ -145,6 +188,7 @@ if (!gotLock) {
 
   app.on('window-all-closed', () => {
     proxyHost.kill();
+    void controlServer?.close();
     app.quit();
   });
 }

@@ -17,6 +17,10 @@ export interface AppSettings {
   /** Rewrite the Host header to the destination. */
   rewriteHost: boolean;
   allowSelfSignedUpstream: boolean;
+  /** Expose the local MCP control socket (read-only by default). */
+  mcpEnabled: boolean;
+  /** Allow MCP clients to start/stop/configure the proxy. */
+  mcpAllowControl: boolean;
 }
 
 export const defaultSettings: AppSettings = {
@@ -43,6 +47,9 @@ export const defaultSettings: AppSettings = {
   rewriteRedirects: true,
   rewriteHost: true,
   allowSelfSignedUpstream: true,
+  // The socket is same-user-only and read-only unless control is enabled.
+  mcpEnabled: true,
+  mcpAllowControl: false,
 };
 
 export function isValidPort(value: unknown): value is number {
@@ -73,6 +80,8 @@ export function sanitizeSettingsPatch(patch: unknown): Partial<AppSettings> {
     'rewriteRedirects',
     'rewriteHost',
     'allowSelfSignedUpstream',
+    'mcpEnabled',
+    'mcpAllowControl',
   ] as const) {
     if (typeof p[key] === 'boolean') out[key] = p[key];
   }

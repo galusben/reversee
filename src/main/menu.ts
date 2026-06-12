@@ -2,13 +2,22 @@
 // menu was read directly by the proxy at start time via the remote module);
 // snapshot-at-start semantics are preserved because settings are captured in
 // the proxy:start payload.
-import { app, Menu, shell, type BrowserWindow, type MenuItemConstructorOptions } from 'electron';
+import {
+  app,
+  clipboard,
+  dialog,
+  Menu,
+  shell,
+  type BrowserWindow,
+  type MenuItemConstructorOptions,
+} from 'electron';
 import { IPC } from '../shared/ipc';
 import { getSettings, setSettings, onSettingsChanged, type RootCertPem } from './settings';
 import { certificateTrustDialog, exportRootCert } from './certs/certs';
 import { checkForUpdatesInteractive } from './updater';
 
 const HOMEPAGE = 'https://github.com/galusben/reversee';
+const MCP_SETUP_COMMAND = 'claude mcp add reversee -- npx reversee-mcp';
 
 export function createMenu(
   win: BrowserWindow,
@@ -89,6 +98,21 @@ export function createMenu(
         },
         { type: 'separator' },
         {
+          label: 'Enable MCP Integration',
+          type: 'checkbox',
+          checked: settings.mcpEnabled,
+          id: 'mcp-enabled',
+          click: (item) => setSettings({ mcpEnabled: item.checked }),
+        },
+        {
+          label: 'Allow MCP to Control the Proxy',
+          type: 'checkbox',
+          checked: settings.mcpAllowControl,
+          id: 'mcp-control',
+          click: (item) => setSettings({ mcpAllowControl: item.checked }),
+        },
+        { type: 'separator' },
+        {
           label: 'Reset Cache',
           click: () => hooks.onResetCache(),
         },
@@ -131,6 +155,20 @@ export function createMenu(
           label: 'Check for Updates…',
           click: () => void checkForUpdatesInteractive(win),
         },
+        {
+          label: 'Set Up MCP (Claude Code)…',
+          click: () => {
+            clipboard.writeText(MCP_SETUP_COMMAND);
+            void dialog.showMessageBox(win, {
+              type: 'info',
+              message: 'MCP setup command copied to clipboard',
+              detail:
+                `Run this in your terminal:\n\n${MCP_SETUP_COMMAND}\n\n` +
+                'For Cursor, add reversee with command "npx" and args ["reversee-mcp"] ' +
+                'to ~/.cursor/mcp.json. See the README for details.',
+            });
+          },
+        },
         ...(!isMac
           ? [
               {
@@ -149,9 +187,13 @@ export function createMenu(
   // (renderer, reset cache, or MCP later).
   onSettingsChanged((next) => {
     const menu = Menu.getApplicationMenu();
-    const redirects = menu?.getMenuItemById('redirects');
-    const host = menu?.getMenuItemById('host');
-    if (redirects) redirects.checked = next.rewriteRedirects;
-    if (host) host.checked = next.rewriteHost;
+    const sync = (id: string, checked: boolean): void => {
+      const item = menu?.getMenuItemById(id);
+      if (item) item.checked = checked;
+    };
+    sync('redirects', next.rewriteRedirects);
+    sync('host', next.rewriteHost);
+    sync('mcp-enabled', next.mcpEnabled);
+    sync('mcp-control', next.mcpAllowControl);
   });
 }
