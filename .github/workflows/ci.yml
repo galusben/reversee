@@ -38,7 +38,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx playwright test
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-traces
@@ -81,7 +81,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx electron-builder --publish=never
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: reversee-${{ matrix.os }}
           path: |
