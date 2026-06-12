@@ -35,7 +35,7 @@ Reversee ships an MCP server so LLM agents can drive it. With the Reversee app r
 **Claude Code** — one line:
 
 ```sh
-claude mcp add reversee -- npx reversee-mcp
+claude mcp add reversee -- npx -y reversee-mcp
 ```
 
 **Cursor** — add to `~/.cursor/mcp.json`:
@@ -43,7 +43,7 @@ claude mcp add reversee -- npx reversee-mcp
 ```json
 {
   "mcpServers": {
-    "reversee": { "command": "npx", "args": ["reversee-mcp"] }
+    "reversee": { "command": "npx", "args": ["-y", "reversee-mcp"] }
   }
 }
 ```
