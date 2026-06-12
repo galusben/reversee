@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { Lock, LockOpen } from 'lucide-react';
 import { useProxyStore } from '../stores/proxyStore';
 import { WithContextMenu } from './ui/ContextMenu';
@@ -18,56 +18,54 @@ function contentType(entry: TrafficEntry): string {
   return text ? text.split(';')[0] : '';
 }
 
-function Row({
+// Memoized: at the 1,000-entry cap a naive table re-renders every row for
+// each incoming request.
+const Row = memo(function Row({
   entry,
   index,
   selected,
   onClick,
+  onContextMenu,
 }: {
   entry: TrafficEntry;
   index: number;
   selected: boolean;
   onClick: () => void;
+  onContextMenu: () => void;
 }): React.JSX.Element {
-  const clearTraffic = useProxyStore((s) => s.clearTraffic);
   return (
-    <WithContextMenu
-      items={[
-        {
-          label: 'Copy as curl',
-          onSelect: () => void window.reversee.copyToClipboard(entry.request.curl ?? ''),
-        },
-        { label: 'Clear All', onSelect: () => void clearTraffic() },
-      ]}
+    <tr
+      onClick={onClick}
+      onContextMenu={onContextMenu}
+      aria-selected={selected}
+      className={`cursor-pointer border-b border-neutral-100 hover:bg-neutral-50 ${
+        selected ? 'bg-blue-50 font-semibold' : ''
+      }`}
     >
-      <tr
-        onClick={onClick}
-        aria-selected={selected}
-        className={`cursor-pointer border-b border-neutral-100 hover:bg-neutral-50 ${
-          selected ? 'bg-blue-50 font-semibold' : ''
-        }`}
-      >
-        <td className="px-3 py-1.5 text-neutral-400">{index + 1}</td>
-        <td className="px-3 py-1.5 font-medium">{entry.request.method}</td>
-        <td className="max-w-0 truncate px-3 py-1.5" title={entry.request.url}>
-          {entry.request.url}
-        </td>
-        <td className={`px-3 py-1.5 font-medium ${statusClass(entry)}`}>
-          {entry.connectorError ? 'ERR' : (entry.response.statusCode ?? '')}
-        </td>
-        <td className="truncate px-3 py-1.5 text-neutral-500">{contentType(entry)}</td>
-      </tr>
-    </WithContextMenu>
+      <td className="px-3 py-1.5 text-neutral-400">{index + 1}</td>
+      <td className="px-3 py-1.5 font-medium">{entry.request.method}</td>
+      <td className="max-w-0 truncate px-3 py-1.5" title={entry.request.url}>
+        {entry.request.url}
+      </td>
+      <td className={`px-3 py-1.5 font-medium ${statusClass(entry)}`}>
+        {entry.connectorError ? 'ERR' : (entry.response.statusCode ?? '')}
+      </td>
+      <td className="truncate px-3 py-1.5 text-neutral-500">{contentType(entry)}</td>
+    </tr>
   );
-}
+});
 
 export function TrafficTable(): React.JSX.Element {
   const traffic = useProxyStore((s) => s.traffic);
   const selectedId = useProxyStore((s) => s.selectedId);
   const select = useProxyStore((s) => s.select);
+  const clearTraffic = useProxyStore((s) => s.clearTraffic);
   const scrollLocked = useProxyStore((s) => s.scrollLocked);
   const toggleScrollLock = useProxyStore((s) => s.toggleScrollLock);
   const containerRef = useRef<HTMLDivElement>(null);
+  // One context menu for the whole table (a Radix menu root per row is far
+  // too heavy at the traffic cap); the right-clicked entry is tracked here.
+  const menuEntryRef = useRef<TrafficEntry | null>(null);
 
   useEffect(() => {
     if (!scrollLocked && containerRef.current) {
@@ -103,17 +101,31 @@ export function TrafficTable(): React.JSX.Element {
               <th className="w-48 px-3 py-2">Content-Type</th>
             </tr>
           </thead>
-          <tbody>
-            {traffic.map((entry, index) => (
-              <Row
-                key={entry.trafficId}
-                entry={entry}
-                index={index}
-                selected={selectedId === entry.trafficId}
-                onClick={() => select(entry.trafficId)}
-              />
-            ))}
-          </tbody>
+          <WithContextMenu
+            items={[
+              {
+                label: 'Copy as curl',
+                onSelect: () =>
+                  void window.reversee.copyToClipboard(menuEntryRef.current?.request.curl ?? ''),
+              },
+              { label: 'Clear All', onSelect: () => void clearTraffic() },
+            ]}
+          >
+            <tbody>
+              {traffic.map((entry, index) => (
+                <Row
+                  key={entry.trafficId}
+                  entry={entry}
+                  index={index}
+                  selected={selectedId === entry.trafficId}
+                  onClick={() => select(entry.trafficId)}
+                  onContextMenu={() => {
+                    menuEntryRef.current = entry;
+                  }}
+                />
+              ))}
+            </tbody>
+          </WithContextMenu>
         </table>
         {traffic.length === 0 && (
           <div className="p-8 text-center text-sm text-neutral-400">
