@@ -22,6 +22,7 @@ import iconAsset from '../../resources/icon.png?asset';
 
 log.transports.file.level = 'info';
 log.transports.console.level = 'info';
+log.info('main process start');
 
 // Test isolation: e2e runs point this at a temp dir so settings, certs, and
 // window state never touch (or depend on) the real profile.
