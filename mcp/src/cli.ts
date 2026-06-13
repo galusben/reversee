@@ -13,11 +13,13 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { ReverseeClient } from './client.js';
-import { resolveCatalog, versionAdvisory } from './catalog.js';
+import { resolveCatalog } from './catalog.js';
 
 const BRIDGE_VERSION: string = createRequire(import.meta.url)('../package.json').version;
 
-const client = new ReverseeClient();
+// The version is reported in the handshake; the app emits any upgrade advisory
+// (in get_status) so the signal reaches even older bridges.
+const client = new ReverseeClient(undefined, BRIDGE_VERSION);
 
 // Snapshot the catalog at startup: if the app is up we advertise its tools, if
 // not we advertise the frozen fallback. (A running app launched later is picked
@@ -44,15 +46,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     // its arguments object straight through as the method params.
     const params = name === 'update_config' ? (args?.['patch'] ?? {}) : args;
     const result = await client.call(name, params);
-
-    // Surface an upgrade hint on get_status when the bridge is behind the
-    // version the running app recommends.
-    const payload =
-      name === 'get_status' && result && typeof result === 'object'
-        ? { ...(result as object), bridge: versionAdvisory(BRIDGE_VERSION, catalog.recommendedBridge) }
-        : result;
-
-    return { content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }] };
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
   } catch (error) {
     return { content: [{ type: 'text', text: (error as Error).message }], isError: true };
   }

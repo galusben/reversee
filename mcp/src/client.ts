@@ -53,7 +53,11 @@ export function socketPathFor(dir: string): string {
 }
 
 export class ReverseeClient {
-  constructor(private dir: string = defaultUserDataDir()) {}
+  constructor(
+    private dir: string = defaultUserDataDir(),
+    /** Reported in the handshake so the app can advise on bridge upgrades. */
+    private bridgeVersion?: string
+  ) {}
 
   async call(method: string, params?: unknown): Promise<unknown> {
     let token: string;
@@ -81,7 +85,7 @@ export class ReverseeClient {
       });
 
       socket.once('connect', () => {
-        socket.write(JSON.stringify({ token }) + '\n');
+        socket.write(JSON.stringify({ token, bridgeVersion: this.bridgeVersion }) + '\n');
       });
 
       socket.on('data', (chunk) => {

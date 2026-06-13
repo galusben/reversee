@@ -85,7 +85,9 @@ describe('reversee-mcp bridge over stdio', () => {
           ],
           recommendedBridge: '2.0.0',
         }),
-        get_status: () => ({ running: false, appVersion: '9.9.9-test' }),
+        // Echo the handshake-reported bridge version, proving the bridge sends
+        // it (the real app uses this to emit the upgrade advisory).
+        get_status: (_p, ctx) => ({ running: false, appVersion: '9.9.9-test', reportedBridge: ctx.bridgeVersion }),
       },
     });
 
@@ -101,7 +103,7 @@ describe('reversee-mcp bridge over stdio', () => {
     const call = await bridge.rpc(3, 'tools/call', { name: 'get_status', arguments: {} });
     const status = JSON.parse(call.result.content[0].text);
     expect(status.appVersion).toBe('9.9.9-test');
-    expect(status.bridge.upToDate).toBe(true); // bridge 2.0.0 == recommended
+    expect(status.reportedBridge).toMatch(/^\d+\.\d+\.\d+/); // bridge reported its version in the handshake
   });
 
   it('serves the fallback catalog and errors gracefully when the app is down', async () => {

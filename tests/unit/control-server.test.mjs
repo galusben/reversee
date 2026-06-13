@@ -41,9 +41,9 @@ function connect() {
   });
 }
 
-async function authedClient() {
+async function authedClient(bridgeVersion) {
   const client = await connect();
-  client.send({ token: fs.readFileSync(tokenPathFor(dir), 'utf8') });
+  client.send({ token: fs.readFileSync(tokenPathFor(dir), 'utf8'), bridgeVersion });
   const hello = await client.next();
   expect(hello.ok).toBe(true);
   return client;
@@ -61,6 +61,7 @@ beforeEach(async () => {
       get_status: () => ({ running: false }),
       start_proxy: () => ({ started: true }),
       update_config: (params) => ({ updated: params }),
+      echo_ctx: (_params, ctx) => ({ bridgeVersion: ctx.bridgeVersion ?? null }),
       boom: () => {
         throw new Error('handler exploded');
       },
@@ -105,6 +106,20 @@ describe('control server', () => {
     client.send({ id: 3, method: 'update_config', params: { dest: 'x' } });
     const reply = await client.next();
     expect(reply.result).toEqual({ updated: { dest: 'x' } });
+    client.socket.destroy();
+  });
+
+  it('threads the handshake bridgeVersion into the handler context', async () => {
+    const client = await authedClient('2.1.0');
+    client.send({ id: 7, method: 'echo_ctx' });
+    expect((await client.next()).result).toEqual({ bridgeVersion: '2.1.0' });
+    client.socket.destroy();
+  });
+
+  it('leaves bridgeVersion undefined for an old bridge that does not report it', async () => {
+    const client = await authedClient(undefined);
+    client.send({ id: 8, method: 'echo_ctx' });
+    expect((await client.next()).result).toEqual({ bridgeVersion: null });
     client.socket.destroy();
   });
 

@@ -65,32 +65,3 @@ export async function resolveCatalog(client: ReverseeClient): Promise<ResolvedCa
   }
   return { tools: FALLBACK_CATALOG, fromApp: false };
 }
-
-/** Numeric semver-ish compare of the release core (ignores pre-release tags). */
-export function isOlder(a: string, b: string): boolean {
-  const core = (v: string) => v.split('-')[0].split('.').map((n) => parseInt(n, 10) || 0);
-  const [a0 = 0, a1 = 0, a2 = 0] = core(a);
-  const [b0 = 0, b1 = 0, b2 = 0] = core(b);
-  if (a0 !== b0) return a0 < b0;
-  if (a1 !== b1) return a1 < b1;
-  return a2 < b2;
-}
-
-/** Advisory appended to get_status when the bridge is older than recommended. */
-export function versionAdvisory(
-  bridgeVersion: string,
-  recommendedBridge: string | undefined
-): { upToDate: boolean; version: string; recommended?: string; note?: string } {
-  if (recommendedBridge && isOlder(bridgeVersion, recommendedBridge)) {
-    return {
-      upToDate: false,
-      version: bridgeVersion,
-      recommended: recommendedBridge,
-      note:
-        `A newer reversee-mcp (>= ${recommendedBridge}) is available; you are on ${bridgeVersion}. ` +
-        'Upgrade to latest by clearing the cached copy, then restart your MCP client:\n' +
-        '  for d in ~/.npm/_npx/*/; do [ -e "$d/node_modules/reversee-mcp" ] && rm -rf "$d"; done',
-    };
-  }
-  return { upToDate: true, version: bridgeVersion };
-}

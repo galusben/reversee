@@ -23,7 +23,16 @@ export interface ControlRequest {
   params?: unknown;
 }
 
-export type ControlHandler = (params: unknown) => Promise<unknown> | unknown;
+/** Per-connection context derived from the handshake. */
+export interface ControlContext {
+  /** Bridge version reported in the handshake; undefined for pre-2.1.0 bridges. */
+  bridgeVersion?: string;
+}
+
+export type ControlHandler = (
+  params: unknown,
+  ctx: ControlContext
+) => Promise<unknown> | unknown;
 
 export interface ControlServerOptions {
   /** Directory for the socket and token files (the app passes userData). */
@@ -79,6 +88,7 @@ export function startControlServer(options: ControlServerOptions): Promise<Contr
   const server = net.createServer((socket) => {
     let authenticated = false;
     let buffer = '';
+    const ctx: ControlContext = {};
 
     const send = (message: unknown): void => {
       socket.write(JSON.stringify(message) + '\n');
@@ -109,6 +119,7 @@ export function startControlServer(options: ControlServerOptions): Promise<Contr
       if (!authenticated) {
         if (tokensMatch(message['token'], token)) {
           authenticated = true;
+          if (typeof message['bridgeVersion'] === 'string') ctx.bridgeVersion = message['bridgeVersion'];
           send({ ok: true, server: 'reversee', protocol: PROTOCOL_VERSION, version: options.appVersion });
         } else {
           logger.warn('mcp control: handshake with bad token rejected');
@@ -140,7 +151,7 @@ export function startControlServer(options: ControlServerOptions): Promise<Contr
         return;
       }
       try {
-        const result = await handler(params);
+        const result = await handler(params, ctx);
         send({ id, result: result ?? null });
       } catch (error) {
         send({ id, error: { code: 'handler-error', message: (error as Error).message } });
