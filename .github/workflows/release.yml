@@ -98,15 +98,14 @@ jobs:
             npx playwright test -c playwright.smoke.config.ts
 
   promote:
-    name: Publish release & update Homebrew
+    name: Publish release
     needs: verify-mac
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       VERSION: ${{ github.ref_name }}
-      HAS_TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN != '' }}
       # Pre-release tags (e.g. v2.1.0-beta.1) contain a hyphen.
       IS_STABLE: ${{ !contains(github.ref_name, '-') }}
     steps:
@@ -118,14 +117,28 @@ jobs:
             gh release edit "$VERSION" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease
           fi
 
+  # Separate job so a tap-token/cask hiccup never reds the published release.
+  homebrew:
+    name: Update Homebrew cask
+    needs: promote
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      VERSION: ${{ github.ref_name }}
+      HAS_TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN != '' }}
+    steps:
       - uses: actions/checkout@v5
-      - name: Update the Homebrew cask
-        if: env.HAS_TAP_TOKEN == 'true' && env.IS_STABLE == 'true'
+      - name: Update the cask
+        if: env.HAS_TAP_TOKEN == 'true'
         env:
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
         run: |
           VER="${VERSION#v}"
           mkdir -p casksrc && cd casksrc
+          # The release is published by now, so a read-only token can fetch it.
           gh release download "$VERSION" --repo "$GITHUB_REPOSITORY" \
             --pattern "Reversee-${VER}-arm64.dmg" --pattern "Reversee-${VER}.dmg"
           ARM_SHA=$(shasum -a 256 "Reversee-${VER}-arm64.dmg" | awk '{print $1}')
