@@ -47,7 +47,9 @@ jobs:
     needs: build
     runs-on: macos-latest
     permissions:
-      contents: read
+      # write (not read) so the token can see the *draft* release we verify
+      # before promoting — draft releases are hidden from read-only tokens.
+      contents: write
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       VERSION: ${{ github.ref_name }}
