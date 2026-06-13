@@ -36,6 +36,16 @@ claude mcp add reversee -- npx -y reversee-mcp
 | `validate_setup` | Setup checks: destination, ports, root cert, proxy process |
 | `export_diagnostics` | Versions, platform, settings, state — for bug reports |
 
+The Reversee app owns this list and serves it to the bridge at startup, so tools added in an app update appear automatically — this package rarely needs updating. When the app is not running, a built-in fallback list is advertised.
+
+## Updating
+
+`npx` caches this server and won't auto-upgrade it. If `get_status` reports a newer version is recommended, upgrade to latest and restart your MCP client:
+
+```sh
+for d in ~/.npm/_npx/*/; do [ -e "$d/node_modules/reversee-mcp" ] && rm -rf "$d"; done
+```
+
 ## Security model
 
 - The bridge talks to the app over a **local unix domain socket / Windows named pipe** with a per-boot token — never a TCP port. Only your user account can reach it.
