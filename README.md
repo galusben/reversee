@@ -18,8 +18,11 @@ Reversee sits between your client and a destination server. Point your client at
 **macOS (Homebrew):**
 
 ```sh
-brew install --cask galusben/reversee/reversee
+brew tap galusben/reversee
+brew install --cask reversee
 ```
+
+If Homebrew reports the tap is untrusted, run `brew trust galusben/reversee` once and re-run the install.
 
 **macOS / Linux (one-liner):**
 
