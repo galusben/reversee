@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { ArrowRight, OctagonPause, Play, Square } from 'lucide-react';
+import { ArrowRight, OctagonPause, Play, Sparkles, Square } from 'lucide-react';
 import { useProxyStore } from '../stores/proxyStore';
 import { useBreakpointStore } from '../stores/breakpointStore';
+import { useUiStore } from '../stores/uiStore';
 import { isValidPort, type AppSettings } from '../../../shared/settings-schema';
 import type { Protocol } from '../../../shared/types';
 
@@ -78,6 +79,7 @@ export function SettingsBar(): React.JSX.Element | null {
   const stop = useProxyStore((s) => s.stop);
   const openBreakpoints = useBreakpointStore((s) => s.setEditorOpen);
   const ruleCount = useBreakpointStore((s) => s.rules.length);
+  const openConnectAi = useUiStore((s) => s.setConnectAiOpen);
 
   const [invalidPorts, setInvalidPorts] = useState({ listen: false, dest: false });
 
@@ -132,6 +134,15 @@ export function SettingsBar(): React.JSX.Element | null {
         onValidity={(valid) => setInvalidPorts((p) => ({ ...p, dest: !valid }))}
       />
       <div className="grow" />
+      <button
+        type="button"
+        onClick={() => openConnectAi(true)}
+        title="Connect an AI agent (MCP)"
+        className="flex items-center gap-1.5 rounded-md bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-2.5 py-1.5 text-sm font-medium text-white shadow-sm transition-opacity hover:opacity-90"
+      >
+        <Sparkles className="h-3.5 w-3.5" aria-hidden />
+        Connect AI
+      </button>
       <button
         type="button"
         onClick={() => openBreakpoints(true)}

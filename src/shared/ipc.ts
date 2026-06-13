@@ -32,6 +32,7 @@ export const IPC = {
   breakpointHitEvent: 'breakpoint:hit',
   breakpointErrorsEvent: 'breakpoint:errors',
   openBreakpointsEvent: 'ui:open-breakpoints',
+  openConnectAiEvent: 'ui:open-connect-ai',
 } as const;
 
 export interface ProxyState {
@@ -81,6 +82,7 @@ export interface RevAPI {
   onBreakpointHit(cb: (hit: BreakpointHit) => void): () => void;
   onBreakpointErrors(cb: (errors: BreakpointCompileError[]) => void): () => void;
   onOpenBreakpoints(cb: () => void): () => void;
+  onOpenConnectAi(cb: () => void): () => void;
   onProxyState(cb: (state: ProxyState) => void): () => void;
   onProxyError(cb: (error: ProxyErrorInfo) => void): () => void;
   onSettingsChanged(cb: (settings: AppSettings) => void): () => void;

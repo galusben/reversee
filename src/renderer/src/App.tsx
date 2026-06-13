@@ -9,6 +9,8 @@ import { TrafficTable } from './components/TrafficTable';
 import { DetailPanes } from './components/DetailPanes';
 import { BreakpointsDialog } from './components/BreakpointsDialog';
 import { BreakpointQueue } from './components/BreakpointQueue';
+import { ConnectAiDialog } from './components/ConnectAiDialog';
+import { useUiStore } from './stores/uiStore';
 
 export default function App(): React.JSX.Element {
   const init = useProxyStore((s) => s.init);
@@ -17,11 +19,14 @@ export default function App(): React.JSX.Element {
   const dismissError = useProxyStore((s) => s.dismissError);
   const running = useProxyStore((s) => s.running);
   const port = useProxyStore((s) => s.port);
+  const openConnectAi = useUiStore((s) => s.setConnectAiOpen);
 
   useEffect(() => {
     void init();
     void initBreakpoints();
-  }, [init, initBreakpoints]);
+    // The Help > Set Up MCP menu item opens the same dialog as the button.
+    return window.reversee.onOpenConnectAi(() => openConnectAi(true));
+  }, [init, initBreakpoints, openConnectAi]);
 
   return (
     <div className="flex h-screen flex-col bg-neutral-100">
@@ -29,6 +34,7 @@ export default function App(): React.JSX.Element {
       <InterceptorPanel />
       <BreakpointQueue />
       <BreakpointsDialog />
+      <ConnectAiDialog />
       {error && (
         <div
           role="alert"

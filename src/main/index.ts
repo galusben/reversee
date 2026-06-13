@@ -18,11 +18,14 @@ import { createMenu } from './menu';
 import { setupUpdater } from './updater';
 import { createMcpHandlers, MCP_MUTATING_METHODS } from './mcp/handlers';
 import { startControlServer, type ControlServer } from './mcp/control-server';
+import { parseCliFlags } from './cli-args';
 import iconAsset from '../../resources/icon.png?asset';
 
 log.transports.file.level = 'info';
 log.transports.console.level = 'info';
 log.info('main process start');
+
+const flags = parseCliFlags(process.argv);
 
 // Test isolation: e2e runs point this at a temp dir so settings, certs, and
 // window state never touch (or depend on) the real profile.
@@ -116,12 +119,12 @@ async function syncControlServer(): Promise<void> {
   if (controlServerBusy) return;
   controlServerBusy = true;
   try {
-    const enabled = getSettings().mcpEnabled;
+    const enabled = flags.mcp ?? getSettings().mcpEnabled;
     if (enabled && !controlServer) {
       controlServer = await startControlServer({
         dir: app.getPath('userData'),
         appVersion: app.getVersion(),
-        isControlAllowed: () => getSettings().mcpAllowControl,
+        isControlAllowed: () => flags.allowMcpControl || getSettings().mcpAllowControl,
         mutatingMethods: MCP_MUTATING_METHODS,
         handlers: createMcpHandlers({
           proxyHost,
@@ -155,12 +158,31 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
-    setupUpdater();
     const { root, leaf } = ensureCertificates();
     leafCert = leaf;
     registerIpc();
     void syncControlServer();
     onSettingsChanged(() => void syncControlServer());
+
+    // Headless (agent) mode: no window, dock, menu, or auto-update — just the
+    // proxy and the MCP control socket. Runs until killed.
+    if (flags.headless) {
+      app.dock?.hide();
+      log.info(
+        `Reversee running headless — MCP ${flags.mcp === false ? 'disabled' : 'enabled'}, ` +
+          `control ${flags.allowMcpControl ? 'ALLOWED' : 'read-only'}.`
+      );
+      const shutdown = (): void => {
+        proxyHost.kill();
+        void controlServer?.close();
+        app.quit();
+      };
+      process.on('SIGINT', shutdown);
+      process.on('SIGTERM', shutdown);
+      return;
+    }
+
+    setupUpdater();
     win = createMainWindow();
 
     app.setAboutPanelOptions({
@@ -187,9 +209,13 @@ if (!gotLock) {
     });
   });
 
-  app.on('window-all-closed', () => {
-    proxyHost.kill();
-    void controlServer?.close();
-    app.quit();
-  });
+  // GUI mode only: headless never opens a window, so it stays alive on the
+  // control socket until it receives a termination signal.
+  if (!flags.headless) {
+    app.on('window-all-closed', () => {
+      proxyHost.kill();
+      void controlServer?.close();
+      app.quit();
+    });
+  }
 }

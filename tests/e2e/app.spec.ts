@@ -29,6 +29,15 @@ test('launches with a visible window and secure renderer', async () => {
   expect(await page.evaluate(() => typeof (window as never)['process'])).toBe('undefined');
 });
 
+test('Connect AI button opens the MCP setup dialog', async () => {
+  launched = await launchApp();
+  const { page } = launched;
+  await page.getByRole('button', { name: /Connect AI/ }).click();
+  await expect(page.getByText('Connect an AI agent')).toBeVisible();
+  await expect(page.getByText('claude mcp add reversee -- npx -y reversee-mcp')).toBeVisible();
+  await expect(page.getByText(/~\/.cursor\/mcp.json/)).toBeVisible();
+});
+
 test('proxies a request and shows it in the table with details', async () => {
   upstream = await startUpstream((req, res) => {
     res.writeHead(200, { 'content-type': 'application/json' });
