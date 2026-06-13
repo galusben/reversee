@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reversee — open-source reverse-proxy web debugger, built for AI agents</title>
+    <meta
+      name="description"
+      content="Reversee is an open-source reverse-proxy web debugger. See, intercept, and edit HTTP/HTTPS traffic — and let AI agents (Claude Code, Cursor) inspect and control it over MCP."
+    />
+    <link rel="canonical" href="https://galusben.github.io/reversee/" />
+
+    <!-- Social cards -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Reversee — reverse-proxy web debugger, built for AI agents" />
+    <meta
+      property="og:description"
+      content="Open-source. See, intercept, and edit HTTP/HTTPS traffic. Drive it from Claude Code or Cursor over MCP, or run it headless for agents."
+    />
+    <meta property="og:url" content="https://galusben.github.io/reversee/" />
+    <meta
+      property="og:image"
+      content="https://raw.githubusercontent.com/galusben/reversee/main/docs/screenshots/app.png"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- LLM-friendly: a machine-readable description of the project. The
+         /llms.txt file (llmstxt.org convention) gives assistants a concise,
+         linked overview; this JSON-LD makes the same facts crawlable. -->
+    <link rel="alternate" type="text/markdown" title="llms.txt" href="./llms.txt" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Reversee",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "macOS, Windows, Linux",
+        "description": "Open-source reverse-proxy web debugger. See, intercept, and edit HTTP/HTTPS traffic between a client and a server. Includes an MCP server so AI agents (Claude Code, Cursor) can inspect and control the proxy, plus a headless mode for automation.",
+        "license": "https://opensource.org/licenses/MIT",
+        "isAccessibleForFree": true,
+        "url": "https://galusben.github.io/reversee/",
+        "codeRepository": "https://github.com/galusben/reversee",
+        "downloadUrl": "https://github.com/galusben/reversee/releases/latest",
+        "softwareHelp": "https://github.com/galusben/reversee#readme",
+        "featureList": [
+          "HTTP and HTTPS reverse proxy",
+          "Traffic inspection: headers, bodies, timings, copy-as-curl",
+          "Request and response interceptors (JavaScript)",
+          "Breakpoints: hold, edit, and resume requests",
+          "Redirect and host-header rewriting",
+          "Locally generated, trustable root certificate",
+          "MCP server for AI agents (Claude Code, Cursor)",
+          "Headless mode for automation"
+        ],
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
+
+    <style>
+      :root {
+        --bg: #ffffff;
+        --bg-soft: #f7f7fb;
+        --ink: #18181b;
+        --muted: #6b7280;
+        --line: #e7e7ee;
+        --brand1: #6366f1;
+        --brand2: #d946ef;
+        --code-bg: #0f172a;
+        --radius: 14px;
+        --maxw: 1080px;
+      }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      a { color: var(--brand1); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+      .grad-text {
+        background: linear-gradient(90deg, var(--brand1), var(--brand2));
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .btn {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 11px 18px; border-radius: 10px; font-weight: 600; font-size: 15px;
+        border: 1px solid transparent; cursor: pointer; text-decoration: none;
+      }
+      .btn-primary { background: linear-gradient(90deg, var(--brand1), var(--brand2)); color: #fff; }
+      .btn-primary:hover { opacity: 0.92; text-decoration: none; }
+      .btn-ghost { background: #fff; border-color: var(--line); color: var(--ink); }
+      .btn-ghost:hover { background: var(--bg-soft); text-decoration: none; }
+
+      /* Nav */
+      header.nav {
+        position: sticky; top: 0; z-index: 20;
+        background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(8px);
+        border-bottom: 1px solid var(--line);
+      }
+      .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+      .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 18px; color: var(--ink); }
+      .brand:hover { text-decoration: none; }
+      .nav-links { display: flex; align-items: center; gap: 22px; font-size: 15px; }
+      .nav-links a { color: var(--muted); }
+      .nav-links a:hover { color: var(--ink); text-decoration: none; }
+      .badge-os {
+        font-size: 12px; font-weight: 600; color: #15803d;
+        background: #dcfce7; border: 1px solid #bbf7d0; padding: 3px 9px; border-radius: 999px;
+      }
+
+      /* Hero */
+      .hero { position: relative; overflow: hidden; padding: 72px 0 40px; }
+      .hero::before {
+        content: ""; position: absolute; inset: -40% 0 auto 0; height: 520px; z-index: -1;
+        background: radial-gradient(60% 100% at 50% 0%, rgba(99, 102, 241, 0.14), transparent 70%),
+          radial-gradient(50% 80% at 80% 10%, rgba(217, 70, 239, 0.12), transparent 70%);
+      }
+      .hero h1 { font-size: clamp(34px, 5.2vw, 56px); line-height: 1.08; letter-spacing: -0.02em; margin: 14px 0 16px; }
+      .hero p.lede { font-size: clamp(17px, 2.2vw, 21px); color: var(--muted); max-width: 680px; margin: 0 auto 26px; }
+      .hero-center { text-align: center; }
+      .cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+      .pill {
+        display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600;
+        color: var(--brand1); background: #eef2ff; border: 1px solid #e0e7ff; padding: 5px 13px; border-radius: 999px;
+      }
+      .shot {
+        margin: 44px auto 0; max-width: 1000px; border-radius: var(--radius);
+        border: 1px solid var(--line); box-shadow: 0 24px 60px -24px rgba(24, 24, 27, 0.28);
+        overflow: hidden; background: #fff;
+      }
+      .shot img { display: block; width: 100%; height: auto; }
+
+      /* Sections */
+      section { padding: 64px 0; }
+      .section-soft { background: var(--bg-soft); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+      h2.section-title { font-size: clamp(26px, 3.4vw, 36px); letter-spacing: -0.02em; margin: 0 0 10px; text-align: center; }
+      .section-sub { color: var(--muted); text-align: center; max-width: 620px; margin: 0 auto 40px; font-size: 17px; }
+
+      .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+      @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+      .card {
+        background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 22px;
+      }
+      .card h3 { margin: 12px 0 6px; font-size: 18px; }
+      .card p { margin: 0; color: var(--muted); font-size: 15px; }
+      .ico {
+        width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center;
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(217, 70, 239, 0.12));
+        color: var(--brand1);
+      }
+
+      /* AI section (dark) */
+      .ai { background: #0b1020; color: #e6e8f2; border: 0; }
+      .ai h2.section-title, .ai .section-sub { color: #fff; }
+      .ai .section-sub { color: #aab0c6; }
+      .ai-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; align-items: center; }
+      @media (max-width: 880px) { .ai-grid { grid-template-columns: 1fr; } }
+      .ai .feat { display: flex; gap: 12px; margin-bottom: 16px; }
+      .ai .feat .dot { color: var(--brand2); flex: none; margin-top: 3px; }
+      .ai .feat b { color: #fff; }
+      .ai .feat span { color: #aab0c6; font-size: 15px; }
+      .ai .shot { border-color: #232a44; box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.6); }
+
+      /* Code */
+      pre.code {
+        background: var(--code-bg); color: #e2e8f0; border-radius: 10px; padding: 14px 16px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13.5px;
+        line-height: 1.55; overflow-x: auto; margin: 0;
+      }
+      pre.code .c { color: #64748b; }
+      pre.code .k { color: #c4b5fd; }
+      .codelabel { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 7px; }
+      .stack > * + * { margin-top: 18px; }
+
+      .steps { counter-reset: s; max-width: 760px; margin: 0 auto; }
+      .step { display: flex; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+      .step:last-child { border-bottom: 0; }
+      .step .n {
+        counter-increment: s; flex: none; width: 30px; height: 30px; border-radius: 999px;
+        background: linear-gradient(135deg, var(--brand1), var(--brand2)); color: #fff;
+        display: grid; place-items: center; font-weight: 700; font-size: 14px;
+      }
+      .step .n::before { content: counter(s); }
+      .step h4 { margin: 3px 0 3px; font-size: 16px; }
+      .step p { margin: 0; color: var(--muted); font-size: 15px; }
+
+      /* Install */
+      .install-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; max-width: 860px; margin: 0 auto; }
+      @media (max-width: 720px) { .install-grid { grid-template-columns: 1fr; } }
+
+      footer { padding: 48px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+      .foot-inner { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+      .foot-links { display: flex; gap: 18px; flex-wrap: wrap; }
+      .foot-links a { color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <header class="nav">
+      <div class="wrap nav-inner">
+        <a class="brand" href="#top">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M7 7h10M7 7l3-3M7 7l3 3M17 17H7M17 17l-3-3M17 17l-3 3" stroke="url(#g)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <defs><linearGradient id="g" x1="0" y1="0" x2="24" y2="24"><stop stop-color="#6366f1"/><stop offset="1" stop-color="#d946ef"/></linearGradient></defs>
+          </svg>
+          Reversee
+        </a>
+        <nav class="nav-links">
+          <a href="#features">Features</a>
+          <a href="#ai">For AI agents</a>
+          <a href="#install">Install</a>
+          <a href="https://github.com/galusben/reversee#readme">Docs</a>
+          <a href="https://github.com/galusben/reversee">GitHub ↗</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="wrap hero-center">
+          <span class="pill">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l1.6 4.6L18 8.2l-4.4 1.6L12 14l-1.6-4.2L6 8.2l4.4-1.6L12 2z"/></svg>
+            Now with MCP — drive it from Claude Code &amp; Cursor
+          </span>
+          <h1>See, intercept, and edit your HTTP traffic.<br /><span class="grad-text">Built for humans and AI agents.</span></h1>
+          <p class="lede">
+            Reversee is an <strong>open-source</strong> reverse-proxy web debugger. Point your client at it
+            and inspect every request and response — headers, bodies, timings — then rewrite or breakpoint
+            them on the fly. And let AI agents do it too, over MCP.
+          </p>
+          <div class="cta-row">
+            <a class="btn btn-primary" href="https://github.com/galusben/reversee/releases/latest">Download for macOS, Windows, Linux</a>
+            <a class="btn btn-ghost" href="https://github.com/galusben/reversee">View on GitHub ↗</a>
+          </div>
+          <div class="shot">
+            <img src="./screenshots/app.png" alt="Reversee inspecting HTTP traffic: a table of requests with methods, status codes and content types, and a JSON response body in the detail pane." />
+          </div>
+        </div>
+      </section>
+
+      <section id="features">
+        <div class="wrap">
+          <h2 class="section-title">Everything you need to debug traffic</h2>
+          <p class="section-sub">A focused, modern UI over a proxy that gets out of your way.</p>
+          <div class="grid">
+            <div class="card">
+              <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h10"/></svg></div>
+              <h3>HTTP &amp; HTTPS</h3>
+              <p>Listen and forward on either protocol. HTTPS uses a locally generated root CA you trust once.</p>
+            </div>
+            <div class="card">
+              <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18v14H3z"/><path d="M3 9h18"/></svg></div>
+              <h3>Traffic inspection</h3>
+              <p>Method, path, status, content type, headers, request/response bodies (syntax-highlighted), and timings.</p>
+            </div>
+            <div class="card">
+              <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m8 6-6 6 6 6M16 6l6 6-6 6"/></svg></div>
+              <h3>Interceptors</h3>
+              <p>Rewrite requests or responses with a few lines of JavaScript — change headers, bodies, anything.</p>
+            </div>
+            <div class="card">
+              <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2 2"/></svg></div>
+              <h3>Breakpoints</h3>
+              <p>Hold requests matching a URL pattern, edit the URL, headers, and body, then continue.</p>
+            </div>
+            <div class="card">
+              <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5"/></svg></div>
+              <h3>Redirect &amp; host rewriting</h3>
+              <p>Keep redirect chains and Host headers pointed back at the proxy so flows just work.</p>
+            </div>
+            <div class="card">
+              <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6l-8-4z"/><path d="m9 12 2 2 4-4"/></svg></div>
+              <h3>Copy as curl &amp; export</h3>
+              <p>Reproduce any captured request as a curl command, and export diagnostics in a click.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="ai" class="ai">
+        <div class="wrap">
+          <h2 class="section-title">✨ Made for AI agents</h2>
+          <p class="section-sub">
+            Reversee ships an MCP server, so Claude Code, Cursor, or any MCP client can inspect and control the
+            proxy. Agents can debug your traffic for you — or run Reversee headless as part of an automation.
+          </p>
+          <div class="ai-grid">
+            <div>
+              <div class="feat"><span class="dot">◆</span><span><b>One-line setup.</b> Register the server with a single command — no config files.</span></div>
+              <div class="feat"><span class="dot">◆</span><span><b>Read-only by default.</b> Tools like <code>list_traffic</code> and <code>get_traffic_entry</code> are always safe; starting/stopping the proxy needs an explicit opt-in.</span></div>
+              <div class="feat"><span class="dot">◆</span><span><b>Local &amp; private.</b> The bridge talks to the app over a token-authenticated local socket — never a network port.</span></div>
+              <div class="feat"><span class="dot">◆</span><span><b>Headless mode.</b> <code>reversee --headless --allow-mcp-control</code> runs with no UI for agents and CI.</span></div>
+              <div class="feat"><span class="dot">◆</span><span><b>Always current.</b> The app owns the tool catalog, so new tools reach agents automatically on app updates.</span></div>
+
+              <div class="stack" style="margin-top: 26px">
+                <div>
+                  <p class="codelabel" style="color:#aab0c6">Claude Code</p>
+                  <pre class="code">claude mcp add reversee -- npx -y reversee-mcp</pre>
+                </div>
+                <div>
+                  <p class="codelabel" style="color:#aab0c6">Cursor — ~/.cursor/mcp.json</p>
+                  <pre class="code">{
+  <span class="k">"mcpServers"</span>: {
+    <span class="k">"reversee"</span>: { <span class="k">"command"</span>: <span class="k">"npx"</span>, <span class="k">"args"</span>: [<span class="k">"-y"</span>, <span class="k">"reversee-mcp"</span>] }
+  }
+}</pre>
+                </div>
+              </div>
+            </div>
+            <div class="shot">
+              <img src="./screenshots/connect-ai.png" alt="Reversee's Connect AI dialog showing the Claude Code command and Cursor JSON, with copy buttons." />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section-soft">
+        <div class="wrap">
+          <h2 class="section-title">Get going in under a minute</h2>
+          <p class="section-sub">Install, point your client at it, and watch the traffic.</p>
+          <div class="steps">
+            <div class="step"><div class="n"></div><div><h4>Install &amp; launch Reversee</h4><p>Download a build, or <code>brew install --cask galusben/reversee/reversee</code>.</p></div></div>
+            <div class="step"><div class="n"></div><div><h4>Set the listen and destination</h4><p>e.g. listen on <code>http:8080</code>, forward to <code>https://api.example.com</code>. Click <b>Start</b>.</p></div></div>
+            <div class="step"><div class="n"></div><div><h4>Send a request</h4><p><code>curl http://localhost:8080/api/users</code> — it appears in the table; click it to inspect.</p></div></div>
+            <div class="step"><div class="n"></div><div><h4>Intercept, breakpoint, or hand it to an agent</h4><p>Rewrite a response in JS, hold a request to edit it, or connect Claude Code to do it for you.</p></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="install">
+        <div class="wrap">
+          <h2 class="section-title">Install</h2>
+          <p class="section-sub">Signed and notarized on macOS. Updates itself from GitHub Releases.</p>
+          <div class="install-grid stack">
+            <div>
+              <p class="codelabel">macOS — Homebrew</p>
+              <pre class="code">brew tap galusben/reversee
+brew install --cask reversee</pre>
+            </div>
+            <div>
+              <p class="codelabel">macOS / Linux — one-liner</p>
+              <pre class="code">curl -fsSL https://raw.githubusercontent.com/\
+galusben/reversee/main/install.sh | bash</pre>
+            </div>
+          </div>
+          <p style="text-align:center; margin-top:24px;">
+            <a class="btn btn-ghost" href="https://github.com/galusben/reversee/releases/latest">All downloads (incl. Windows) ↗</a>
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap foot-inner">
+        <div>
+          <div class="brand" style="font-size:16px; margin-bottom:6px;">Reversee</div>
+          <div>Open source under the MIT license. <span class="badge-os" style="margin-left:6px;">Free &amp; open source</span></div>
+        </div>
+        <div class="foot-links">
+          <a href="https://github.com/galusben/reversee">GitHub</a>
+          <a href="https://github.com/galusben/reversee#readme">Documentation</a>
+          <a href="https://www.npmjs.com/package/reversee-mcp">reversee-mcp (npm)</a>
+          <a href="./llms.txt">llms.txt</a>
+          <a href="https://github.com/galusben/reversee/releases/latest">Releases</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

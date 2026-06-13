@@ -1,0 +1,53 @@
+# Reversee
+
+> Reversee is a free, open-source (MIT) reverse-proxy web debugger for macOS, Windows, and Linux. It sits between a client and a destination server so you can see, intercept, and edit HTTP/HTTPS traffic. It ships an MCP server so AI agents (Claude Code, Cursor, or any MCP client) can inspect and control the proxy, and a headless mode for automation.
+
+## What it does
+
+- Acts as a reverse proxy: point a client at Reversee's listen address and it forwards to a destination, recording every request and response.
+- Inspect traffic: method, path, status, content type, headers, request/response bodies (gzip/brotli decoded, syntax-highlighted), per-request timings, and a copy-as-curl command.
+- Interceptors: rewrite requests (`requestParams`: host, path, method, port, headers, body) or responses (`responseParams`: statusCode, headers, body) with JavaScript, live.
+- Breakpoints: hold requests matching a URL regex + HTTP methods, edit the URL/headers/body, then resume.
+- Redirect and Host-header rewriting; a locally generated root CA for trusting HTTPS interception.
+- Source: https://github.com/galusben/reversee — License: MIT.
+
+## For AI agents (MCP)
+
+Reversee exposes its capabilities to LLM agents through the Model Context Protocol. The MCP server is published on npm as `reversee-mcp`.
+
+Setup (with the Reversee app running):
+- Claude Code: `claude mcp add reversee -- npx -y reversee-mcp`
+- Cursor (~/.cursor/mcp.json): `{ "mcpServers": { "reversee": { "command": "npx", "args": ["-y", "reversee-mcp"] } } }`
+
+Security model: the MCP bridge talks to the app over a token-authenticated local unix socket / Windows named pipe — never a TCP port. Read-only tools are always available; mutating tools (start/stop/restart the proxy, change config) require the user to enable "Allow MCP to Control the Proxy" in the app, or launching headless with `--allow-mcp-control`.
+
+MCP tools:
+- `get_status`: app version, proxy run state, listen/destination config, traffic and breakpoint counts.
+- `get_config` / `update_config`: read / change the proxy configuration (update is gated).
+- `start_proxy` / `stop_proxy` / `restart_proxy`: control the proxy process (gated).
+- `list_traffic`: captured requests, paged, bodies elided.
+- `get_traffic_entry`: one request in full — headers, bodies, timings, curl command.
+- `list_breakpoints`: configured breakpoint rules.
+- `validate_setup`: setup checks (destination, ports, root cert, proxy process).
+- `export_diagnostics`: versions, platform, settings, state — for bug reports.
+
+The Reversee app owns the tool catalog and serves it to the bridge at startup, so tools added in app updates reach agents automatically without reinstalling `reversee-mcp`.
+
+Headless mode (agent- or CI-driven, no UI):
+- `reversee --headless --allow-mcp-control` runs with no window on just the proxy + MCP socket, until killed.
+- Use a separate `REVERSEE_USER_DATA` directory to isolate an agent's instance from a GUI instance (each gets its own control socket).
+
+## Install
+
+- macOS (Homebrew): `brew tap galusben/reversee && brew install --cask reversee`
+- macOS / Linux (one-liner): `curl -fsSL https://raw.githubusercontent.com/galusben/reversee/main/install.sh | bash`
+- All platforms (incl. Windows): https://github.com/galusben/reversee/releases/latest
+- MCP server only (npm): https://www.npmjs.com/package/reversee-mcp
+
+## Documentation
+
+- [README](https://github.com/galusben/reversee/blob/main/README.md): features, install, MCP setup, headless mode, development.
+- [Testing](https://github.com/galusben/reversee/blob/main/TESTING.md): the test layers and how they map to CI.
+- [Releasing](https://github.com/galusben/reversee/blob/main/RELEASING.md): the tag-driven release pipeline.
+- [Agent guide](https://github.com/galusben/reversee/blob/main/CLAUDE.md): orientation for AI agents working in the repo.
+- [reversee-mcp package](https://github.com/galusben/reversee/blob/main/mcp/README.md): the MCP bridge's tools and security model.

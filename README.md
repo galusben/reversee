@@ -1,5 +1,7 @@
 # Reversee
 
+**[reversee website &amp; docs →](https://galusben.github.io/reversee/)** · Open source (MIT) · [Releases](https://github.com/galusben/reversee/releases/latest)
+
 A reverse-proxy web debugger: see, intercept, and edit HTTP/HTTPS traffic between a client and a server with the least setup possible.
 
 Reversee sits between your client and a destination server. Point your client at Reversee's listen port and every request and response shows up in the traffic table — headers, bodies (with gzip/brotli decoding and syntax highlighting), timings, and a copy-as-curl command.
