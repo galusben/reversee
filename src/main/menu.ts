@@ -165,7 +165,9 @@ export function createMenu(
               detail:
                 `Run this in your terminal:\n\n${MCP_SETUP_COMMAND}\n\n` +
                 'For Cursor, add reversee with command "npx" and args ["-y", "reversee-mcp"] ' +
-                'to ~/.cursor/mcp.json. See the README for details.',
+                'to ~/.cursor/mcp.json.\n\n' +
+                'New tools arrive automatically with app updates. To upgrade the MCP ' +
+                'server itself, see "Updating the MCP server" in the README.',
             });
           },
         },

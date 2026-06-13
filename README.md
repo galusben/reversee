@@ -83,6 +83,18 @@ The package is published as [`reversee-mcp`](https://www.npmjs.com/package/rever
 | `validate_setup` | Setup checks (destination, ports, root cert, proxy process) |
 | `export_diagnostics` | Versions, platform, settings, state — for bug reports |
 
+The app owns this list — it serves the catalog to the bridge at startup, so **tools added in an app update appear automatically** with no MCP-server reinstall (the bridge is a generic passthrough). When the app is not running, the bridge advertises a built-in fallback list and each call returns a "launch Reversee" message.
+
+### Updating the MCP server
+
+`npx` caches the server on first run and does not auto-upgrade it. You rarely need to update — new tools arrive via app updates — but if the app reports a newer `reversee-mcp` is recommended (in `get_status`), upgrade to latest and restart your MCP client:
+
+```sh
+for d in ~/.npm/_npx/*/; do [ -e "$d/node_modules/reversee-mcp" ] && rm -rf "$d"; done
+```
+
+This clears only Reversee's cached copy; the next run pulls the latest published version.
+
 ### Security model
 
 - The bridge talks to the app over a **local socket** (unix domain socket / Windows named pipe), never a TCP port, with a per-boot token — only your user account can reach it.

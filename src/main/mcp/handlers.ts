@@ -3,18 +3,14 @@
 import { app } from 'electron';
 import { getSettings, setSettings, getRootCertPem } from '../settings';
 import { isValidPort } from '../../shared/settings-schema';
+import { MCP_TOOL_CATALOG, MCP_MUTATING_METHODS, RECOMMENDED_BRIDGE_VERSION } from './catalog';
 import type { ControlHandler } from './control-server';
 import type { ProxyHost } from '../proxy-host';
 import type { TrafficStore } from '../traffic-store';
 import type { StartProxyResult } from '../../shared/ipc';
 import type { BreakpointRule, TrafficEntry } from '../../shared/types';
 
-export const MCP_MUTATING_METHODS: ReadonlySet<string> = new Set([
-  'start_proxy',
-  'stop_proxy',
-  'restart_proxy',
-  'update_config',
-]);
+export { MCP_MUTATING_METHODS };
 
 export interface McpHandlerContext {
   proxyHost: ProxyHost;
@@ -43,6 +39,14 @@ function trafficSummary(entry: TrafficEntry): Record<string, unknown> {
 
 export function createMcpHandlers(ctx: McpHandlerContext): Record<string, ControlHandler> {
   return {
+    // The bridge calls this at startup to learn which tools to advertise and
+    // which bridge version the app recommends. The app is the source of truth
+    // for the tool catalog.
+    list_tools: () => ({
+      tools: MCP_TOOL_CATALOG,
+      recommendedBridge: RECOMMENDED_BRIDGE_VERSION,
+    }),
+
     get_status: () => {
       const settings = getSettings();
       return {
