@@ -23,6 +23,9 @@ cask "reversee" do
   auto_updates true
 
   app "Reversee.app"
+  # Puts `reversee` on PATH so agents can run it headless:
+  #   reversee --headless --allow-mcp-control
+  binary "#{appdir}/Reversee.app/Contents/MacOS/Reversee", target: "reversee"
 
   zap trash: [
     "~/Library/Application Support/Reversee",

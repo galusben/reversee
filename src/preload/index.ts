@@ -30,6 +30,7 @@ const api: RevAPI = {
   onBreakpointHit: subscribe(IPC.breakpointHitEvent),
   onBreakpointErrors: subscribe(IPC.breakpointErrorsEvent),
   onOpenBreakpoints: subscribe(IPC.openBreakpointsEvent),
+  onOpenConnectAi: subscribe(IPC.openConnectAiEvent),
   onProxyState: subscribe(IPC.proxyStateEvent),
   onProxyError: subscribe(IPC.proxyErrorEvent),
   onSettingsChanged: subscribe(IPC.settingsChangedEvent),

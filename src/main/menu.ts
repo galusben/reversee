@@ -4,8 +4,6 @@
 // the proxy:start payload.
 import {
   app,
-  clipboard,
-  dialog,
   Menu,
   shell,
   type BrowserWindow,
@@ -17,7 +15,6 @@ import { certificateTrustDialog, exportRootCert } from './certs/certs';
 import { checkForUpdatesInteractive } from './updater';
 
 const HOMEPAGE = 'https://github.com/galusben/reversee';
-const MCP_SETUP_COMMAND = 'claude mcp add reversee -- npx -y reversee-mcp';
 
 export function createMenu(
   win: BrowserWindow,
@@ -156,20 +153,8 @@ export function createMenu(
           click: () => void checkForUpdatesInteractive(win),
         },
         {
-          label: 'Set Up MCP (Claude Code)…',
-          click: () => {
-            clipboard.writeText(MCP_SETUP_COMMAND);
-            void dialog.showMessageBox(win, {
-              type: 'info',
-              message: 'MCP setup command copied to clipboard',
-              detail:
-                `Run this in your terminal:\n\n${MCP_SETUP_COMMAND}\n\n` +
-                'For Cursor, add reversee with command "npx" and args ["-y", "reversee-mcp"] ' +
-                'to ~/.cursor/mcp.json.\n\n' +
-                'New tools arrive automatically with app updates. To upgrade the MCP ' +
-                'server itself, see "Updating the MCP server" in the README.',
-            });
-          },
+          label: 'Connect an AI Agent (MCP)…',
+          click: () => win.webContents.send(IPC.openConnectAiEvent),
         },
         ...(!isMac
           ? [

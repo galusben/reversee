@@ -101,6 +101,23 @@ This clears only Reversee's cached copy; the next run pulls the latest published
 - It is **read-only by default**. `start_proxy`, `stop_proxy`, `restart_proxy`, and `update_config` are rejected until you check *Proxy Settings → Allow MCP to Control the Proxy* in the app.
 - *Proxy Settings → Enable MCP Integration* turns the socket off entirely.
 
+### Headless mode (for agents)
+
+An agent that only needs the proxy can run Reversee without the UI. The Homebrew cask puts `reversee` on `PATH`:
+
+```sh
+# isolate the agent's instance with its own profile + socket, allow it to control the proxy
+REVERSEE_USER_DATA="$(mktemp -d)" reversee --headless --allow-mcp-control &
+```
+
+Then point the MCP client at the same profile (`REVERSEE_USER_DATA`) and drive it. Flags:
+
+- `--headless` — no window/dock; runs on the MCP socket until killed. Implies MCP enabled.
+- `--allow-mcp-control` — the launch-time equivalent of *Allow MCP to Control the Proxy* (start/stop/configure).
+- `--no-mcp` / `--allow-mcp` — force the socket off / on.
+
+Flags are session overrides and never change your saved settings. Using a separate `REVERSEE_USER_DATA` lets a headless agent instance coexist with your GUI instance (each gets its own control socket). On Linux a display is still required — wrap with `xvfb-run`.
+
 ## Development
 
 Requirements: Node 22+.
