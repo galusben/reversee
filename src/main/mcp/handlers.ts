@@ -3,7 +3,12 @@
 import { app } from 'electron';
 import { getSettings, setSettings, getRootCertPem } from '../settings';
 import { isValidPort } from '../../shared/settings-schema';
-import { MCP_TOOL_CATALOG, MCP_MUTATING_METHODS, RECOMMENDED_BRIDGE_VERSION } from './catalog';
+import {
+  MCP_TOOL_CATALOG,
+  MCP_MUTATING_METHODS,
+  RECOMMENDED_BRIDGE_VERSION,
+  buildBridgeAdvisory,
+} from './catalog';
 import type { ControlHandler } from './control-server';
 import type { ProxyHost } from '../proxy-host';
 import type { TrafficStore } from '../traffic-store';
@@ -47,9 +52,10 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
       recommendedBridge: RECOMMENDED_BRIDGE_VERSION,
     }),
 
-    get_status: () => {
+    get_status: (_params, conn) => {
       const settings = getSettings();
       return {
+        bridge: buildBridgeAdvisory(conn.bridgeVersion),
         appVersion: app.getVersion(),
         running: ctx.proxyHost.isRunning,
         listenProtocol: settings.listenProtocol,

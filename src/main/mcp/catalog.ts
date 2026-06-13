@@ -18,11 +18,54 @@ export interface McpToolDef {
 const noInput = { type: 'object', properties: {}, additionalProperties: false };
 
 /**
- * Bumped when we ship a bridge with capabilities the app relies on. The bridge
- * compares its own version against this and advises the user to upgrade if it
- * is older. No npm registry calls are involved.
+ * The bridge version the app wants users on. 2.1.0 is the first *generic*
+ * bridge (it serves the app-owned catalog); the original 2.0.0 bridge had a
+ * hardcoded tool list and cannot receive new tools, so we actively pull users
+ * onto >= 2.1.0. The app reports its own bridge version in the handshake and
+ * the app emits the advisory below — so even the old 2.0.0 bridge (which has
+ * no advisory code of its own but passes get_status through verbatim) surfaces
+ * it. No npm registry calls are involved.
  */
-export const RECOMMENDED_BRIDGE_VERSION = '2.0.0';
+export const RECOMMENDED_BRIDGE_VERSION = '2.1.0';
+
+/** Numeric semver-ish compare of the release core (ignores pre-release tags). */
+export function isOlderVersion(a: string, b: string): boolean {
+  const core = (v: string) => v.split('-')[0].split('.').map((n) => parseInt(n, 10) || 0);
+  const [a0 = 0, a1 = 0, a2 = 0] = core(a);
+  const [b0 = 0, b1 = 0, b2 = 0] = core(b);
+  if (a0 !== b0) return a0 < b0;
+  if (a1 !== b1) return a1 < b1;
+  return a2 < b2;
+}
+
+export interface BridgeAdvisory {
+  upToDate: boolean;
+  recommended: string;
+  reportedVersion?: string;
+  note?: string;
+}
+
+/**
+ * Advisory included in get_status. A missing bridgeVersion means an old bridge
+ * (pre-2.1.0 didn't report one) — treat it as outdated so those users get
+ * pulled forward.
+ */
+export function buildBridgeAdvisory(bridgeVersion: string | undefined): BridgeAdvisory {
+  const outdated = !bridgeVersion || isOlderVersion(bridgeVersion, RECOMMENDED_BRIDGE_VERSION);
+  if (!outdated) {
+    return { upToDate: true, recommended: RECOMMENDED_BRIDGE_VERSION, reportedVersion: bridgeVersion };
+  }
+  return {
+    upToDate: false,
+    recommended: RECOMMENDED_BRIDGE_VERSION,
+    reportedVersion: bridgeVersion,
+    note:
+      `Your reversee-mcp bridge (${bridgeVersion ?? 'pre-2.1.0'}) is older than the recommended ` +
+      `${RECOMMENDED_BRIDGE_VERSION}. The newer bridge receives tools added in app updates automatically. ` +
+      'Upgrade to latest, then restart your MCP client:\n' +
+      '  for d in ~/.npm/_npx/*/; do [ -e "$d/node_modules/reversee-mcp" ] && rm -rf "$d"; done',
+  };
+}
 
 export const MCP_TOOL_CATALOG: McpToolDef[] = [
   {
