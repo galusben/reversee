@@ -7,9 +7,12 @@ on:
 env:
   NODE_OPTIONS: --max-old-space-size=4096
 
+# build (draft) -> verify the signed mac artifacts -> promote (publish + brew).
+# Nothing goes live until the signed, notarized macOS app has been downloaded
+# from the release, Gatekeeper-checked, installed, and smoke-tested.
 jobs:
-  release:
-    name: Build and publish (${{ matrix.os }})
+  build:
+    name: Build & publish draft (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -25,10 +28,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      # Signing/notarization activate only when the secrets exist:
-      #   mac: CSC_LINK + CSC_KEY_PASSWORD (+ APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD,
-      #        APPLE_TEAM_ID for notarization)
-      #   win: CSC_LINK + CSC_KEY_PASSWORD
+      # electron-builder creates the GitHub release as a draft; each matrix leg
+      # attaches its artifacts to the same draft. Signing/notarization activate
+      # only when the secrets exist (mac: CSC_LINK + CSC_KEY_PASSWORD, and the
+      # APPLE_* trio for notarization).
       - run: npx electron-builder --publish=always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -38,3 +41,93 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' }}
+
+  verify-mac:
+    name: Verify signed macOS artifacts
+    needs: build
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      VERSION: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Download macOS artifacts from the draft release
+        run: |
+          VER="${VERSION#v}"
+          mkdir -p dl
+          gh release download "$VERSION" --repo "$GITHUB_REPOSITORY" --dir dl \
+            --pattern "Reversee-${VER}-arm64.dmg" \
+            --pattern "Reversee-${VER}.dmg" \
+            --pattern "Reversee-${VER}-arm64-mac.zip"
+          ls -la dl
+      - name: Verify signature, notarization and Gatekeeper on both dmgs
+        run: |
+          VER="${VERSION#v}"
+          check_app() {
+            app="$1"
+            echo "::group::codesign/notarization: $app"
+            codesign --verify --deep --strict --verbose=2 "$app"
+            codesign -dv --verbose=4 "$app" 2>&1 | grep -E 'TeamIdentifier|flags='
+            xcrun stapler validate "$app"
+            spctl -a -t exec -vvv "$app" 2>&1 | grep -E 'source=Notarized Developer ID|origin='
+            echo "::endgroup::"
+          }
+          for dmg in "dl/Reversee-${VER}-arm64.dmg" "dl/Reversee-${VER}.dmg"; do
+            mp="$(mktemp -d)"
+            hdiutil attach "$dmg" -nobrowse -mountpoint "$mp" >/dev/null
+            check_app "$mp/Reversee.app"
+            hdiutil detach "$mp" >/dev/null
+          done
+      - name: Install and smoke-test the signed app
+        run: |
+          VER="${VERSION#v}"
+          ditto -x -k "dl/Reversee-${VER}-arm64-mac.zip" installed
+          # Gatekeeper must accept the extracted app with no quarantine override.
+          spctl -a -t exec -vvv "installed/Reversee.app"
+          REVERSEE_APP_BIN="$PWD/installed/Reversee.app/Contents/MacOS/Reversee" \
+          REVERSEE_EXPECTED_VERSION="$VER" \
+            npx playwright test -c playwright.smoke.config.ts
+
+  promote:
+    name: Publish release & update Homebrew
+    needs: verify-mac
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      VERSION: ${{ github.ref_name }}
+      HAS_TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN != '' }}
+    steps:
+      - name: Publish the draft release
+        run: gh release edit "$VERSION" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+
+      - uses: actions/checkout@v5
+      - name: Update the Homebrew cask
+        if: env.HAS_TAP_TOKEN == 'true'
+        env:
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: |
+          VER="${VERSION#v}"
+          mkdir -p casksrc && cd casksrc
+          gh release download "$VERSION" --repo "$GITHUB_REPOSITORY" \
+            --pattern "Reversee-${VER}-arm64.dmg" --pattern "Reversee-${VER}.dmg"
+          ARM_SHA=$(shasum -a 256 "Reversee-${VER}-arm64.dmg" | awk '{print $1}')
+          INTEL_SHA=$(shasum -a 256 "Reversee-${VER}.dmg" | awk '{print $1}')
+          cd ..
+
+          git clone "https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/galusben/homebrew-reversee.git" tap
+          sh scripts/render-cask.sh "$VER" "$ARM_SHA" "$INTEL_SHA" > tap/Casks/reversee.rb
+          cd tap
+          if git diff --quiet; then echo "cask already up to date"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -aqm "Reversee ${VER}"
+          git push -q
