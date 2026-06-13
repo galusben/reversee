@@ -105,7 +105,7 @@ npm run dist         # build installers for this platform
 
 Layout: `src/main` (Electron main process), `src/preload` (the typed renderer bridge), `src/renderer` (React UI), `src/proxy` (the proxy core — plain Node, runs in a utilityProcess), `src/shared` (types, IPC contracts, settings schema), `mcp/` (the `reversee-mcp` npm package).
 
-Releases: push a `v*` tag; CI builds and publishes macOS/Windows/Linux artifacts to GitHub Releases, and the app auto-updates from there.
+Releases: push a `v*` tag; CI builds, signs, notarizes, verifies, and publishes macOS/Windows/Linux artifacts, then updates Homebrew. See [RELEASING.md](RELEASING.md).
 
 ## License
 
