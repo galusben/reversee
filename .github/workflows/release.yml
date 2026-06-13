@@ -105,13 +105,20 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       VERSION: ${{ github.ref_name }}
       HAS_TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN != '' }}
+      # Pre-release tags (e.g. v2.1.0-beta.1) contain a hyphen.
+      IS_STABLE: ${{ !contains(github.ref_name, '-') }}
     steps:
       - name: Publish the draft release
-        run: gh release edit "$VERSION" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+        run: |
+          if [ "$IS_STABLE" = "true" ]; then
+            gh release edit "$VERSION" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          else
+            gh release edit "$VERSION" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease
+          fi
 
       - uses: actions/checkout@v5
       - name: Update the Homebrew cask
-        if: env.HAS_TAP_TOKEN == 'true'
+        if: env.HAS_TAP_TOKEN == 'true' && env.IS_STABLE == 'true'
         env:
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
         run: |
