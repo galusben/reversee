@@ -9,6 +9,7 @@
       content="Reversee is an open-source reverse-proxy web debugger. See, intercept, and edit HTTP/HTTPS traffic — and let AI agents (Claude Code, Cursor) inspect and control it over MCP."
     />
     <link rel="canonical" href="https://galusben.github.io/reversee/" />
+    <link rel="icon" type="image/png" href="./logo.png" />
 
     <!-- Social cards -->
     <meta property="og:type" content="website" />
@@ -104,9 +105,10 @@
         background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(8px);
         border-bottom: 1px solid var(--line);
       }
-      .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+      .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 66px; }
       .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 18px; color: var(--ink); }
       .brand:hover { text-decoration: none; }
+      .brand-logo { height: 46px; width: auto; display: block; }
       .nav-links { display: flex; align-items: center; gap: 22px; font-size: 15px; }
       .nav-links a { color: var(--muted); }
       .nav-links a:hover { color: var(--ink); text-decoration: none; }
@@ -192,7 +194,9 @@
       .step p { margin: 0; color: var(--muted); font-size: 15px; }
 
       /* Install */
-      .install-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; max-width: 860px; margin: 0 auto; }
+      .install-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; max-width: 860px; margin: 0 auto; align-items: stretch; }
+      .install-col { display: flex; flex-direction: column; }
+      .install-col .code { flex: 1; }
       @media (max-width: 720px) { .install-grid { grid-template-columns: 1fr; } }
 
       footer { padding: 48px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
@@ -204,12 +208,8 @@
   <body>
     <header class="nav">
       <div class="wrap nav-inner">
-        <a class="brand" href="#top">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M7 7h10M7 7l3-3M7 7l3 3M17 17H7M17 17l-3-3M17 17l-3 3" stroke="url(#g)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <defs><linearGradient id="g" x1="0" y1="0" x2="24" y2="24"><stop stop-color="#6366f1"/><stop offset="1" stop-color="#d946ef"/></linearGradient></defs>
-          </svg>
-          Reversee
+        <a class="brand" href="#top" aria-label="Reversee home">
+          <img class="brand-logo" src="./logo.png" alt="Reversee" />
         </a>
         <nav class="nav-links">
           <a href="#features">Features</a>
@@ -337,13 +337,13 @@
         <div class="wrap">
           <h2 class="section-title">Install</h2>
           <p class="section-sub">Signed and notarized on macOS. Updates itself from GitHub Releases.</p>
-          <div class="install-grid stack">
-            <div>
+          <div class="install-grid">
+            <div class="install-col">
               <p class="codelabel">macOS — Homebrew</p>
               <pre class="code">brew tap galusben/reversee
 brew install --cask reversee</pre>
             </div>
-            <div>
+            <div class="install-col">
               <p class="codelabel">macOS / Linux — one-liner</p>
               <pre class="code">curl -fsSL https://raw.githubusercontent.com/\
 galusben/reversee/main/install.sh | bash</pre>
@@ -359,7 +359,7 @@ galusben/reversee/main/install.sh | bash</pre>
     <footer>
       <div class="wrap foot-inner">
         <div>
-          <div class="brand" style="font-size:16px; margin-bottom:6px;">Reversee</div>
+          <img src="./logo.png" alt="Reversee" style="height:40px; width:auto; display:block; margin-bottom:10px;" />
           <div>Open source under the MIT license. <span class="badge-os" style="margin-left:6px;">Free &amp; open source</span></div>
         </div>
         <div class="foot-links">
