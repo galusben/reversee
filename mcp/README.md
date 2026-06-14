@@ -40,7 +40,9 @@ The Reversee app owns this list and serves it to the bridge at startup, so tools
 
 ## Updating
 
-`npx` caches this server and won't auto-upgrade it. If `get_status` reports a newer version is recommended, upgrade to latest and restart your MCP client:
+You rarely need to — new tools arrive via Reversee app updates. If `get_status` reports a newer version is recommended, restart your MCP client; on **npm 11.2+** that fetches the latest.
+
+On **older npm** (e.g. npm 10.x with Node 22 LTS), `npx` reuses the cached copy ([known npm behavior](https://github.com/npm/cli/pull/8100)) — clear it once, then restart:
 
 ```sh
 for d in ~/.npm/_npx/*/; do [ -e "$d/node_modules/reversee-mcp" ] && rm -rf "$d"; done
