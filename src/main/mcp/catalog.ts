@@ -62,7 +62,8 @@ export function buildBridgeAdvisory(bridgeVersion: string | undefined): BridgeAd
     note:
       `Your reversee-mcp bridge (${bridgeVersion ?? 'pre-2.1.0'}) is older than the recommended ` +
       `${RECOMMENDED_BRIDGE_VERSION}. The newer bridge receives tools added in app updates automatically. ` +
-      'Upgrade to latest, then restart your MCP client:\n' +
+      'Restart your MCP client to upgrade — on npm 11.2+ that pulls the latest. On older npm, ' +
+      'clear the cache once first:\n' +
       '  for d in ~/.npm/_npx/*/; do [ -e "$d/node_modules/reversee-mcp" ] && rm -rf "$d"; done',
   };
 }

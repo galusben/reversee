@@ -89,13 +89,15 @@ The app owns this list — it serves the catalog to the bridge at startup, so **
 
 ### Updating the MCP server
 
-`npx` caches the server on first run and does not auto-upgrade it. You rarely need to update — new tools arrive via app updates — but if the app reports a newer `reversee-mcp` is recommended (in `get_status`), upgrade to latest and restart your MCP client:
+You rarely need to — new tools arrive via app updates (the app owns the catalog). If the app does report a newer `reversee-mcp` is recommended (in `get_status`), restart your MCP client; on **npm 11.2+** that pulls the latest automatically.
+
+On **older npm** (including npm 10.x bundled with Node 22 LTS), `npx` caches the server and won't re-fetch a newer version — [a known npm behavior](https://github.com/npm/cli/pull/8100). Clear Reversee's cached copy once, then restart:
 
 ```sh
 for d in ~/.npm/_npx/*/; do [ -e "$d/node_modules/reversee-mcp" ] && rm -rf "$d"; done
 ```
 
-This clears only Reversee's cached copy; the next run pulls the latest published version.
+This touches only Reversee's `npx` cache; the next run pulls the latest published version.
 
 ### Security model
 
