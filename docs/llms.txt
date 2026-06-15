@@ -47,7 +47,11 @@ Headless mode (agent- or CI-driven, no UI):
 ## Documentation
 
 - [README](https://github.com/galusben/reversee/blob/main/README.md): features, install, MCP setup, headless mode, development.
+- [Agent guide](https://github.com/galusben/reversee/blob/main/AGENTS.md): the canonical entry point for AI agents working in the repo.
+- [Knowledge base](https://github.com/galusben/reversee/blob/main/docs/README.md): code map, feature catalog, conventions, and decisions.
+- [Architecture](https://github.com/galusben/reversee/blob/main/docs/architecture.md): where to find what in the codebase.
+- [Contributing](https://github.com/galusben/reversee/blob/main/CONTRIBUTING.md): setup and the change workflow.
+- [Decision records](https://github.com/galusben/reversee/blob/main/docs/adr/README.md): the key architecture decisions and why.
 - [Testing](https://github.com/galusben/reversee/blob/main/TESTING.md): the test layers and how they map to CI.
 - [Releasing](https://github.com/galusben/reversee/blob/main/RELEASING.md): the tag-driven release pipeline.
-- [Agent guide](https://github.com/galusben/reversee/blob/main/CLAUDE.md): orientation for AI agents working in the repo.
 - [reversee-mcp package](https://github.com/galusben/reversee/blob/main/mcp/README.md): the MCP bridge's tools and security model.
