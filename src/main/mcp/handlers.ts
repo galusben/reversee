@@ -3,6 +3,9 @@
 import { app } from 'electron';
 import { getSettings, setSettings, getRootCertPem } from '../settings';
 import { isValidPort } from '../../shared/settings-schema';
+import { filterTraffic, summarizeTraffic, type TrafficFilter } from '../../shared/traffic-query';
+import { decodeJwt, findTokens } from '../../shared/decode';
+import { replayRequest, type ReplayOverrides } from '../replay';
 import {
   MCP_TOOL_CATALOG,
   MCP_MUTATING_METHODS,
@@ -22,6 +25,8 @@ export interface McpHandlerContext {
   trafficStore: TrafficStore;
   getBreakpointRules(): BreakpointRule[];
   startProxy(): Promise<StartProxyResult>;
+  /** Store an entry and push it to the renderer (used by replay). */
+  recordTraffic(entry: TrafficEntry): TrafficEntry;
 }
 
 function bodyText(body: Uint8Array | string | undefined): string | undefined {
@@ -39,6 +44,41 @@ function trafficSummary(entry: TrafficEntry): Record<string, unknown> {
     contentType: Array.isArray(contentType) ? contentType[0] : contentType,
     totalMs: entry.timings.total !== undefined ? entry.timings.total / 1_000_000 : undefined,
     error: entry.connectorError ? String(entry.connectorError) : undefined,
+    replay: entry.replay || undefined,
+  };
+}
+
+// Filter keys accepted by search_traffic (mirrors TrafficFilter).
+function pickFilter(p: Record<string, unknown>): TrafficFilter {
+  const f: TrafficFilter = {};
+  for (const k of ['text', 'method', 'urlContains', 'urlRegex', 'contentType', 'header', 'bodyContains'] as const) {
+    if (typeof p[k] === 'string') f[k] = p[k] as string;
+  }
+  if (typeof p['status'] === 'string' || typeof p['status'] === 'number') f.status = p['status'] as string | number;
+  if (typeof p['minTotalMs'] === 'number') f.minTotalMs = p['minTotalMs'] as number;
+  if (typeof p['hasError'] === 'boolean') f.hasError = p['hasError'] as boolean;
+  return f;
+}
+
+function fullEntry(entry: TrafficEntry): Record<string, unknown> {
+  const decoded = findTokens(entry);
+  return {
+    ...trafficSummary(entry),
+    request: {
+      headers: entry.request.headers,
+      body: bodyText(entry.request.body),
+      curl: entry.request.curl,
+      target: entry.request.target,
+      truncated: entry.request.truncated,
+    },
+    response: {
+      headers: entry.response.headers,
+      body: bodyText(entry.response.body),
+      decodeError: entry.response.decodeError,
+      truncated: entry.response.truncated,
+    },
+    timings: entry.timings,
+    decoded: decoded.length ? decoded : undefined,
   };
 }
 
@@ -103,27 +143,73 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
       };
     },
 
+    search_traffic: (params) => {
+      const p = (params ?? {}) as Record<string, unknown>;
+      const matched = filterTraffic(ctx.trafficStore.getAll(), pickFilter(p));
+      const offset = Math.max(0, typeof p['offset'] === 'number' ? (p['offset'] as number) : 0);
+      const limit = Math.min(200, Math.max(1, typeof p['limit'] === 'number' ? (p['limit'] as number) : 50));
+      return {
+        matched: matched.length,
+        offset,
+        entries: matched.slice(offset, offset + limit).map(trafficSummary),
+      };
+    },
+
+    summarize_session: (params) => {
+      const p = (params ?? {}) as { slowest?: number };
+      const n = typeof p.slowest === 'number' ? Math.min(50, Math.max(1, p.slowest)) : 5;
+      return summarizeTraffic(ctx.trafficStore.getAll(), n);
+    },
+
     get_traffic_entry: (params) => {
       const p = (params ?? {}) as { trafficId?: number };
       if (typeof p.trafficId !== 'number') throw new Error('trafficId (number) is required');
       const entry = ctx.trafficStore.get(p.trafficId);
       if (!entry) throw new Error(`no traffic entry with id ${p.trafficId}`);
-      return {
-        ...trafficSummary(entry),
-        request: {
+      return fullEntry(entry);
+    },
+
+    replay_request: async (params) => {
+      const p = (params ?? {}) as { trafficId?: number; overrides?: ReplayOverrides };
+      if (typeof p.trafficId !== 'number') throw new Error('trafficId (number) is required');
+      const entry = ctx.trafficStore.get(p.trafficId);
+      if (!entry) throw new Error(`no traffic entry with id ${p.trafficId}`);
+      if (!entry.request.target) throw new Error('that entry has no recorded upstream target to replay to');
+      const replayed = await replayRequest(
+        {
+          target: entry.request.target,
+          method: entry.request.method,
+          url: entry.request.url,
           headers: entry.request.headers,
-          body: bodyText(entry.request.body),
-          curl: entry.request.curl,
-          truncated: entry.request.truncated,
+          body: entry.request.body,
         },
-        response: {
-          headers: entry.response.headers,
-          body: bodyText(entry.response.body),
-          decodeError: entry.response.decodeError,
-          truncated: entry.response.truncated,
-        },
-        timings: entry.timings,
-      };
+        p.overrides ?? {},
+        getSettings().allowSelfSignedUpstream === false
+      );
+      return fullEntry(ctx.recordTraffic(replayed));
+    },
+
+    set_interceptor: (params) => {
+      const p = (params ?? {}) as { kind?: string; code?: string; enabled?: boolean };
+      if (p.kind !== 'request' && p.kind !== 'response') {
+        throw new Error('kind must be "request" or "response"');
+      }
+      const patch: Record<string, unknown> = {};
+      if (typeof p.code === 'string') {
+        patch[p.kind === 'request' ? 'requestInterceptor' : 'responseInterceptor'] = p.code;
+      }
+      if (typeof p.enabled === 'boolean') {
+        patch[p.kind === 'request' ? 'interceptRequest' : 'interceptResponse'] = p.enabled;
+      }
+      return setSettings(patch);
+    },
+
+    decode_jwt: (params) => {
+      const p = (params ?? {}) as { token?: string };
+      if (typeof p.token !== 'string') throw new Error('token (string) is required');
+      const decoded = decodeJwt(p.token);
+      if (!decoded) throw new Error('not a well-formed JWT');
+      return decoded;
     },
 
     list_breakpoints: () => ctx.getBreakpointRules(),

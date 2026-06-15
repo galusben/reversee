@@ -58,11 +58,10 @@ export function handleRequest(
   requestParams: RequestParams,
   logger: Logger = noop
 ): void {
-  const timings: Timings & { startAt?: bigint } = {
-    start: new Date(),
-    startAt: process.hrtime.bigint(),
-  };
-  const startAt = timings.startAt as bigint;
+  // startAt is a local only — a bigint must not live on the timings object,
+  // which gets recorded and JSON-serialized (e.g. for the MCP tools).
+  const startAt = process.hrtime.bigint();
+  const timings: Timings = { start: new Date() };
 
   logger.info('path hit:', clientReq.url);
   const responseView: ResponseView = {
@@ -80,6 +79,11 @@ export function handleRequest(
     headers: requestParams.headers ?? {},
     method: requestParams.method as string,
     body: Buffer.alloc(0),
+    target: {
+      protocol: userSettings.destProtocol,
+      host: requestParams.host as string,
+      port: requestParams.port as number,
+    },
   };
 
   const trafficView: TrafficEntry = {
