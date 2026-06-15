@@ -31,7 +31,12 @@ claude mcp add reversee -- npx -y reversee-mcp
 | `update_config` | Change the configuration (gated, see below) |
 | `start_proxy` / `stop_proxy` / `restart_proxy` | Control the proxy (gated) |
 | `list_traffic` | Captured requests, paged, bodies elided |
-| `get_traffic_entry` | One request in full: headers, bodies, timings, curl command |
+| `search_traffic` | Filter requests server-side (method, status, URL/regex, content-type, header, body, timing, errors) |
+| `summarize_session` | Aggregate view: status classes, methods, content types, hosts, errors, slowest |
+| `get_traffic_entry` | One request in full: headers, bodies, timings, curl, upstream target, decoded JWTs |
+| `replay_request` | Re-send a captured request with optional edits (gated) |
+| `set_interceptor` | Install request/response interceptor JS for mocking/fault injection (gated) |
+| `decode_jwt` | Decode a JWT header + claims (inspection only) |
 | `list_breakpoints` | Configured breakpoint rules |
 | `validate_setup` | Setup checks: destination, ports, root cert, proxy process |
 | `export_diagnostics` | Versions, platform, settings, state — for bug reports |

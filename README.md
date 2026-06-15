@@ -80,10 +80,18 @@ The package is published as [`reversee-mcp`](https://www.npmjs.com/package/rever
 | `get_status` | App version, proxy state, listen/destination config, traffic count |
 | `get_config` / `update_config` | Read / change the proxy configuration |
 | `start_proxy` / `stop_proxy` / `restart_proxy` | Control the proxy process |
-| `list_traffic` / `get_traffic_entry` | Browse captured requests; full headers, bodies, timings, curl |
+| `list_traffic` | Captured requests (newest last), bodies elided |
+| `search_traffic` | Filter requests server-side (method, status, URL/regex, content-type, header, body, timing, errors) — fetch only what matters |
+| `summarize_session` | Aggregate view: status classes, methods, content types, top hosts, errors, slowest |
+| `get_traffic_entry` | One request in full: headers, bodies, timings, curl, upstream target, and decoded JWTs |
+| `replay_request` | Re-send a captured request with optional edits (method/url/headers/body) to test a hypothesis |
+| `set_interceptor` | Install request/response interceptor JS for mocking or fault injection |
+| `decode_jwt` | Decode a JWT's header and claims (inspection only) |
 | `list_breakpoints` | The configured breakpoint rules |
 | `validate_setup` | Setup checks (destination, ports, root cert, proxy process) |
 | `export_diagnostics` | Versions, platform, settings, state — for bug reports |
+
+`replay_request`, `set_interceptor`, `update_config`, and the start/stop/restart tools are gated behind *Allow MCP to Control the Proxy* (or `--allow-mcp-control` headless); the rest are always available read-only.
 
 The app owns this list — it serves the catalog to the bridge at startup, so **tools added in an app update appear automatically** with no MCP-server reinstall (the bridge is a generic passthrough). When the app is not running, the bridge advertises a built-in fallback list and each call returns a "launch Reversee" message.
 
