@@ -27,12 +27,19 @@ MCP tools:
 - `get_config` / `update_config`: read / change the proxy configuration (update is gated).
 - `start_proxy` / `stop_proxy` / `restart_proxy`: control the proxy process (gated).
 - `list_traffic`: captured requests, paged, bodies elided.
-- `get_traffic_entry`: one request in full — headers, bodies, timings, curl command.
+- `search_traffic`: filter captured requests server-side (method, status incl. classes/comparisons, url/regex, content-type, header, body, timing, errors) so you fetch only what matters instead of dumping everything.
+- `summarize_session`: aggregate view — counts by status class and method, content types, top hosts, the error requests, and the slowest requests.
+- `get_traffic_entry`: one request in full — headers, bodies, timings, curl command, upstream target, and any JWTs decoded from its Authorization header or cookies.
+- `replay_request`: re-send a captured request to its upstream with optional edits (method/url/headers/body) — agent hypothesis testing; records a new entry (gated).
+- `set_interceptor`: install/toggle a request or response interceptor (arbitrary JavaScript that rewrites traffic) for mocking and fault injection (gated).
+- `decode_jwt`: decode a JWT's header and claims (inspection only; signature not verified).
 - `list_breakpoints`: configured breakpoint rules.
 - `list_proto_specs`: saved protobuf specs used to decode gRPC, plus compile errors.
 - `add_proto_spec` / `remove_proto_spec`: save (`.proto` text or base64 FileDescriptorSet) / delete a protobuf spec (gated).
 - `validate_setup`: setup checks (destination, ports, root cert, proxy process).
 - `export_diagnostics`: versions, platform, settings, state — for bug reports.
+
+Every captured request has a stable, monotonic `trafficId` (never reset across clear or proxy restart) — a durable handle for get_traffic_entry and replay_request.
 
 The Reversee app owns the tool catalog and serves it to the bridge at startup, so tools added in app updates reach agents automatically without reinstalling `reversee-mcp`.
 
@@ -50,7 +57,11 @@ Headless mode (agent- or CI-driven, no UI):
 ## Documentation
 
 - [README](https://github.com/galusben/reversee/blob/main/README.md): features, install, MCP setup, headless mode, development.
+- [Agent guide](https://github.com/galusben/reversee/blob/main/AGENTS.md): the canonical entry point for AI agents working in the repo.
+- [Knowledge base](https://github.com/galusben/reversee/blob/main/docs/README.md): code map, feature catalog, conventions, and decisions.
+- [Architecture](https://github.com/galusben/reversee/blob/main/docs/architecture.md): where to find what in the codebase.
+- [Contributing](https://github.com/galusben/reversee/blob/main/CONTRIBUTING.md): setup and the change workflow.
+- [Decision records](https://github.com/galusben/reversee/blob/main/docs/adr/README.md): the key architecture decisions and why.
 - [Testing](https://github.com/galusben/reversee/blob/main/TESTING.md): the test layers and how they map to CI.
 - [Releasing](https://github.com/galusben/reversee/blob/main/RELEASING.md): the tag-driven release pipeline.
-- [Agent guide](https://github.com/galusben/reversee/blob/main/CLAUDE.md): orientation for AI agents working in the repo.
 - [reversee-mcp package](https://github.com/galusben/reversee/blob/main/mcp/README.md): the MCP bridge's tools and security model.

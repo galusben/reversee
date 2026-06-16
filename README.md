@@ -91,11 +91,19 @@ The package is published as [`reversee-mcp`](https://www.npmjs.com/package/rever
 | `get_status` | App version, proxy state, listen/destination config, traffic count |
 | `get_config` / `update_config` | Read / change the proxy configuration |
 | `start_proxy` / `stop_proxy` / `restart_proxy` | Control the proxy process |
-| `list_traffic` / `get_traffic_entry` | Browse captured requests; full headers, bodies, timings, curl (decoded gRPC included) |
+| `list_traffic` | Captured requests (newest last), bodies elided |
+| `search_traffic` | Filter requests server-side (method, status, URL/regex, content-type, header, body, timing, errors) — fetch only what matters |
+| `summarize_session` | Aggregate view: status classes, methods, content types, top hosts, errors, slowest |
+| `get_traffic_entry` | One request in full: headers, bodies, timings, curl, upstream target, decoded JWTs, and decoded gRPC |
+| `replay_request` | Re-send a captured request with optional edits (method/url/headers/body) to test a hypothesis |
+| `set_interceptor` | Install request/response interceptor JS for mocking or fault injection |
+| `decode_jwt` | Decode a JWT's header and claims (inspection only) |
 | `list_breakpoints` | The configured breakpoint rules |
 | `list_proto_specs` / `add_proto_spec` / `remove_proto_spec` | Manage protobuf specs used to decode gRPC (add/remove gated) |
 | `validate_setup` | Setup checks (destination, ports, root cert, proxy process) |
 | `export_diagnostics` | Versions, platform, settings, state — for bug reports |
+
+`replay_request`, `set_interceptor`, `update_config`, `add_proto_spec`, `remove_proto_spec`, and the start/stop/restart tools are gated behind *Allow MCP to Control the Proxy* (or `--allow-mcp-control` headless); the rest are always available read-only.
 
 The app owns this list — it serves the catalog to the bridge at startup, so **tools added in an app update appear automatically** with no MCP-server reinstall (the bridge is a generic passthrough). When the app is not running, the bridge advertises a built-in fallback list and each call returns a "launch Reversee" message.
 
@@ -114,7 +122,7 @@ This touches only Reversee's `npx` cache; the next run pulls the latest publishe
 ### Security model
 
 - The bridge talks to the app over a **local socket** (unix domain socket / Windows named pipe), never a TCP port, with a per-boot token — only your user account can reach it.
-- It is **read-only by default**. `start_proxy`, `stop_proxy`, `restart_proxy`, `update_config`, `add_proto_spec`, and `remove_proto_spec` are rejected until you check *Proxy Settings → Allow MCP to Control the Proxy* in the app.
+- It is **read-only by default**. `start_proxy`, `stop_proxy`, `restart_proxy`, `update_config`, `replay_request`, `set_interceptor`, `add_proto_spec`, and `remove_proto_spec` are rejected until you check *Proxy Settings → Allow MCP to Control the Proxy* in the app.
 - *Proxy Settings → Enable MCP Integration* turns the socket off entirely.
 
 ### Headless mode (for agents)
@@ -150,7 +158,9 @@ npm run dist         # build installers for this platform
 
 Layout: `src/main` (Electron main process), `src/preload` (the typed renderer bridge), `src/renderer` (React UI), `src/proxy` (the proxy core — plain Node, runs in a utilityProcess), `src/shared` (types, IPC contracts, settings schema), `mcp/` (the `reversee-mcp` npm package).
 
-Testing is documented in [TESTING.md](TESTING.md) (the four layers and how they map to CI); [CLAUDE.md](CLAUDE.md) orients AI agents; releases in [RELEASING.md](RELEASING.md).
+New here? The [knowledge base](docs/README.md) is the fast way in: a code map ([docs/architecture.md](docs/architecture.md)), the human + agent feature catalog ([docs/features.md](docs/features.md)), conventions, and architecture decisions. See [CONTRIBUTING.md](CONTRIBUTING.md) to make a change and [AGENTS.md](AGENTS.md) for agent guidance.
+
+Testing is documented in [TESTING.md](TESTING.md) (the four layers and how they map to CI); releases in [RELEASING.md](RELEASING.md).
 
 Releases: push a `v*` tag; CI builds, signs, notarizes, verifies, and publishes macOS/Windows/Linux artifacts, then updates Homebrew. See [RELEASING.md](RELEASING.md).
 

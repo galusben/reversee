@@ -35,12 +35,21 @@ export interface RequestParams {
   rejectUnauthorized?: boolean;
 }
 
+/** The resolved upstream the request was forwarded to (used by replay). */
+export interface UpstreamTarget {
+  protocol: Protocol;
+  host: string;
+  port: number;
+}
+
 export interface RequestView {
   url: string;
   method: string;
   headers: Headers;
   body?: Uint8Array;
   curl?: string;
+  /** Where the proxy forwarded this request. */
+  target?: UpstreamTarget;
   /** True when the stored body was cut at the display cap. */
   truncated?: boolean;
 }
@@ -73,6 +82,8 @@ export interface TrafficEntry {
   connectorError?: unknown;
   /** Present when the call was detected as gRPC (content-type application/grpc*). */
   grpc?: GrpcView;
+  /** True when this entry came from replay_request rather than live proxying. */
+  replay?: boolean;
 }
 
 /** One length-prefixed gRPC message, decoded against a proto type when one matched. */

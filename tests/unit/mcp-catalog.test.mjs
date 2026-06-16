@@ -14,6 +14,7 @@ describe('MCP tool catalog', () => {
     expect(names).toEqual(
       [
         'add_proto_spec',
+        'decode_jwt',
         'export_diagnostics',
         'get_config',
         'get_status',
@@ -22,9 +23,13 @@ describe('MCP tool catalog', () => {
         'list_proto_specs',
         'list_traffic',
         'remove_proto_spec',
+        'replay_request',
         'restart_proxy',
+        'search_traffic',
+        'set_interceptor',
         'start_proxy',
         'stop_proxy',
+        'summarize_session',
         'update_config',
         'validate_setup',
       ].sort()
@@ -48,7 +53,9 @@ describe('MCP tool catalog', () => {
       [
         'add_proto_spec',
         'remove_proto_spec',
+        'replay_request',
         'restart_proxy',
+        'set_interceptor',
         'start_proxy',
         'stop_proxy',
         'update_config',
@@ -56,7 +63,9 @@ describe('MCP tool catalog', () => {
     );
     // Read-only tools are not gated.
     expect(MCP_MUTATING_METHODS.has('get_status')).toBe(false);
-    expect(MCP_MUTATING_METHODS.has('list_traffic')).toBe(false);
+    expect(MCP_MUTATING_METHODS.has('search_traffic')).toBe(false);
+    expect(MCP_MUTATING_METHODS.has('summarize_session')).toBe(false);
+    expect(MCP_MUTATING_METHODS.has('decode_jwt')).toBe(false);
   });
 
   it('recommends a sensible bridge version', () => {

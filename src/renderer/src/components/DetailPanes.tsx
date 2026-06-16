@@ -1,10 +1,36 @@
 import { useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
+import { KeyRound } from 'lucide-react';
 import { useProxyStore } from '../stores/proxyStore';
 import { MonacoView, bodyToText } from './MonacoView';
 import { WithContextMenu } from './ui/ContextMenu';
 import { languageForContentType } from '../lib/content-type';
+import { findTokens, type FoundToken } from '../../../shared/decode';
 import type { RequestView, ResponseView, Timings } from '../../../shared/types';
+
+function DecodedView({ tokens }: { tokens: FoundToken[] }): React.JSX.Element {
+  return (
+    <div className="h-full overflow-auto p-3">
+      {tokens.map((t, i) => (
+        <div key={i} className="mb-4 rounded-md border border-neutral-200">
+          <div className="flex items-center gap-2 border-b border-neutral-100 px-3 py-1.5 text-xs">
+            <KeyRound className="h-3.5 w-3.5 text-indigo-500" aria-hidden />
+            <span className="font-medium text-neutral-700">{t.location}</span>
+            {t.jwt.expiresAt && (
+              <span className={t.jwt.expired ? 'text-red-600' : 'text-emerald-700'}>
+                {t.jwt.expired ? 'expired' : 'valid'} · exp {t.jwt.expiresAt}
+              </span>
+            )}
+          </div>
+          <pre className="overflow-auto p-2.5 font-mono text-xs leading-5">
+{JSON.stringify({ header: t.jwt.header, payload: t.jwt.payload }, null, 2)}
+          </pre>
+        </div>
+      ))}
+      <p className="text-xs text-neutral-400">JWTs are decoded for inspection — signatures are not verified.</p>
+    </div>
+  );
+}
 
 function headerText(view: RequestView | ResponseView): string {
   let text = '';
@@ -119,6 +145,8 @@ export function DetailPanes(): React.JSX.Element {
     );
   }
 
+  const tokens = findTokens(entry);
+
   return (
     <Tabs.Root defaultValue="response-body" className="flex h-full flex-col bg-white">
       <Tabs.List className="flex border-b border-neutral-200 px-2" aria-label="Request details">
@@ -137,6 +165,13 @@ export function DetailPanes(): React.JSX.Element {
         <Tabs.Trigger className={tabClass} value="timings">
           Timings
         </Tabs.Trigger>
+        {tokens.length > 0 && (
+          <Tabs.Trigger className={tabClass} value="decoded">
+            <span className="flex items-center gap-1">
+              <KeyRound className="h-3.5 w-3.5" aria-hidden /> Decoded
+            </span>
+          </Tabs.Trigger>
+        )}
       </Tabs.List>
       <Tabs.Content value="response-body" className="min-h-0 grow">
         <BodyView view={entry.response} entryKey={`response-${selectedId}`} />
@@ -153,6 +188,11 @@ export function DetailPanes(): React.JSX.Element {
       <Tabs.Content value="timings" className="min-h-0 grow">
         <CopyablePre text={timingsText(entry.timings)} />
       </Tabs.Content>
+      {tokens.length > 0 && (
+        <Tabs.Content value="decoded" className="min-h-0 grow">
+          <DecodedView tokens={tokens} />
+        </Tabs.Content>
+      )}
     </Tabs.Root>
   );
 }

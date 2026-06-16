@@ -12,6 +12,7 @@ import { BreakpointQueue } from './components/BreakpointQueue';
 import { ConnectAiDialog } from './components/ConnectAiDialog';
 import { ProtoSpecsDialog } from './components/ProtoSpecsDialog';
 import { useProtoSpecStore } from './stores/protoSpecStore';
+import { SummaryDialog } from './components/SummaryDialog';
 import { useUiStore } from './stores/uiStore';
 
 export default function App(): React.JSX.Element {
@@ -40,6 +41,7 @@ export default function App(): React.JSX.Element {
       <BreakpointsDialog />
       <ProtoSpecsDialog />
       <ConnectAiDialog />
+      <SummaryDialog />
       {error && (
         <div
           role="alert"

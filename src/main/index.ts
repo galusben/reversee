@@ -8,7 +8,7 @@ import {
   type ProtoSpecsResult,
   type StartProxyResult,
 } from '../shared/ipc';
-import type { BreakpointRule } from '../shared/types';
+import type { BreakpointRule, TrafficEntry } from '../shared/types';
 import { ProtoStore } from './proto/proto-store';
 import { toProxySettings } from '../shared/settings-schema';
 import {
@@ -51,8 +51,15 @@ function sendToRenderer(channel: string, payload: unknown): void {
 const trafficStore = new TrafficStore();
 const protoStore = new ProtoStore(path.join(app.getPath('userData'), 'proto'));
 
+/** Store an entry (assigning its stable id) and push it to the renderer. */
+function recordTraffic(entry: TrafficEntry): TrafficEntry {
+  const stored = trafficStore.add(entry);
+  sendToRenderer(IPC.trafficEvent, stored);
+  return stored;
+}
+
 const proxyHost = new ProxyHost({
-  onTraffic: (entry) => sendToRenderer(IPC.trafficEvent, trafficStore.add(entry)),
+  onTraffic: (entry) => recordTraffic(entry),
   onStateChanged: (running, port) => sendToRenderer(IPC.proxyStateEvent, { running, port }),
   onServerError: (error) => sendToRenderer(IPC.proxyErrorEvent, error),
   onBreakpointHit: (hit) => sendToRenderer(IPC.breakpointHitEvent, hit),
@@ -179,6 +186,7 @@ async function syncControlServer(): Promise<void> {
           startProxy: startProxyFromSettings,
           protoStore,
           syncProtoSpecs,
+          recordTraffic,
         }),
         logger: log,
       });
