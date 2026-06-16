@@ -7,11 +7,23 @@ import { filterTraffic } from '../../../shared/traffic-query';
 import type { TrafficEntry } from '../../../shared/types';
 
 function statusClass(entry: TrafficEntry): string {
+  // For gRPC the HTTP status is 200 even on failure; the grpc-status trailer
+  // carries the real outcome (0 = OK).
+  if (entry.grpc?.status !== undefined) {
+    return entry.grpc.status === 0 ? 'text-emerald-700' : 'text-red-600';
+  }
   const code = entry.response.statusCode ?? 0;
   if (code >= 500) return 'text-red-600';
   if (code >= 400) return 'text-amber-600';
   if (code >= 300) return 'text-blue-600';
   return 'text-emerald-700';
+}
+
+/** Status cell text: gRPC status code when present, else the HTTP status. */
+function statusText(entry: TrafficEntry): string {
+  if (entry.connectorError) return 'ERR';
+  if (entry.grpc?.status !== undefined) return `gRPC ${entry.grpc.status}`;
+  return String(entry.response.statusCode ?? '');
 }
 
 function contentType(entry: TrafficEntry): string {
@@ -48,13 +60,19 @@ const Row = memo(function Row({
         {entry.trafficId}
         {entry.replay ? ' ↺' : ''}
       </td>
-      <td className="px-3 py-1.5 font-medium">{entry.request.method}</td>
+      <td className="px-3 py-1.5 font-medium">
+        {entry.grpc ? (
+          <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-xs font-semibold text-indigo-700">
+            gRPC
+          </span>
+        ) : (
+          entry.request.method
+        )}
+      </td>
       <td className="max-w-0 truncate px-3 py-1.5" title={entry.request.url}>
         {entry.request.url}
       </td>
-      <td className={`px-3 py-1.5 font-medium ${statusClass(entry)}`}>
-        {entry.connectorError ? 'ERR' : (entry.response.statusCode ?? '')}
-      </td>
+      <td className={`px-3 py-1.5 font-medium ${statusClass(entry)}`}>{statusText(entry)}</td>
       <td className="truncate px-3 py-1.5 text-neutral-500">{contentType(entry)}</td>
     </tr>
   );

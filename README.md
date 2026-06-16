@@ -12,7 +12,7 @@ Reversee sits between your client and a destination server. Point your client at
 - **Traffic inspection** — method, path, status, content type, headers, request/response bodies (plain and formatted), and per-request timings (DNS, TCP, TLS, first byte, total).
 - **Interceptors** — JavaScript snippets that rewrite requests (`requestParams`: host, path, method, port, headers, body) or responses (`responseParams`: statusCode, headers, body) on the fly.
 - **Breakpoints** — hold requests matching a URL regex + methods, edit the URL, headers, and body, then continue.
-- **gRPC proto specs** — import `.proto` files or compiled `.desc` FileDescriptorSets (*gRPC → Proto Specs*, or via MCP); Reversee uses them to decode gRPC messages into readable JSON, matched by method. See [gRPC](#grpc).
+- **gRPC** — proxy native gRPC over HTTP/2 (h2 via ALPN, or cleartext h2c) and decode every message — unary and server/client/bidi streaming — into readable JSON, using `.proto`/`.desc` definitions you import. See [gRPC](#grpc).
 - **Redirect & host rewriting** — keep redirect chains and Host headers pointed at the proxy.
 - **MCP integration** — let Claude Code, Cursor, or any MCP client inspect and (optionally) control the proxy. See below.
 
@@ -54,13 +54,14 @@ The request appears in the traffic table; click it to inspect.
 
 ## gRPC
 
-Protobuf wire bytes carry only field numbers, so gRPC is unreadable without the schema. Reversee decodes it from protobuf definitions you supply:
+Reversee proxies native gRPC and decodes the protobuf messages — wire bytes carry only field numbers, so it decodes them against definitions you supply.
 
-1. Open **gRPC → Proto Specs** and import a `.proto` file or a compiled `.desc` FileDescriptorSet (no `protoc` needed for `.proto` — Reversee parses it directly).
-2. Specs are saved across restarts and matched to calls by gRPC method (`/package.Service/Method`). Compile errors surface in the dialog.
-3. Agents can manage the same specs over MCP with `list_proto_specs` / `add_proto_spec` / `remove_proto_spec`.
+1. Check **gRPC** in the settings bar. This runs an HTTP/2 listener: with an `https` listen protocol it negotiates h2 via ALPN; with `http` it speaks cleartext h2c (prior knowledge). Point your gRPC client at the listen port.
+2. Open **gRPC → Proto Specs** and import a `.proto` file or a compiled `.desc` FileDescriptorSet (no `protoc` needed for `.proto` — Reversee parses it directly). Specs are saved across restarts and matched to calls by method (`/package.Service/Method`); compile errors surface in the dialog.
+3. Each call shows in the traffic table with a **gRPC** badge and its `grpc-status`. The detail pane's **gRPC** tab renders every request/response message as JSON (all four call types — unary and server/client/bidi streaming — with each streamed message listed), alongside the raw bytes.
+4. Agents can manage specs over MCP with `list_proto_specs` / `add_proto_spec` / `remove_proto_spec`, and `get_traffic_entry` returns the decoded messages and status.
 
-Decoded request/response messages render as JSON next to the raw bytes. Capturing **native gRPC over HTTP/2** is the next milestone — the proxy core currently speaks HTTP/1.1 — so the spec management and decoding engine ship first, with live capture to follow.
+Enabling gRPC turns the listener into HTTP/2-only, so plain HTTP/1.1 isn't served on that port while it's on.
 
 ## MCP integration (Claude Code / Cursor)
 

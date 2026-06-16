@@ -3,11 +3,12 @@
 // restart is a cheap kill+respawn. Speaks typed messages with main over
 // process.parentPort.
 import { createProxyServer, type ProxyServer } from './core/server';
+import { createHttp2ProxyServer } from './core/http2';
 import { compileBreakpoints, matchBreakpoint, type CompiledBreakpoint } from './core/breakpoints';
 import { GrpcRegistry } from './core/grpc-registry';
 import type { RequestGate } from './core/server';
 import type { WorkerInbound, WorkerOutbound, BreakpointResume } from '../shared/ipc';
-import type { Logger, RequestParams } from '../shared/types';
+import type { Logger, RequestParams, TrafficEntry } from '../shared/types';
 
 // Electron's utilityProcess parentPort; typed loosely to keep this file free
 // of the electron module (it must be bundleable as a plain node entry).
@@ -63,15 +64,30 @@ async function start(msg: Extract<WorkerInbound, { type: 'start' }>): Promise<vo
     await server.close();
     server = null;
   }
-  const next = createProxyServer({
-    settings: msg.settings,
-    sslOptions: msg.sslOptions,
-    notify: (entry) => send({ type: 'traffic', entry }),
-    gate,
-    logger,
-    onServerError: (err) =>
-      send({ type: 'server-error', error: { code: err.code, message: err.message } }),
-  });
+  const onServerError = (err: NodeJS.ErrnoException): void =>
+    send({ type: 'server-error', error: { code: err.code, message: err.message } });
+  const notify = (entry: TrafficEntry): void => send({ type: 'traffic', entry });
+
+  // gRPC needs HTTP/2 + trailers, which the HTTP/1.1 server can't do. When
+  // enabled we run the HTTP/2 server and inject the proto registry so captured
+  // gRPC frames decode. (Breakpoints stay on the HTTP/1.1 path for now.)
+  const next = msg.settings.enableGrpc
+    ? createHttp2ProxyServer({
+        settings: msg.settings,
+        sslOptions: msg.sslOptions,
+        notify,
+        logger,
+        onServerError,
+        resolveMethod: (path) => grpcRegistry?.resolve(path),
+      })
+    : createProxyServer({
+        settings: msg.settings,
+        sslOptions: msg.sslOptions,
+        notify,
+        gate,
+        logger,
+        onServerError,
+      });
   const port = await next.listen();
   server = next;
   send({ type: 'started', port });

@@ -133,6 +133,18 @@ export function SettingsBar(): React.JSX.Element | null {
         onCommit={(port) => set({ destPort: port })}
         onValidity={(valid) => setInvalidPorts((p) => ({ ...p, dest: !valid }))}
       />
+      <label
+        className="flex items-center gap-1.5 text-sm text-neutral-600"
+        title="Run an HTTP/2 listener to proxy and decode gRPC. Import .proto/.desc under the gRPC menu."
+      >
+        <input
+          type="checkbox"
+          checked={settings.enableGrpc}
+          disabled={running}
+          onChange={(e) => set({ enableGrpc: e.target.checked })}
+        />
+        gRPC
+      </label>
       <div className="grow" />
       <button
         type="button"

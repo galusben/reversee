@@ -1,12 +1,100 @@
 import { useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-import { KeyRound } from 'lucide-react';
+import { Boxes, KeyRound } from 'lucide-react';
 import { useProxyStore } from '../stores/proxyStore';
 import { MonacoView, bodyToText } from './MonacoView';
 import { WithContextMenu } from './ui/ContextMenu';
 import { languageForContentType } from '../lib/content-type';
 import { findTokens, type FoundToken } from '../../../shared/decode';
-import type { RequestView, ResponseView, Timings } from '../../../shared/types';
+import type {
+  GrpcMessage,
+  GrpcView,
+  RequestView,
+  ResponseView,
+  Timings,
+} from '../../../shared/types';
+
+/** Human-readable gRPC status names for the common codes. */
+const GRPC_STATUS: Record<number, string> = {
+  0: 'OK',
+  1: 'CANCELLED',
+  2: 'UNKNOWN',
+  3: 'INVALID_ARGUMENT',
+  4: 'DEADLINE_EXCEEDED',
+  5: 'NOT_FOUND',
+  6: 'ALREADY_EXISTS',
+  7: 'PERMISSION_DENIED',
+  8: 'RESOURCE_EXHAUSTED',
+  9: 'FAILED_PRECONDITION',
+  10: 'ABORTED',
+  11: 'OUT_OF_RANGE',
+  12: 'UNIMPLEMENTED',
+  13: 'INTERNAL',
+  14: 'UNAVAILABLE',
+  15: 'DATA_LOSS',
+  16: 'UNAUTHENTICATED',
+};
+
+function GrpcMessageBlock({ msg, label }: { msg: GrpcMessage; label: string }): React.JSX.Element {
+  const body = msg.decodeError
+    ? `// decode failed: ${msg.decodeError}\n// ${msg.raw?.length ?? 0} raw bytes`
+    : msg.json !== undefined
+      ? JSON.stringify(msg.json, null, 2)
+      : `// no matching proto spec — ${msg.raw?.length ?? 0} raw bytes`;
+  return (
+    <div className="mb-3 rounded-md border border-neutral-200">
+      <div className="border-b border-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-600">
+        {label}
+        {msg.compressed && <span className="ml-2 text-neutral-400">compressed</span>}
+        {msg.decodeError && <span className="ml-2 text-red-600">decode error</span>}
+      </div>
+      <pre className="overflow-auto p-2.5 font-mono text-xs leading-5">{body}</pre>
+    </div>
+  );
+}
+
+function GrpcPane({ grpc }: { grpc: GrpcView }): React.JSX.Element {
+  const ok = grpc.status === 0;
+  const statusName = grpc.status !== undefined ? (GRPC_STATUS[grpc.status] ?? '') : undefined;
+  return (
+    <div className="h-full overflow-auto p-3">
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-mono font-medium text-neutral-700">{grpc.method}</span>
+        {grpc.status !== undefined && (
+          <span className={ok ? 'text-emerald-700' : 'text-red-600'}>
+            status {grpc.status} {statusName}
+            {grpc.statusMessage ? ` — ${grpc.statusMessage}` : ''}
+          </span>
+        )}
+        {grpc.matchedSpecId === undefined && (
+          <span className="text-amber-600">no proto spec matched — import one to decode</span>
+        )}
+      </div>
+      <section className="mb-4">
+        <h4 className="mb-1.5 text-xs font-semibold uppercase text-neutral-500">
+          Request ({grpc.requestMessages.length})
+        </h4>
+        {grpc.requestMessages.map((m, i) => (
+          <GrpcMessageBlock key={i} msg={m} label={`message ${i + 1}`} />
+        ))}
+        {grpc.requestMessages.length === 0 && (
+          <p className="text-xs text-neutral-400">No request messages.</p>
+        )}
+      </section>
+      <section>
+        <h4 className="mb-1.5 text-xs font-semibold uppercase text-neutral-500">
+          Response ({grpc.responseMessages.length})
+        </h4>
+        {grpc.responseMessages.map((m, i) => (
+          <GrpcMessageBlock key={i} msg={m} label={`message ${i + 1}`} />
+        ))}
+        {grpc.responseMessages.length === 0 && (
+          <p className="text-xs text-neutral-400">No response messages.</p>
+        )}
+      </section>
+    </div>
+  );
+}
 
 function DecodedView({ tokens }: { tokens: FoundToken[] }): React.JSX.Element {
   return (
@@ -148,8 +236,18 @@ export function DetailPanes(): React.JSX.Element {
   const tokens = findTokens(entry);
 
   return (
-    <Tabs.Root defaultValue="response-body" className="flex h-full flex-col bg-white">
+    <Tabs.Root
+      defaultValue={entry.grpc ? 'grpc' : 'response-body'}
+      className="flex h-full flex-col bg-white"
+    >
       <Tabs.List className="flex border-b border-neutral-200 px-2" aria-label="Request details">
+        {entry.grpc && (
+          <Tabs.Trigger className={tabClass} value="grpc">
+            <span className="flex items-center gap-1">
+              <Boxes className="h-3.5 w-3.5" aria-hidden /> gRPC
+            </span>
+          </Tabs.Trigger>
+        )}
         <Tabs.Trigger className={tabClass} value="response-body">
           Response Body
         </Tabs.Trigger>
@@ -173,6 +271,11 @@ export function DetailPanes(): React.JSX.Element {
           </Tabs.Trigger>
         )}
       </Tabs.List>
+      {entry.grpc && (
+        <Tabs.Content value="grpc" className="min-h-0 grow">
+          <GrpcPane grpc={entry.grpc} />
+        </Tabs.Content>
+      )}
       <Tabs.Content value="response-body" className="min-h-0 grow">
         <BodyView view={entry.response} entryKey={`response-${selectedId}`} />
       </Tabs.Content>
