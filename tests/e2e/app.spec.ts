@@ -80,6 +80,50 @@ test('proxies a request and shows it in the table with details', async () => {
   await expect(page.getByText('Proxy stopped')).toBeVisible();
 });
 
+test('filter, summary, and JWT decode', async () => {
+  upstream = await startUpstream((req, res) => {
+    res.writeHead(req.url?.startsWith('/bad') ? 500 : 200, { 'content-type': 'application/json' });
+    res.end('{"ok":true}');
+  });
+  const listenPort = await freePort();
+  launched = await launchApp({
+    settings: { dest: '127.0.0.1', destProtocol: 'http', destPort: upstream.port, listenProtocol: 'http', listenPort },
+  });
+  const { page } = launched;
+  await page.getByRole('button', { name: 'Start' }).click();
+  await expect(page.getByText(/Proxy running/)).toBeVisible();
+
+  const b64url = (o: object): string => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const jwt = `${b64url({ alg: 'HS256', typ: 'JWT' })}.${b64url({ sub: 'u_7', role: 'admin' })}.sig`;
+  await fetchViaProxy(listenPort, '/api/users', { headers: { authorization: `Bearer ${jwt}` } });
+  await fetchViaProxy(listenPort, '/api/orders');
+  await fetchViaProxy(listenPort, '/bad/cart');
+  await expect(page.getByRole('row').filter({ hasText: '/bad/cart' })).toBeVisible();
+
+  // Filter narrows the table.
+  await page.getByLabel('Filter traffic').fill('orders');
+  await expect(page.getByText('1 of 3')).toBeVisible();
+  await expect(page.getByRole('row').filter({ hasText: '/api/users' })).toHaveCount(0);
+  await page.getByLabel('Clear filter').click();
+
+  // Errors-only toggle.
+  await page.getByRole('button', { name: 'Errors' }).click();
+  await expect(page.getByRole('row').filter({ hasText: '/bad/cart' })).toBeVisible();
+  await expect(page.getByRole('row').filter({ hasText: '/api/orders' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Errors' }).click();
+
+  // Session summary.
+  await page.getByRole('button', { name: 'Session summary' }).click();
+  await expect(page.getByText('3 requests captured')).toBeVisible();
+  await expect(page.getByText(/Errors \(1\)/)).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  // JWT decode tab appears for the request carrying a Bearer token.
+  await page.getByRole('row').filter({ hasText: '/api/users' }).click();
+  await page.getByRole('tab', { name: /Decoded/ }).click();
+  await expect(page.getByText(/"role": "admin"/)).toBeVisible();
+});
+
 test('request and response interceptors round-trip', async () => {
   upstream = await startUpstream((req, res) => {
     res.writeHead(200, { echoed: String(req.headers['x-added'] ?? '') });

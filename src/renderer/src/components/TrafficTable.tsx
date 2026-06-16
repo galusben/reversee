@@ -1,7 +1,9 @@
 import { memo, useEffect, useRef } from 'react';
-import { Lock, LockOpen } from 'lucide-react';
+import { BarChart3, Lock, LockOpen, Search, X } from 'lucide-react';
 import { useProxyStore } from '../stores/proxyStore';
+import { useUiStore } from '../stores/uiStore';
 import { WithContextMenu } from './ui/ContextMenu';
+import { filterTraffic } from '../../../shared/traffic-query';
 import type { TrafficEntry } from '../../../shared/types';
 
 function statusClass(entry: TrafficEntry): string {
@@ -22,13 +24,11 @@ function contentType(entry: TrafficEntry): string {
 // each incoming request.
 const Row = memo(function Row({
   entry,
-  index,
   selected,
   onClick,
   onContextMenu,
 }: {
   entry: TrafficEntry;
-  index: number;
   selected: boolean;
   onClick: () => void;
   onContextMenu: () => void;
@@ -42,7 +42,12 @@ const Row = memo(function Row({
         selected ? 'bg-blue-50 font-semibold' : ''
       }`}
     >
-      <td className="px-3 py-1.5 text-neutral-400">{index + 1}</td>
+      {/* The stable trafficId — the same handle MCP tools (get_traffic_entry,
+          replay_request) reference. */}
+      <td className="px-3 py-1.5 text-neutral-400" title="Request id">
+        {entry.trafficId}
+        {entry.replay ? ' ↺' : ''}
+      </td>
       <td className="px-3 py-1.5 font-medium">{entry.request.method}</td>
       <td className="max-w-0 truncate px-3 py-1.5" title={entry.request.url}>
         {entry.request.url}
@@ -56,11 +61,25 @@ const Row = memo(function Row({
 });
 
 export function TrafficTable(): React.JSX.Element {
-  const traffic = useProxyStore((s) => s.traffic);
+  const allTraffic = useProxyStore((s) => s.traffic);
   const selectedId = useProxyStore((s) => s.selectedId);
   const select = useProxyStore((s) => s.select);
   const clearTraffic = useProxyStore((s) => s.clearTraffic);
+  const filterText = useProxyStore((s) => s.filterText);
+  const setFilterText = useProxyStore((s) => s.setFilterText);
+  const errorsOnly = useProxyStore((s) => s.errorsOnly);
+  const toggleErrorsOnly = useProxyStore((s) => s.toggleErrorsOnly);
+  const openSummary = useUiStore((s) => s.setSummaryOpen);
   const scrollLocked = useProxyStore((s) => s.scrollLocked);
+
+  const filtered =
+    filterText || errorsOnly
+      ? filterTraffic(allTraffic, {
+          ...(filterText ? { text: filterText } : {}),
+          ...(errorsOnly ? { hasError: true } : {}),
+        })
+      : allTraffic;
+  const traffic = filtered;
   const toggleScrollLock = useProxyStore((s) => s.toggleScrollLock);
   const containerRef = useRef<HTMLDivElement>(null);
   // One context menu for the whole table (a Radix menu root per row is far
@@ -75,7 +94,53 @@ export function TrafficTable(): React.JSX.Element {
 
   return (
     <div className="flex min-h-0 grow flex-col">
-      <div className="flex items-center justify-end gap-2 border-b border-neutral-200 bg-white px-3 py-1">
+      <div className="flex items-center gap-2 border-b border-neutral-200 bg-white px-3 py-1.5">
+        <div className="relative grow">
+          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" aria-hidden />
+          <input
+            type="text"
+            aria-label="Filter traffic"
+            placeholder="Filter — method, path, status, content-type…"
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+            className="w-full rounded-md border border-neutral-300 py-1 pl-7 pr-7 text-sm focus:border-blue-400 focus:outline-none"
+          />
+          {filterText && (
+            <button
+              type="button"
+              aria-label="Clear filter"
+              onClick={() => setFilterText('')}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-neutral-400 hover:bg-neutral-100"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={toggleErrorsOnly}
+          aria-pressed={errorsOnly}
+          title="Show only failures (status ≥ 400 or connection errors)"
+          className={`rounded-md border px-2 py-1 text-xs font-medium ${
+            errorsOnly ? 'border-red-300 bg-red-50 text-red-700' : 'border-neutral-300 text-neutral-600 hover:bg-neutral-50'
+          }`}
+        >
+          Errors
+        </button>
+        {(filterText || errorsOnly) && (
+          <span className="text-xs text-neutral-500">
+            {traffic.length} of {allTraffic.length}
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => openSummary(true)}
+          title="Session summary"
+          aria-label="Session summary"
+          className="rounded p-1 text-neutral-500 hover:bg-neutral-100"
+        >
+          <BarChart3 className="h-4 w-4" aria-hidden />
+        </button>
         <button
           type="button"
           onClick={toggleScrollLock}
@@ -112,11 +177,10 @@ export function TrafficTable(): React.JSX.Element {
             ]}
           >
             <tbody>
-              {traffic.map((entry, index) => (
+              {traffic.map((entry) => (
                 <Row
                   key={entry.trafficId}
                   entry={entry}
-                  index={index}
                   selected={selectedId === entry.trafficId}
                   onClick={() => select(entry.trafficId)}
                   onContextMenu={() => {
@@ -129,7 +193,9 @@ export function TrafficTable(): React.JSX.Element {
         </table>
         {traffic.length === 0 && (
           <div className="p-8 text-center text-sm text-neutral-400">
-            No traffic yet. Start the proxy and send requests to the listen port.
+            {allTraffic.length === 0
+              ? 'No traffic yet. Start the proxy and send requests to the listen port.'
+              : 'No requests match the filter.'}
           </div>
         )}
       </div>

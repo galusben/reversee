@@ -1,7 +1,7 @@
 import { app, BrowserWindow, clipboard, ipcMain } from 'electron';
 import log from 'electron-log';
 import { IPC, type BreakpointResume, type StartProxyResult } from '../shared/ipc';
-import type { BreakpointRule } from '../shared/types';
+import type { BreakpointRule, TrafficEntry } from '../shared/types';
 import { toProxySettings } from '../shared/settings-schema';
 import {
   getSettings,
@@ -42,8 +42,15 @@ function sendToRenderer(channel: string, payload: unknown): void {
 
 const trafficStore = new TrafficStore();
 
+/** Store an entry (assigning its stable id) and push it to the renderer. */
+function recordTraffic(entry: TrafficEntry): TrafficEntry {
+  const stored = trafficStore.add(entry);
+  sendToRenderer(IPC.trafficEvent, stored);
+  return stored;
+}
+
 const proxyHost = new ProxyHost({
-  onTraffic: (entry) => sendToRenderer(IPC.trafficEvent, trafficStore.add(entry)),
+  onTraffic: (entry) => recordTraffic(entry),
   onStateChanged: (running, port) => sendToRenderer(IPC.proxyStateEvent, { running, port }),
   onServerError: (error) => sendToRenderer(IPC.proxyErrorEvent, error),
   onBreakpointHit: (hit) => sendToRenderer(IPC.breakpointHitEvent, hit),
@@ -131,6 +138,7 @@ async function syncControlServer(): Promise<void> {
           trafficStore,
           getBreakpointRules: () => breakpointRules,
           startProxy: startProxyFromSettings,
+          recordTraffic,
         }),
         logger: log,
       });

@@ -129,12 +129,113 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
     },
   },
   {
-    name: 'get_traffic_entry',
-    description: 'Full details of one captured request: headers, bodies, timings, and a copy-pasteable curl command.',
+    name: 'search_traffic',
+    description:
+      'Filter captured requests server-side so you fetch only what matters (avoids dumping everything). ' +
+      'All filters combine with AND. Bodies are elided in results; use get_traffic_entry for full detail.',
     inputSchema: {
       type: 'object',
-      properties: { trafficId: { type: 'integer', description: 'Id from list_traffic' } },
+      properties: {
+        text: { type: 'string', description: 'Free-text substring across method, URL, status, content-type' },
+        method: { type: 'string', description: 'HTTP method (exact, case-insensitive)' },
+        status: {
+          description: 'Exact (404), class ("2xx"/"4xx"), or comparison (">=400", "<300")',
+          anyOf: [{ type: 'integer' }, { type: 'string' }],
+        },
+        urlContains: { type: 'string' },
+        urlRegex: { type: 'string', description: 'Regex matched against the request URL' },
+        contentType: { type: 'string', description: 'Substring of the response content-type' },
+        header: { type: 'string', description: '"key" (present) or "key:value" (value contains), req or res' },
+        bodyContains: { type: 'string', description: 'Substring in the request or response body' },
+        minTotalMs: { type: 'number', description: 'Only requests at least this slow (ms)' },
+        hasError: { type: 'boolean', description: 'Only failures (connector error or status >= 400)' },
+        offset: { type: 'integer', minimum: 0 },
+        limit: { type: 'integer', minimum: 1, maximum: 200, description: 'Max results (default 50)' },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'summarize_session',
+    description:
+      'Aggregate view of all captured traffic: counts by status class and method, content types, top hosts, ' +
+      'the error requests, and the slowest requests. Use this to orient before drilling in.',
+    inputSchema: {
+      type: 'object',
+      properties: { slowest: { type: 'integer', minimum: 1, maximum: 50, description: 'How many slowest to list (default 5)' } },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'get_traffic_entry',
+    description:
+      'Full details of one captured request: headers, bodies, timings, a copy-pasteable curl command, the upstream ' +
+      'target, and any decoded JWTs found in its Authorization header or cookies.',
+    inputSchema: {
+      type: 'object',
+      properties: { trafficId: { type: 'integer', description: 'Id from list_traffic or search_traffic' } },
       required: ['trafficId'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'replay_request',
+    description:
+      'Re-send a captured request to its upstream, optionally with edits — the agent way to test a hypothesis ' +
+      '("what if this header/body/status were different?"). Records a new traffic entry and returns it. ' +
+      'Requires control to be enabled in the app.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        trafficId: { type: 'integer', description: 'The captured request to replay' },
+        overrides: {
+          type: 'object',
+          description: 'Optional edits to apply before sending',
+          properties: {
+            method: { type: 'string' },
+            url: { type: 'string', description: 'Request path, e.g. /api/users?page=2' },
+            headers: {
+              type: 'object',
+              description: 'Merged into the original headers; a null value deletes that header',
+            },
+            body: { type: 'string', description: 'Replacement request body' },
+          },
+          additionalProperties: false,
+        },
+      },
+      required: ['trafficId'],
+      additionalProperties: false,
+    },
+    mutating: true,
+  },
+  {
+    name: 'set_interceptor',
+    description:
+      'Install (or clear/toggle) a request or response interceptor — arbitrary JavaScript that rewrites traffic on ' +
+      'the fly, for mocking, fault injection, or header rewriting. The code runs per matching request in a sandbox. ' +
+      'Request interceptors can mutate `requestParams` (host, path, method, port, headers, body). Response ' +
+      'interceptors can mutate `responseParams` (statusCode, headers, body) and read `requestParams`. ' +
+      'Example (force a 500): `responseParams.statusCode = 500; responseParams.body = "{\\"error\\":\\"injected\\"}";`. ' +
+      'Requires control to be enabled in the app.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        kind: { type: 'string', enum: ['request', 'response'] },
+        code: { type: 'string', description: 'Interceptor JavaScript. Omit to leave the code unchanged.' },
+        enabled: { type: 'boolean', description: 'Turn this interceptor on or off.' },
+      },
+      required: ['kind'],
+      additionalProperties: false,
+    },
+    mutating: true,
+  },
+  {
+    name: 'decode_jwt',
+    description: 'Decode a JWT (header + claims, with exp/iat parsed). Inspection only — the signature is not verified.',
+    inputSchema: {
+      type: 'object',
+      properties: { token: { type: 'string', description: 'The JWT string (with or without a "Bearer " prefix is fine — pass the token)' } },
+      required: ['token'],
       additionalProperties: false,
     },
   },

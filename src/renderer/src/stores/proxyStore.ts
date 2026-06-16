@@ -28,6 +28,10 @@ interface ProxyStore {
   selectedId: number | null;
   /** When locked (default), the table does not auto-scroll to new traffic. */
   scrollLocked: boolean;
+  /** Free-text filter over the traffic table (shared filterTraffic semantics). */
+  filterText: string;
+  /** Restrict the table to failures. */
+  errorsOnly: boolean;
 
   init(): Promise<void>;
   updateSettings(patch: Partial<AppSettings>): Promise<void>;
@@ -36,6 +40,8 @@ interface ProxyStore {
   clearTraffic(): Promise<void>;
   select(id: number | null): void;
   toggleScrollLock(): void;
+  setFilterText(text: string): void;
+  toggleErrorsOnly(): void;
   dismissError(): void;
 }
 
@@ -47,6 +53,8 @@ export const useProxyStore = create<ProxyStore>((set, get) => ({
   traffic: [],
   selectedId: null,
   scrollLocked: true,
+  filterText: '',
+  errorsOnly: false,
 
   async init() {
     // One-time import of pre-2.0 settings persisted in renderer localStorage.
@@ -101,6 +109,14 @@ export const useProxyStore = create<ProxyStore>((set, get) => ({
 
   toggleScrollLock() {
     set({ scrollLocked: !get().scrollLocked });
+  },
+
+  setFilterText(text) {
+    set({ filterText: text });
+  },
+
+  toggleErrorsOnly() {
+    set({ errorsOnly: !get().errorsOnly });
   },
 
   dismissError() {
