@@ -12,6 +12,7 @@ Reversee sits between your client and a destination server. Point your client at
 - **Traffic inspection** — method, path, status, content type, headers, request/response bodies (plain and formatted), and per-request timings (DNS, TCP, TLS, first byte, total).
 - **Interceptors** — JavaScript snippets that rewrite requests (`requestParams`: host, path, method, port, headers, body) or responses (`responseParams`: statusCode, headers, body) on the fly.
 - **Breakpoints** — hold requests matching a URL regex + methods, edit the URL, headers, and body, then continue.
+- **gRPC proto specs** — import `.proto` files or compiled `.desc` FileDescriptorSets (*gRPC → Proto Specs*, or via MCP); Reversee uses them to decode gRPC messages into readable JSON, matched by method. See [gRPC](#grpc).
 - **Redirect & host rewriting** — keep redirect chains and Host headers pointed at the proxy.
 - **MCP integration** — let Claude Code, Cursor, or any MCP client inspect and (optionally) control the proxy. See below.
 
@@ -51,6 +52,16 @@ curl http://localhost:<listen-port>/
 
 The request appears in the traffic table; click it to inspect.
 
+## gRPC
+
+Protobuf wire bytes carry only field numbers, so gRPC is unreadable without the schema. Reversee decodes it from protobuf definitions you supply:
+
+1. Open **gRPC → Proto Specs** and import a `.proto` file or a compiled `.desc` FileDescriptorSet (no `protoc` needed for `.proto` — Reversee parses it directly).
+2. Specs are saved across restarts and matched to calls by gRPC method (`/package.Service/Method`). Compile errors surface in the dialog.
+3. Agents can manage the same specs over MCP with `list_proto_specs` / `add_proto_spec` / `remove_proto_spec`.
+
+Decoded request/response messages render as JSON next to the raw bytes. Capturing **native gRPC over HTTP/2** is the next milestone — the proxy core currently speaks HTTP/1.1 — so the spec management and decoding engine ship first, with live capture to follow.
+
 ## MCP integration (Claude Code / Cursor)
 
 Reversee ships an MCP server so LLM agents can drive it. With the Reversee app running:
@@ -80,8 +91,9 @@ The package is published as [`reversee-mcp`](https://www.npmjs.com/package/rever
 | `get_status` | App version, proxy state, listen/destination config, traffic count |
 | `get_config` / `update_config` | Read / change the proxy configuration |
 | `start_proxy` / `stop_proxy` / `restart_proxy` | Control the proxy process |
-| `list_traffic` / `get_traffic_entry` | Browse captured requests; full headers, bodies, timings, curl |
+| `list_traffic` / `get_traffic_entry` | Browse captured requests; full headers, bodies, timings, curl (decoded gRPC included) |
 | `list_breakpoints` | The configured breakpoint rules |
+| `list_proto_specs` / `add_proto_spec` / `remove_proto_spec` | Manage protobuf specs used to decode gRPC (add/remove gated) |
 | `validate_setup` | Setup checks (destination, ports, root cert, proxy process) |
 | `export_diagnostics` | Versions, platform, settings, state — for bug reports |
 
@@ -102,7 +114,7 @@ This touches only Reversee's `npx` cache; the next run pulls the latest publishe
 ### Security model
 
 - The bridge talks to the app over a **local socket** (unix domain socket / Windows named pipe), never a TCP port, with a per-boot token — only your user account can reach it.
-- It is **read-only by default**. `start_proxy`, `stop_proxy`, `restart_proxy`, and `update_config` are rejected until you check *Proxy Settings → Allow MCP to Control the Proxy* in the app.
+- It is **read-only by default**. `start_proxy`, `stop_proxy`, `restart_proxy`, `update_config`, `add_proto_spec`, and `remove_proto_spec` are rejected until you check *Proxy Settings → Allow MCP to Control the Proxy* in the app.
 - *Proxy Settings → Enable MCP Integration* turns the socket off entirely.
 
 ### Headless mode (for agents)

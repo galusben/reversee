@@ -1,7 +1,15 @@
-import { app, BrowserWindow, clipboard, ipcMain } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain } from 'electron';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import log from 'electron-log';
-import { IPC, type BreakpointResume, type StartProxyResult } from '../shared/ipc';
+import {
+  IPC,
+  type BreakpointResume,
+  type ProtoSpecsResult,
+  type StartProxyResult,
+} from '../shared/ipc';
 import type { BreakpointRule } from '../shared/types';
+import { ProtoStore } from './proto/proto-store';
 import { toProxySettings } from '../shared/settings-schema';
 import {
   getSettings,
@@ -41,6 +49,7 @@ function sendToRenderer(channel: string, payload: unknown): void {
 }
 
 const trafficStore = new TrafficStore();
+const protoStore = new ProtoStore(path.join(app.getPath('userData'), 'proto'));
 
 const proxyHost = new ProxyHost({
   onTraffic: (entry) => sendToRenderer(IPC.trafficEvent, trafficStore.add(entry)),
@@ -75,6 +84,17 @@ async function startProxyFromSettings(): Promise<StartProxyResult> {
   }
 }
 
+/**
+ * Recompiles the saved proto specs, pushes the bundle to the proxy worker (so
+ * live gRPC traffic decodes), and returns the list + any compile errors for the
+ * renderer. Shared by the IPC handlers and the MCP proto-spec tools.
+ */
+function syncProtoSpecs(): ProtoSpecsResult {
+  const { specs, methodMap, errors } = protoStore.compile();
+  proxyHost.setProtoSpecs({ specs, methodMap });
+  return { specs: protoStore.list(), errors };
+}
+
 function registerIpc(): void {
   ipcMain.handle(IPC.proxyStart, () => startProxyFromSettings());
 
@@ -107,6 +127,32 @@ function registerIpc(): void {
     proxyHost.resumeBreakpoint(id, params);
   });
 
+  ipcMain.handle(IPC.protoSpecsGet, () => syncProtoSpecs());
+  ipcMain.handle(IPC.protoSpecsImport, async (): Promise<ProtoSpecsResult> => {
+    if (!win) return syncProtoSpecs();
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      title: 'Import proto spec',
+      filters: [
+        { name: 'Protobuf', extensions: ['proto', 'desc'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+      properties: ['openFile'],
+    });
+    if (canceled || filePaths.length === 0) return syncProtoSpecs();
+    const file = filePaths[0];
+    const isDescriptor = file.toLowerCase().endsWith('.desc');
+    protoStore.add({
+      name: path.basename(file),
+      source: isDescriptor ? 'descriptor' : 'proto',
+      content: isDescriptor ? await fs.readFile(file) : await fs.readFile(file, 'utf8'),
+    });
+    return syncProtoSpecs();
+  });
+  ipcMain.handle(IPC.protoSpecsRemove, (_event, id: unknown) => {
+    if (typeof id === 'string') protoStore.remove(id);
+    return syncProtoSpecs();
+  });
+
   onSettingsChanged((settings) => sendToRenderer(IPC.settingsChangedEvent, settings));
 }
 
@@ -131,6 +177,8 @@ async function syncControlServer(): Promise<void> {
           trafficStore,
           getBreakpointRules: () => breakpointRules,
           startProxy: startProxyFromSettings,
+          protoStore,
+          syncProtoSpecs,
         }),
         logger: log,
       });
@@ -161,6 +209,7 @@ if (!gotLock) {
     const { root, leaf } = ensureCertificates();
     leafCert = leaf;
     registerIpc();
+    syncProtoSpecs(); // prime the worker bundle for when the proxy starts
     void syncControlServer();
     onSettingsChanged(() => void syncControlServer());
 
