@@ -29,6 +29,7 @@ Four layers: unit/integration + MCP e2e (Vitest, `tests/unit/`), app e2e (Playwr
 - `src/proxy/` — the proxy core (`core/`, plain Node, **no Electron imports** — enforced by ESLint so it stays headless-testable) + the `utilityProcess` worker.
 - `src/shared/` — cross-process types, IPC contracts, settings schema.
 - `src/main/proto/` — gRPC proto-spec store: hybrid storage (metadata `index.json` + `.proto`/`.desc` files under `userData/proto/`) and `compile()` (protobufjs) producing the worker bundle.
+- `mcp/` — the `reversee-mcp` npm package (stdio MCP bridge). The **app owns the MCP tool catalog** (`src/main/mcp/catalog.ts`); the bridge fetches it at runtime, so new tools ship with app updates, not bridge republishes.
 
 ## gRPC
 
@@ -38,7 +39,6 @@ Reversee decodes gRPC using user-supplied protobuf definitions. The pieces:
 - **Decoding** lives in the Electron-free core: `src/proxy/core/grpc-frames.ts` (length-prefixed `[1B flag][4B len][protobuf]` framing, incremental `FrameAccumulator`, per-message gunzip) and `src/proxy/core/grpc-registry.ts` (rebuilds the bundle and resolves a `:path` to request/response types). `protobufjs` is bundled into both `index.js` and `proxyWorker.js` (electron-vite bundles deps; no `protoc` needed).
 - **Spec management** is wired end-to-end like breakpoints: IPC (`protoSpecsGet/Import/Remove`) + preload + `ProtoSpecsDialog`/`protoSpecStore` (renderer) + the `*_proto_spec` MCP tools (gated mutations).
 - **Status:** spec management + the decode engine ship today; the HTTP/2 transport that captures live gRPC traffic is the next milestone (the proxy core is still HTTP/1.1). Decoding is exercised by unit tests until the transport lands.
-- `mcp/` — the `reversee-mcp` npm package (stdio MCP bridge). The **app owns the MCP tool catalog** (`src/main/mcp/catalog.ts`); the bridge fetches it at runtime, so new tools ship with app updates, not bridge republishes.
 
 ## Conventions
 
