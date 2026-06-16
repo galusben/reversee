@@ -20,11 +20,12 @@ the desktop UI, and agents through the Model Context Protocol.
   sandboxed and don't crash the proxy.
 - **Breakpoints** — hold requests matching a URL regex + HTTP methods; held requests
   land in a FIFO queue where you edit URL/headers/body and resume.
-- **gRPC proto specs** — import `.proto` files or compiled `.desc` FileDescriptorSets
-  (*gRPC → Proto Specs*); Reversee compiles them (protobufjs, no `protoc`) and uses
-  them to decode gRPC messages into JSON, matched by method
-  (`/package.Service/Method`). Spec management and the decode engine ship now; live
-  native-gRPC (HTTP/2) capture is the next milestone.
+- **gRPC** — check *gRPC* in the settings bar to run an HTTP/2 listener (h2 via ALPN
+  on https, cleartext h2c on http) that proxies native gRPC. Import `.proto`/`.desc`
+  definitions (*gRPC → Proto Specs*; protobufjs, no `protoc`) and every message —
+  unary and server/client/bidi streaming — is decoded into JSON in the detail pane's
+  gRPC tab, with the `grpc-status` shown on the row. Matched by method
+  (`/package.Service/Method`). gRPC mode is HTTP/2-only on that port.
 - **Connect AI** — a dialog with the `npx reversee-mcp` setup, plus the toggle that
   gates agent control.
 - **Root CA trust** — a locally generated root certificate so HTTPS interception is

@@ -21,6 +21,8 @@ export interface AppSettings {
   mcpEnabled: boolean;
   /** Allow MCP clients to start/stop/configure the proxy. */
   mcpAllowControl: boolean;
+  /** Run an HTTP/2 listener so native gRPC can be proxied and decoded. */
+  enableGrpc: boolean;
 }
 
 export const defaultSettings: AppSettings = {
@@ -50,6 +52,8 @@ export const defaultSettings: AppSettings = {
   // The socket is same-user-only and read-only unless control is enabled.
   mcpEnabled: true,
   mcpAllowControl: false,
+  // Off by default: only gRPC users need the HTTP/2 listener.
+  enableGrpc: false,
 };
 
 export function isValidPort(value: unknown): value is number {
@@ -82,6 +86,7 @@ export function sanitizeSettingsPatch(patch: unknown): Partial<AppSettings> {
     'allowSelfSignedUpstream',
     'mcpEnabled',
     'mcpAllowControl',
+    'enableGrpc',
   ] as const) {
     if (typeof p[key] === 'boolean') out[key] = p[key];
   }
@@ -106,5 +111,6 @@ export function toProxySettings(s: AppSettings): ProxySettings {
     interceptRequest: s.interceptRequest,
     responseInterceptor: s.responseInterceptor,
     interceptResponse: s.interceptResponse,
+    enableGrpc: s.enableGrpc,
   };
 }

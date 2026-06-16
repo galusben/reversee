@@ -86,7 +86,8 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
       'Update Reversee configuration. Accepts a partial settings object; unknown keys and invalid values are ignored. ' +
       'Keys: listenProtocol/destProtocol (http|https), listenPort/destPort (1-65535), dest (host), ' +
       'interceptRequest/interceptResponse (bool), requestInterceptor/responseInterceptor (JS source), ' +
-      'rewriteRedirects/rewriteHost/allowSelfSignedUpstream (bool). ' +
+      'rewriteRedirects/rewriteHost/allowSelfSignedUpstream/enableGrpc (bool). ' +
+      'enableGrpc runs an HTTP/2 listener so native gRPC is proxied and decoded (against saved proto specs). ' +
       'Requires "Allow MCP to Control the Proxy" enabled in the app. Returns the resulting config.',
     inputSchema: {
       type: 'object',

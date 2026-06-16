@@ -16,7 +16,7 @@ Reversee has four test layers. All of them except the packaged smoke test run on
 ### Unit & integration (`tests/unit/`)
 - **Proxy core** (`proxy.core`, `interceptor`, `curl`, `breakpoints`) — the request-forwarding logic, run headlessly against real `http`/`https` fixture servers (no Electron). This is the safety net the whole refactor was built on.
 - **Traffic store** (`traffic-store`) — ring-buffer cap, eviction, body truncation.
-- **gRPC** (`grpc-frames`, `grpc-registry`, `proto-store`) — length-prefixed framing (multi-frame, compression, truncation, incremental accumulator), proto-spec CRUD on disk, `.proto`/`.desc` compilation + method-map building, and registry resolution decoding a frame end-to-end. All headless (protobufjs is pure JS; the store takes a directory).
+- **gRPC** (`grpc-frames`, `grpc-registry`, `proto-store`, `grpc-proxy`) — length-prefixed framing (multi-frame, compression, truncation, incremental accumulator), proto-spec CRUD on disk, `.proto`/`.desc` compilation + method-map building, registry resolution, and a full round-trip through `createHttp2ProxyServer` against a hand-rolled h2c gRPC upstream (unary, server-streaming, and a non-OK Trailers-Only status — asserting decoded JSON both ways, the captured grpc-status, and raw passthrough). All headless (protobufjs and `node:http2` are dependency-light).
 - **MCP** — `control-server` (token handshake, gating, permissions), `mcp-catalog` (the app-owned tool catalog + derived mutating set), `mcp-bridge` (`resolveCatalog` against the real control server incl. offline fallback, version-advisory logic), `mcp-client` (the bridge's socket client against the real server).
 
 ### App end-to-end (`tests/e2e/`)

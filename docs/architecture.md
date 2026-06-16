@@ -98,8 +98,9 @@ unit-tested headlessly — see [ADR 0001](adr/0001-electron-free-proxy-core.md).
 | File | Responsibility |
 | --- | --- |
 | `worker.ts` | `utilityProcess` entry; speaks typed messages over `parentPort`; owns breakpoint gating and server lifecycle. |
-| `core/server.ts` | HTTP/HTTPS listener; buffers request bodies; calls the optional gate (breakpoints) then proxies. |
+| `core/server.ts` | HTTP/1.1 HTTP/HTTPS listener; buffers request bodies; calls the optional gate (breakpoints) then proxies. |
 | `core/proxy.ts` | Upstream connect, request/response forwarding, decompression, traffic recording. |
+| `core/http2.ts` | HTTP/2 listener used when `enableGrpc` is set; per-stream forward with gRPC frame decode both directions and grpc-status trailer capture (unary + streaming). |
 | `core/interceptor.ts` | VM-sandboxed JS execution for request/response mutation. |
 | `core/breakpoints.ts` | Regex compilation and URL + method matching. |
 | `core/curl.ts` | Builds copy-pasteable curl commands from captured requests. |
@@ -109,24 +110,34 @@ unit-tested headlessly — see [ADR 0001](adr/0001-electron-free-proxy-core.md).
 ## gRPC decoding
 
 Protobuf wire bytes carry only field numbers, so gRPC is unreadable without the
-schema. Reversee decodes it from user-supplied proto definitions, split across the
-process boundary to keep the proxy core Electron-free:
+schema. Reversee proxies native gRPC and decodes it from user-supplied proto
+definitions, split across the process boundary to keep the proxy core
+Electron-free:
 
+- **Transport** (`src/proxy/core/http2.ts`) — when `enableGrpc` is set the worker
+  runs this HTTP/2 listener instead of the HTTP/1.1 server (gRPC needs HTTP/2
+  framing + trailers). `https` negotiates h2 via ALPN; `http` speaks cleartext h2c.
+  For each stream it opens an upstream HTTP/2 stream, pipes bytes both ways
+  **unmodified**, and copies frames through a `FrameAccumulator` to decode messages
+  as they arrive (so streaming calls fill in incrementally), capturing the
+  `grpc-status` trailer. It re-emits the `TrafficEntry` on each frame (the store
+  upserts by `trafficId`). gRPC mode is HTTP/2-only — HTTP/1.1 isn't served because
+  mixing the native stream API with the compatibility layer double-sends trailers.
 - **Main** (`src/main/proto/proto-store.ts`) stores `.proto`/`.desc` specs and
   `compile()`s them (protobufjs — no `protoc`) into a serializable bundle: one
   namespace per spec plus a `/package.Service/Method` → type map. The bundle ships
   to the worker via the `set-proto-specs` `WorkerInbound` message — the same
   spec-compile-and-push pattern as breakpoints.
-- **Worker/core** (`src/proxy/core/grpc-registry.ts` + `grpc-frames.ts`) rebuilds
-  the bundle and, for a captured call, parses the length-prefixed frames and decodes
-  each against the resolved message type into JSON (`TrafficEntry.grpc`).
-- **Surfaced** to humans in `DetailPanes.tsx` and to agents via `get_traffic_entry`.
-  Specs are managed in the UI (`ProtoSpecsDialog`) and over MCP
-  (`list_proto_specs` / `add_proto_spec` / `remove_proto_spec`).
+- **Decode** (`src/proxy/core/grpc-registry.ts` + `grpc-frames.ts`) rebuilds the
+  bundle, resolves a call's `:path` to request/response types, and decodes each
+  frame into JSON (`TrafficEntry.grpc`).
+- **Surfaced** to humans in `DetailPanes.tsx` (the gRPC tab) + `TrafficTable.tsx`
+  (badge + grpc-status) and to agents via `get_traffic_entry`. Specs are managed in
+  the UI (`ProtoSpecsDialog`) and over MCP (`list_proto_specs` / `add_proto_spec` /
+  `remove_proto_spec`).
 
 `protobufjs` is bundled into both `index.js` and `proxyWorker.js` (electron-vite
-bundles deps). The HTTP/2 transport that captures live native gRPC is a follow-up;
-spec management and the decode engine land first, exercised by unit tests.
+bundles deps). Breakpoint gating stays on the HTTP/1.1 path for now.
 
 ## `src/shared/` — cross-process contracts
 

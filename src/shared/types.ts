@@ -22,6 +22,12 @@ export interface ProxySettings {
   interceptRequest?: boolean;
   responseInterceptor?: string;
   interceptResponse?: boolean;
+  /**
+   * Run an HTTP/2 listener so native gRPC can be proxied and decoded. When the
+   * listen protocol is https the server negotiates h2 via ALPN (HTTP/1.1 still
+   * works); when http it speaks cleartext h2c (prior knowledge).
+   */
+  enableGrpc?: boolean;
 }
 
 /** Parameters of the upstream request; mutated by request interceptors. */
