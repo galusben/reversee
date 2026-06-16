@@ -8,6 +8,7 @@
 - Inspect traffic: method, path, status, content type, headers, request/response bodies (gzip/brotli decoded, syntax-highlighted), per-request timings, and a copy-as-curl command.
 - Interceptors: rewrite requests (`requestParams`: host, path, method, port, headers, body) or responses (`responseParams`: statusCode, headers, body) with JavaScript, live.
 - Breakpoints: hold requests matching a URL regex + HTTP methods, edit the URL/headers/body, then resume.
+- gRPC: import `.proto` or compiled `.desc` protobuf definitions; Reversee uses them to decode gRPC messages into JSON, matched by method (`/package.Service/Method`). Spec management and the decoding engine ship now; native gRPC (HTTP/2) capture is the next milestone.
 - Redirect and Host-header rewriting; a locally generated root CA for trusting HTTPS interception.
 - Source: https://github.com/galusben/reversee — License: MIT.
 
@@ -19,7 +20,7 @@ Setup (with the Reversee app running):
 - Claude Code: `claude mcp add reversee -- npx -y reversee-mcp`
 - Cursor (~/.cursor/mcp.json): `{ "mcpServers": { "reversee": { "command": "npx", "args": ["-y", "reversee-mcp"] } } }`
 
-Security model: the MCP bridge talks to the app over a token-authenticated local unix socket / Windows named pipe — never a TCP port. Read-only tools are always available; mutating tools (start/stop/restart the proxy, change config) require the user to enable "Allow MCP to Control the Proxy" in the app, or launching headless with `--allow-mcp-control`.
+Security model: the MCP bridge talks to the app over a token-authenticated local unix socket / Windows named pipe — never a TCP port. Read-only tools are always available; mutating tools (start/stop/restart the proxy, change config, add/remove proto specs) require the user to enable "Allow MCP to Control the Proxy" in the app, or launching headless with `--allow-mcp-control`.
 
 MCP tools:
 - `get_status`: app version, proxy run state, listen/destination config, traffic and breakpoint counts.
@@ -33,6 +34,8 @@ MCP tools:
 - `set_interceptor`: install/toggle a request or response interceptor (arbitrary JavaScript that rewrites traffic) for mocking and fault injection (gated).
 - `decode_jwt`: decode a JWT's header and claims (inspection only; signature not verified).
 - `list_breakpoints`: configured breakpoint rules.
+- `list_proto_specs`: saved protobuf specs used to decode gRPC, plus compile errors.
+- `add_proto_spec` / `remove_proto_spec`: save (`.proto` text or base64 FileDescriptorSet) / delete a protobuf spec (gated).
 - `validate_setup`: setup checks (destination, ports, root cert, proxy process).
 - `export_diagnostics`: versions, platform, settings, state — for bug reports.
 

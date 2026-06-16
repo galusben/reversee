@@ -10,12 +10,15 @@ import { DetailPanes } from './components/DetailPanes';
 import { BreakpointsDialog } from './components/BreakpointsDialog';
 import { BreakpointQueue } from './components/BreakpointQueue';
 import { ConnectAiDialog } from './components/ConnectAiDialog';
+import { ProtoSpecsDialog } from './components/ProtoSpecsDialog';
+import { useProtoSpecStore } from './stores/protoSpecStore';
 import { SummaryDialog } from './components/SummaryDialog';
 import { useUiStore } from './stores/uiStore';
 
 export default function App(): React.JSX.Element {
   const init = useProxyStore((s) => s.init);
   const initBreakpoints = useBreakpointStore((s) => s.init);
+  const initProtoSpecs = useProtoSpecStore((s) => s.init);
   const error = useProxyStore((s) => s.error);
   const dismissError = useProxyStore((s) => s.dismissError);
   const running = useProxyStore((s) => s.running);
@@ -25,9 +28,10 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     void init();
     void initBreakpoints();
+    void initProtoSpecs();
     // The Help > Set Up MCP menu item opens the same dialog as the button.
     return window.reversee.onOpenConnectAi(() => openConnectAi(true));
-  }, [init, initBreakpoints, openConnectAi]);
+  }, [init, initBreakpoints, initProtoSpecs, openConnectAi]);
 
   return (
     <div className="flex h-screen flex-col bg-neutral-100">
@@ -35,6 +39,7 @@ export default function App(): React.JSX.Element {
       <InterceptorPanel />
       <BreakpointQueue />
       <BreakpointsDialog />
+      <ProtoSpecsDialog />
       <ConnectAiDialog />
       <SummaryDialog />
       {error && (

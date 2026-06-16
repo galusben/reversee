@@ -15,8 +15,9 @@ import {
 import type { ControlHandler } from './control-server';
 import type { ProxyHost } from '../proxy-host';
 import type { TrafficStore } from '../traffic-store';
-import type { StartProxyResult } from '../../shared/ipc';
-import type { BreakpointRule, TrafficEntry } from '../../shared/types';
+import type { ProtoStore } from '../proto/proto-store';
+import type { ProtoSpecsResult, StartProxyResult } from '../../shared/ipc';
+import type { BreakpointRule, GrpcMessage, TrafficEntry } from '../../shared/types';
 
 export { MCP_MUTATING_METHODS };
 
@@ -25,8 +26,16 @@ export interface McpHandlerContext {
   trafficStore: TrafficStore;
   getBreakpointRules(): BreakpointRule[];
   startProxy(): Promise<StartProxyResult>;
+  protoStore: ProtoStore;
+  /** Recompiles specs, pushes the bundle to the worker, and returns the new state. */
+  syncProtoSpecs(): ProtoSpecsResult;
   /** Store an entry and push it to the renderer (used by replay). */
   recordTraffic(entry: TrafficEntry): TrafficEntry;
+}
+
+/** Decoded JSON when available, else the decode error — for agent-facing output. */
+function grpcMessageView(m: GrpcMessage): unknown {
+  return m.json ?? { decodeError: m.decodeError ?? 'no matching proto spec' };
 }
 
 function bodyText(body: Uint8Array | string | undefined): string | undefined {
@@ -44,6 +53,7 @@ function trafficSummary(entry: TrafficEntry): Record<string, unknown> {
     contentType: Array.isArray(contentType) ? contentType[0] : contentType,
     totalMs: entry.timings.total !== undefined ? entry.timings.total / 1_000_000 : undefined,
     error: entry.connectorError ? String(entry.connectorError) : undefined,
+    ...(entry.grpc ? { grpcMethod: entry.grpc.method, grpcStatus: entry.grpc.status } : {}),
     replay: entry.replay || undefined,
   };
 }
@@ -77,6 +87,15 @@ function fullEntry(entry: TrafficEntry): Record<string, unknown> {
       decodeError: entry.response.decodeError,
       truncated: entry.response.truncated,
     },
+    grpc: entry.grpc
+      ? {
+          method: entry.grpc.method,
+          status: entry.grpc.status,
+          statusMessage: entry.grpc.statusMessage,
+          requestMessages: entry.grpc.requestMessages.map(grpcMessageView),
+          responseMessages: entry.grpc.responseMessages.map(grpcMessageView),
+        }
+      : undefined,
     timings: entry.timings,
     decoded: decoded.length ? decoded : undefined,
   };
@@ -213,6 +232,35 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
     },
 
     list_breakpoints: () => ctx.getBreakpointRules(),
+
+    list_proto_specs: (): ProtoSpecsResult => ({
+      specs: ctx.protoStore.list(),
+      errors: ctx.protoStore.compile().errors,
+    }),
+
+    add_proto_spec: (params) => {
+      const p = (params ?? {}) as { name?: string; source?: string; content?: string };
+      if (
+        typeof p.name !== 'string' ||
+        (p.source !== 'proto' && p.source !== 'descriptor') ||
+        typeof p.content !== 'string'
+      ) {
+        throw new Error('name, source ("proto"|"descriptor"), and content are required');
+      }
+      ctx.protoStore.add({
+        name: p.name,
+        source: p.source,
+        content: p.source === 'descriptor' ? Buffer.from(p.content, 'base64') : p.content,
+      });
+      return ctx.syncProtoSpecs();
+    },
+
+    remove_proto_spec: (params) => {
+      const p = (params ?? {}) as { id?: string };
+      if (typeof p.id !== 'string') throw new Error('id (string) is required');
+      ctx.protoStore.remove(p.id);
+      return ctx.syncProtoSpecs();
+    },
 
     validate_setup: () => {
       const settings = getSettings();

@@ -5,7 +5,10 @@ import type { AppSettings } from './settings-schema';
 import type {
   BreakpointCompileError,
   BreakpointRule,
+  GrpcProtoBundle,
   Headers,
+  ProtoSpec,
+  ProtoSpecCompileError,
   ProxySettings,
   TrafficEntry,
 } from './types';
@@ -23,6 +26,9 @@ export const IPC = {
   breakpointsGet: 'breakpoints:get',
   breakpointsSet: 'breakpoints:set',
   breakpointResume: 'breakpoint:resume',
+  protoSpecsGet: 'proto-specs:get',
+  protoSpecsImport: 'proto-specs:import',
+  protoSpecsRemove: 'proto-specs:remove',
   // main -> renderer events
   trafficEvent: 'proxy:traffic',
   trafficClearedEvent: 'proxy:traffic-cleared',
@@ -33,7 +39,14 @@ export const IPC = {
   breakpointErrorsEvent: 'breakpoint:errors',
   openBreakpointsEvent: 'ui:open-breakpoints',
   openConnectAiEvent: 'ui:open-connect-ai',
+  openProtoSpecsEvent: 'ui:open-proto-specs',
 } as const;
+
+/** Saved proto specs plus the latest compile errors, returned after each mutation. */
+export interface ProtoSpecsResult {
+  specs: ProtoSpec[];
+  errors: ProtoSpecCompileError[];
+}
 
 export interface ProxyState {
   running: boolean;
@@ -77,12 +90,17 @@ export interface RevAPI {
   getBreakpoints(): Promise<BreakpointRule[]>;
   setBreakpoints(rules: BreakpointRule[]): Promise<void>;
   resumeBreakpoint(id: number, params: BreakpointResume): Promise<void>;
+  getProtoSpecs(): Promise<ProtoSpecsResult>;
+  /** Opens a native file picker for a .proto/.desc file, adds it, returns the new state. */
+  importProtoSpec(): Promise<ProtoSpecsResult>;
+  removeProtoSpec(id: string): Promise<ProtoSpecsResult>;
   onTraffic(cb: (entry: TrafficEntry) => void): () => void;
   onTrafficCleared(cb: () => void): () => void;
   onBreakpointHit(cb: (hit: BreakpointHit) => void): () => void;
   onBreakpointErrors(cb: (errors: BreakpointCompileError[]) => void): () => void;
   onOpenBreakpoints(cb: () => void): () => void;
   onOpenConnectAi(cb: () => void): () => void;
+  onOpenProtoSpecs(cb: () => void): () => void;
   onProxyState(cb: (state: ProxyState) => void): () => void;
   onProxyError(cb: (error: ProxyErrorInfo) => void): () => void;
   onSettingsChanged(cb: (settings: AppSettings) => void): () => void;
@@ -94,7 +112,8 @@ export type WorkerInbound =
   | { type: 'start'; settings: ProxySettings; sslOptions?: { key: string; cert: string } }
   | { type: 'stop' }
   | { type: 'set-breakpoints'; rules: BreakpointRule[] }
-  | { type: 'resume-breakpoint'; id: number; params: BreakpointResume };
+  | { type: 'resume-breakpoint'; id: number; params: BreakpointResume }
+  | { type: 'set-proto-specs'; bundle: GrpcProtoBundle };
 
 export type WorkerOutbound =
   | { type: 'started'; port: number }

@@ -80,8 +80,85 @@ export interface TrafficEntry {
   response: ResponseView;
   timings: Timings;
   connectorError?: unknown;
+  /** Present when the call was detected as gRPC (content-type application/grpc*). */
+  grpc?: GrpcView;
   /** True when this entry came from replay_request rather than live proxying. */
   replay?: boolean;
+}
+
+/** One length-prefixed gRPC message, decoded against a proto type when one matched. */
+export interface GrpcMessage {
+  /** Decoded protobuf as plain JSON; undefined when no proto type matched. */
+  json?: unknown;
+  /** Raw protobuf bytes of this message (after the 5-byte gRPC frame header). */
+  raw?: Uint8Array;
+  /** True when the frame's compression flag was set. */
+  compressed?: boolean;
+  /** Set when protobuf decoding failed (raw bytes are still available). */
+  decodeError?: string;
+}
+
+/**
+ * gRPC-specific view of a captured call. Messages arrays grow as streaming
+ * frames arrive; a unary call has exactly one entry per direction.
+ */
+export interface GrpcView {
+  /** The :path pseudo-header, e.g. "/package.Service/Method". */
+  method: string;
+  requestMessages: GrpcMessage[];
+  responseMessages: GrpcMessage[];
+  /** grpc-status trailer (0 = OK). Undefined until trailers arrive. */
+  status?: number;
+  /** grpc-message trailer (human-readable status detail). */
+  statusMessage?: string;
+  /** Id of the ProtoSpec whose types decoded this call, when matched. */
+  matchedSpecId?: string;
+}
+
+/** A saved protobuf definition used to decode gRPC traffic. */
+export interface ProtoSpec {
+  id: string;
+  /** User-facing label. */
+  name: string;
+  /** 'proto' = raw .proto text; 'descriptor' = compiled FileDescriptorSet (.desc). */
+  source: 'proto' | 'descriptor';
+  /** File name under userData/proto holding the raw bytes. */
+  fileName: string;
+  /**
+   * Optional explicit method-path globs (e.g. "/myapp.Greeter/*") to scope this
+   * spec. Empty/undefined means match any method this spec defines.
+   */
+  methodGlobs?: string[];
+}
+
+export interface ProtoSpecCompileError {
+  id: string;
+  name: string;
+  error: string;
+}
+
+/** Resolves a gRPC `:path` to the protobuf types that decode its messages. */
+export interface GrpcMethodTypeRef {
+  specId: string;
+  /** Fully-qualified protobuf type name (no leading dot). */
+  requestType: string;
+  responseType: string;
+  /** Optional method-path globs scoping the owning spec. */
+  methodGlobs?: string[];
+}
+
+/** One compiled spec as a serializable protobufjs namespace (INamespace). */
+export interface GrpcProtoSpecBundle {
+  id: string;
+  /** protobufjs INamespace (root.toJSON()); typed loosely to keep this module dependency-free. */
+  namespace: unknown;
+}
+
+/** Compiled proto specs shipped to the proxy worker for gRPC decoding. */
+export interface GrpcProtoBundle {
+  specs: GrpcProtoSpecBundle[];
+  /** gRPC path -> type refs. */
+  methodMap: Record<string, GrpcMethodTypeRef>;
 }
 
 export interface BreakpointRule {

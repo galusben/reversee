@@ -28,7 +28,8 @@ Full map with entry-point files and "common change → files to touch" recipes:
 **[docs/architecture.md](docs/architecture.md)**.
 
 - `src/main/` — Electron main: lifecycle, windows, menu, settings, proxy host,
-  certs, updater, and `mcp/` (control socket + handlers + tool catalog).
+  certs, updater, `mcp/` (control socket + handlers + tool catalog), and `proto/`
+  (gRPC proto-spec store + protobufjs compile).
 - `src/preload/` — the only renderer bridge; typed `RevAPI`, allowlisted IPC.
 - `src/renderer/` — React UI (Zustand stores, Tailwind, Radix).
 - `src/proxy/` — the proxy core (`core/`, plain Node, **no Electron imports**) +

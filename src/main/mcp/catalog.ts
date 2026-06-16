@@ -245,6 +245,45 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
     inputSchema: noInput,
   },
   {
+    name: 'list_proto_specs',
+    description:
+      'List saved protobuf specs used to decode gRPC traffic (id, name, source) plus any compile errors.',
+    inputSchema: noInput,
+  },
+  {
+    name: 'add_proto_spec',
+    description:
+      'Save a protobuf spec for decoding gRPC traffic. Provide raw .proto text (source "proto") or a ' +
+      'base64-encoded FileDescriptorSet (source "descriptor"). Returns the updated spec list and compile errors. ' +
+      'Requires "Allow MCP to Control the Proxy" enabled in the app.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Label for the spec' },
+        source: { type: 'string', enum: ['proto', 'descriptor'], description: 'Content kind' },
+        content: {
+          type: 'string',
+          description: '.proto text for source "proto"; base64 FileDescriptorSet for "descriptor"',
+        },
+      },
+      required: ['name', 'source', 'content'],
+      additionalProperties: false,
+    },
+    mutating: true,
+  },
+  {
+    name: 'remove_proto_spec',
+    description:
+      'Delete a saved protobuf spec by id. Requires "Allow MCP to Control the Proxy" enabled in the app.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string', description: 'Spec id from list_proto_specs' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+    mutating: true,
+  },
+  {
     name: 'validate_setup',
     description: 'Run setup checks: destination configured, ports valid, root certificate present, proxy process state.',
     inputSchema: noInput,

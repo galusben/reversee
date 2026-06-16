@@ -20,6 +20,11 @@ the desktop UI, and agents through the Model Context Protocol.
   sandboxed and don't crash the proxy.
 - **Breakpoints** — hold requests matching a URL regex + HTTP methods; held requests
   land in a FIFO queue where you edit URL/headers/body and resume.
+- **gRPC proto specs** — import `.proto` files or compiled `.desc` FileDescriptorSets
+  (*gRPC → Proto Specs*); Reversee compiles them (protobufjs, no `protoc`) and uses
+  them to decode gRPC messages into JSON, matched by method
+  (`/package.Service/Method`). Spec management and the decode engine ship now; live
+  native-gRPC (HTTP/2) capture is the next milestone.
 - **Connect AI** — a dialog with the `npx reversee-mcp` setup, plus the toggle that
   gates agent control.
 - **Root CA trust** — a locally generated root certificate so HTTPS interception is
@@ -61,12 +66,20 @@ Agents drive the running app through the `reversee-mcp` stdio bridge. Setup is i
 | `stop_proxy` | Stop the proxy. | **yes** |
 | `restart_proxy` | Restart the worker (recovers a wedged interceptor). | **yes** |
 | `list_traffic` | Paged captured requests; bodies elided. | no |
-| `get_traffic_entry` | One request in full: headers, bodies, timings, curl. | no |
+| `search_traffic` | Filter requests server-side (method, status, URL/regex, content-type, header, body, timing, errors). | no |
+| `summarize_session` | Aggregate view: status classes, methods, content types, top hosts, errors, slowest. | no |
+| `get_traffic_entry` | One request in full: headers, bodies, timings, curl, upstream target, decoded JWTs, decoded gRPC. | no |
+| `replay_request` | Re-send a captured request with optional edits (method/url/headers/body). | **yes** |
+| `set_interceptor` | Install request/response interceptor JS for mocking / fault injection. | **yes** |
+| `decode_jwt` | Decode a JWT's header and claims (inspection only). | no |
 | `list_breakpoints` | The configured breakpoint rules. | no |
+| `list_proto_specs` | Saved protobuf specs used to decode gRPC, plus compile errors. | no |
+| `add_proto_spec` | Save a protobuf spec (`.proto` text or base64 FileDescriptorSet) for gRPC decoding. | **yes** |
+| `remove_proto_spec` | Delete a saved protobuf spec by id. | **yes** |
 | `validate_setup` | Setup checks: destination, ports, root cert, proxy process. | no |
 | `export_diagnostics` | Versions, platform, settings, state, log location — for bug reports. | no |
 
-11 tools; the 4 marked mutating are gated.
+19 tools; the 8 marked mutating are gated.
 
 ### Headless mode
 

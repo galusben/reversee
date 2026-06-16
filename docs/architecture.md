@@ -59,6 +59,7 @@ System integration, state, and the MCP control surface.
 | `updater.ts` | electron-updater auto-update integration. |
 | `certs/certs.ts` | Root CA generation/persistence (node-forge) for HTTPS interception. |
 | `cli-args.ts` | CLI flag parsing (`--headless`, `--allow-mcp-control`). |
+| `proto/proto-store.ts` | gRPC proto-spec store: hybrid storage (metadata `index.json` + `.proto`/`.desc` files under `userData/proto/`) and `compile()` (protobufjs) producing the worker bundle. |
 
 ### `src/main/mcp/` — control socket + tool catalog
 
@@ -81,9 +82,11 @@ Entry: `src/renderer/src/main.tsx` → `App.tsx`.
 - **Stores** (`src/renderer/src/stores/`): `proxyStore.ts` (traffic mirror, proxy
   state, settings), `breakpointStore.ts` (rules, FIFO hit queue, compile errors),
   `uiStore.ts` (dialog state).
+- **Stores** also include `protoSpecStore.ts` (saved gRPC proto specs + compile errors).
 - **Components** (`src/renderer/src/components/`): `SettingsBar.tsx`,
   `TrafficTable.tsx`, `DetailPanes.tsx`, `BreakpointsDialog.tsx`,
   `BreakpointQueue.tsx`, `InterceptorPanel.tsx`, `ConnectAiDialog.tsx`,
+  `ProtoSpecsDialog.tsx` (manage gRPC proto specs),
   `MonacoView.tsx` / `MonacoViewImpl.tsx` (JS editor for interceptors), and `ui/`
   (Radix-based primitives).
 
@@ -100,13 +103,38 @@ unit-tested headlessly — see [ADR 0001](adr/0001-electron-free-proxy-core.md).
 | `core/interceptor.ts` | VM-sandboxed JS execution for request/response mutation. |
 | `core/breakpoints.ts` | Regex compilation and URL + method matching. |
 | `core/curl.ts` | Builds copy-pasteable curl commands from captured requests. |
+| `core/grpc-frames.ts` | gRPC length-prefixed message framing (`[1B flag][4B len][protobuf]`), incremental `FrameAccumulator`, per-message gunzip, decode-against-type. |
+| `core/grpc-registry.ts` | Rebuilds the compiled proto bundle (from main) and resolves a gRPC `:path` to request/response message types. |
+
+## gRPC decoding
+
+Protobuf wire bytes carry only field numbers, so gRPC is unreadable without the
+schema. Reversee decodes it from user-supplied proto definitions, split across the
+process boundary to keep the proxy core Electron-free:
+
+- **Main** (`src/main/proto/proto-store.ts`) stores `.proto`/`.desc` specs and
+  `compile()`s them (protobufjs — no `protoc`) into a serializable bundle: one
+  namespace per spec plus a `/package.Service/Method` → type map. The bundle ships
+  to the worker via the `set-proto-specs` `WorkerInbound` message — the same
+  spec-compile-and-push pattern as breakpoints.
+- **Worker/core** (`src/proxy/core/grpc-registry.ts` + `grpc-frames.ts`) rebuilds
+  the bundle and, for a captured call, parses the length-prefixed frames and decodes
+  each against the resolved message type into JSON (`TrafficEntry.grpc`).
+- **Surfaced** to humans in `DetailPanes.tsx` and to agents via `get_traffic_entry`.
+  Specs are managed in the UI (`ProtoSpecsDialog`) and over MCP
+  (`list_proto_specs` / `add_proto_spec` / `remove_proto_spec`).
+
+`protobufjs` is bundled into both `index.js` and `proxyWorker.js` (electron-vite
+bundles deps). The HTTP/2 transport that captures live native gRPC is a follow-up;
+spec management and the decode engine land first, exercised by unit tests.
 
 ## `src/shared/` — cross-process contracts
 
 - `ipc.ts` — the `RevAPI` interface, `WorkerInbound`/`WorkerOutbound` message
   types, and IPC channel names (`domain:action`).
 - `types.ts` — core types: `ProxySettings`, `RequestParams`, `TrafficEntry`,
-  `BreakpointRule`, `Headers`, `Logger`.
+  `BreakpointRule`, `Headers`, `Logger`, and the gRPC types (`GrpcView`,
+  `ProtoSpec`, `GrpcProtoBundle`).
 - `settings-schema.ts` — `AppSettings` shape, defaults, and sanitization (port
   range, protocol enum, booleans).
 
@@ -134,6 +162,9 @@ app updates reach agents without republishing the bridge —
   (`src/proxy/core/`). Mention it in `update_config`'s description in `catalog.ts`.
 - **Change proxy behavior** — work in `src/proxy/core/` (keep it Electron-free) and
   the typed worker messages in `src/shared/ipc.ts`.
+- **Touch gRPC decoding** — framing/registry in `src/proxy/core/grpc-{frames,registry}.ts`
+  (Electron-free), spec storage + protobufjs compile in `src/main/proto/proto-store.ts`,
+  and the `set-proto-specs` worker message in `src/shared/ipc.ts`. See [gRPC decoding](#grpc-decoding).
 - **Add a UI panel** — add a component under `src/renderer/src/components/`, hold its
   state in a store under `src/renderer/src/stores/`, and add any new IPC through
   `src/preload/index.ts` + the channel allowlist + `src/shared/ipc.ts`.
