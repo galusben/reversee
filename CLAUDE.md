@@ -28,6 +28,16 @@ Four layers: unit/integration + MCP e2e (Vitest, `tests/unit/`), app e2e (Playwr
 - `src/renderer/` — React UI (Zustand stores, Tailwind, Radix).
 - `src/proxy/` — the proxy core (`core/`, plain Node, **no Electron imports** — enforced by ESLint so it stays headless-testable) + the `utilityProcess` worker.
 - `src/shared/` — cross-process types, IPC contracts, settings schema.
+- `src/main/proto/` — gRPC proto-spec store: hybrid storage (metadata `index.json` + `.proto`/`.desc` files under `userData/proto/`) and `compile()` (protobufjs) producing the worker bundle.
+
+## gRPC
+
+Reversee decodes gRPC using user-supplied protobuf definitions. The pieces:
+
+- **Proto specs** are managed in `src/main/proto/proto-store.ts` (CRUD + compile). `compile()` turns saved `.proto`/`.desc` specs into a serializable bundle (one protobufjs namespace per spec) plus a `/package.Service/Method` → type map, shipped to the worker via the `set-proto-specs` `WorkerInbound` message — the same pattern as breakpoints.
+- **Decoding** lives in the Electron-free core: `src/proxy/core/grpc-frames.ts` (length-prefixed `[1B flag][4B len][protobuf]` framing, incremental `FrameAccumulator`, per-message gunzip) and `src/proxy/core/grpc-registry.ts` (rebuilds the bundle and resolves a `:path` to request/response types). `protobufjs` is bundled into both `index.js` and `proxyWorker.js` (electron-vite bundles deps; no `protoc` needed).
+- **Spec management** is wired end-to-end like breakpoints: IPC (`protoSpecsGet/Import/Remove`) + preload + `ProtoSpecsDialog`/`protoSpecStore` (renderer) + the `*_proto_spec` MCP tools (gated mutations).
+- **Status:** spec management + the decode engine ship today; the HTTP/2 transport that captures live gRPC traffic is the next milestone (the proxy core is still HTTP/1.1). Decoding is exercised by unit tests until the transport lands.
 - `mcp/` — the `reversee-mcp` npm package (stdio MCP bridge). The **app owns the MCP tool catalog** (`src/main/mcp/catalog.ts`); the bridge fetches it at runtime, so new tools ship with app updates, not bridge republishes.
 
 ## Conventions
@@ -35,3 +45,4 @@ Four layers: unit/integration + MCP e2e (Vitest, `tests/unit/`), app e2e (Playwr
 - Releases are tag-driven: see [RELEASING.md](RELEASING.md). Don't hand-publish.
 - macOS builds are signed + notarized in CI; never commit secrets or certs.
 - Keep the proxy core Electron-free. Keep new MCP tools defined in the catalog (single source of truth for the bridge and the gated-mutation set).
+- gRPC decoding (framing, registry) belongs in `src/proxy/core/` (Electron-free, next to the bytes); proto-spec storage and `protobufjs` compilation belong in `src/main/proto/`. Keep them split so the core stays headless-testable.

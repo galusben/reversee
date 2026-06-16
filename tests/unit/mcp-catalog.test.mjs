@@ -13,12 +13,15 @@ describe('MCP tool catalog', () => {
     const names = MCP_TOOL_CATALOG.map((t) => t.name).sort();
     expect(names).toEqual(
       [
+        'add_proto_spec',
         'export_diagnostics',
         'get_config',
         'get_status',
         'get_traffic_entry',
         'list_breakpoints',
+        'list_proto_specs',
         'list_traffic',
+        'remove_proto_spec',
         'restart_proxy',
         'start_proxy',
         'stop_proxy',
@@ -42,7 +45,14 @@ describe('MCP tool catalog', () => {
 
   it('derives the mutating set from the catalog', () => {
     expect([...MCP_MUTATING_METHODS].sort()).toEqual(
-      ['restart_proxy', 'start_proxy', 'stop_proxy', 'update_config'].sort()
+      [
+        'add_proto_spec',
+        'remove_proto_spec',
+        'restart_proxy',
+        'start_proxy',
+        'stop_proxy',
+        'update_config',
+      ].sort()
     );
     // Read-only tools are not gated.
     expect(MCP_MUTATING_METHODS.has('get_status')).toBe(false);

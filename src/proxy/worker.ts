@@ -4,6 +4,7 @@
 // process.parentPort.
 import { createProxyServer, type ProxyServer } from './core/server';
 import { compileBreakpoints, matchBreakpoint, type CompiledBreakpoint } from './core/breakpoints';
+import { GrpcRegistry } from './core/grpc-registry';
 import type { RequestGate } from './core/server';
 import type { WorkerInbound, WorkerOutbound, BreakpointResume } from '../shared/ipc';
 import type { Logger, RequestParams } from '../shared/types';
@@ -32,6 +33,9 @@ function send(message: WorkerOutbound): void {
 
 let server: ProxyServer | null = null;
 let breakpoints: CompiledBreakpoint[] = [];
+// Holds the compiled proto specs used to decode gRPC traffic (consumed by the
+// HTTP/2 forwarder in M2).
+let grpcRegistry: GrpcRegistry | null = null;
 let nextHitId = 0;
 const halted = new Map<number, (params: RequestParams) => void>();
 
@@ -113,6 +117,10 @@ parentPort.on('message', (e) => {
     }
     case 'resume-breakpoint':
       resume(msg.id, msg.params);
+      break;
+    case 'set-proto-specs':
+      grpcRegistry = new GrpcRegistry(msg.bundle);
+      logger.info(`gRPC proto specs loaded: ${grpcRegistry.methodCount} method(s)`);
       break;
   }
 });

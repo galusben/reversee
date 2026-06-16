@@ -46,6 +46,19 @@ export const FALLBACK_CATALOG: ToolDef[] = [
     inputSchema: { type: 'object', properties: { trafficId: { type: 'integer' } }, required: ['trafficId'], additionalProperties: false },
   },
   { name: 'list_breakpoints', description: 'List the configured breakpoint rules.', inputSchema: noInput },
+  { name: 'list_proto_specs', description: 'List saved protobuf specs used to decode gRPC traffic, plus compile errors.', inputSchema: noInput },
+  {
+    name: 'add_proto_spec',
+    description: 'Save a protobuf spec (raw .proto text or base64 FileDescriptorSet) for decoding gRPC. Requires control enabled.',
+    inputSchema: { type: 'object', properties: { name: { type: 'string' }, source: { type: 'string', enum: ['proto', 'descriptor'] }, content: { type: 'string' } }, required: ['name', 'source', 'content'], additionalProperties: false },
+    mutating: true,
+  },
+  {
+    name: 'remove_proto_spec',
+    description: 'Delete a saved protobuf spec by id. Requires control enabled.',
+    inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false },
+    mutating: true,
+  },
   { name: 'validate_setup', description: 'Run setup checks (destination, ports, root cert, proxy process).', inputSchema: noInput },
   { name: 'export_diagnostics', description: 'Export diagnostics for bug reports.', inputSchema: noInput },
 ];

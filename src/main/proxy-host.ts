@@ -12,6 +12,7 @@ import type {
 import type {
   BreakpointCompileError,
   BreakpointRule,
+  GrpcProtoBundle,
   ProxySettings,
   TrafficEntry,
 } from '../shared/types';
@@ -33,6 +34,7 @@ export class ProxyHost {
   private proc: UtilityProcess | null = null;
   private running = false;
   private breakpointRules: BreakpointRule[] = [];
+  private protoBundle: GrpcProtoBundle | null = null;
   private lastStart: StartArgs | null = null;
   private pendingStart: { resolve(port: number): void; reject(err: ProxyErrorInfo): void } | null =
     null;
@@ -61,6 +63,7 @@ export class ProxyHost {
     });
     this.proc = proc;
     this.send({ type: 'set-breakpoints', rules: this.breakpointRules });
+    if (this.protoBundle) this.send({ type: 'set-proto-specs', bundle: this.protoBundle });
     return proc;
   }
 
@@ -119,6 +122,11 @@ export class ProxyHost {
   setBreakpoints(rules: BreakpointRule[]): void {
     this.breakpointRules = rules;
     if (this.proc) this.send({ type: 'set-breakpoints', rules });
+  }
+
+  setProtoSpecs(bundle: GrpcProtoBundle): void {
+    this.protoBundle = bundle;
+    if (this.proc) this.send({ type: 'set-proto-specs', bundle });
   }
 
   resumeBreakpoint(id: number, params: BreakpointResume): void {

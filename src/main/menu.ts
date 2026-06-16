@@ -77,6 +77,15 @@ export function createMenu(
       ],
     },
     {
+      label: 'gRPC',
+      submenu: [
+        {
+          label: 'Proto Specs…',
+          click: () => win.webContents.send(IPC.openProtoSpecsEvent),
+        },
+      ],
+    },
+    {
       label: 'Proxy Settings',
       submenu: [
         {
