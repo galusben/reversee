@@ -14,6 +14,7 @@
 // HTTP/1.1 is not served in gRPC mode — mixing the native 'stream' API (needed
 // for trailers) with the HTTP/1.1 compatibility layer double-sends trailers.
 import http2 from 'node:http2';
+import { randomUUID } from 'node:crypto';
 import { FrameAccumulator, decodeFrame } from './grpc-frames';
 import type { ResolvedMethod } from './grpc-registry';
 import type { ProxyServer, SslOptions } from './server';
@@ -30,7 +31,8 @@ import type {
 
 export interface Http2ProxyServerOptions {
   settings: ProxySettings;
-  notify: (entry: TrafficEntry) => void;
+  /** streamId correlates repeated notifies for one call so main upserts in place. */
+  notify: (entry: TrafficEntry, streamId?: string) => void;
   sslOptions?: SslOptions;
   /** Resolves a gRPC `:path` to the message types that decode its frames. */
   resolveMethod?: (path: string) => ResolvedMethod | undefined;
@@ -122,7 +124,7 @@ export function createHttp2ProxyServer(options: Http2ProxyServerOptions): ProxyS
 
 interface ForwardContext {
   settings: ProxySettings;
-  notify: (entry: TrafficEntry) => void;
+  notify: (entry: TrafficEntry, streamId?: string) => void;
   logger: Logger;
   rejectUnauthorized: boolean;
   upstreamOrigin: string;
@@ -134,7 +136,11 @@ function forwardStream(
   headers: http2.IncomingHttpHeaders,
   ctx: ForwardContext
 ): void {
-  const { settings, notify, logger, resolveMethod } = ctx;
+  const { settings, logger, resolveMethod } = ctx;
+  // One id per call so main updates the same entry as streaming frames arrive,
+  // instead of appending a new row per notify.
+  const streamId = randomUUID();
+  const notify = (entry: TrafficEntry): void => ctx.notify(entry, streamId);
   const startAt = process.hrtime.bigint();
   const timings: Timings = { start: new Date() };
 

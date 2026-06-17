@@ -38,6 +38,17 @@ describe('TrafficStore', () => {
     expect(store.add(entry()).trafficId).toBe(3);
   });
 
+  it('update() replaces an entry in place without adding a row (streaming upsert)', () => {
+    const store = new TrafficStore();
+    const added = store.add(
+      entry({ response: { statusCode: 200, headers: {}, body: Buffer.from('a') } })
+    );
+    // A later streaming notify carries the same trafficId with grown data.
+    store.update({ ...added, response: { statusCode: 200, headers: {}, body: Buffer.from('ab') } });
+    expect(store.size).toBe(1);
+    expect(store.get(added.trafficId).response.body.toString()).toBe('ab');
+  });
+
   it('evicts the oldest entries beyond the cap', () => {
     const store = new TrafficStore(3);
     for (let i = 0; i < 5; i++) store.add(entry());

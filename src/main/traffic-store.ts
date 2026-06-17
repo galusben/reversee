@@ -39,6 +39,15 @@ export class TrafficStore {
     return entry;
   }
 
+  /** Replaces the entry with the same trafficId in place (for streaming updates). */
+  update(entry: TrafficEntry): TrafficEntry {
+    truncateBody(entry.request);
+    truncateBody(entry.response);
+    const index = this.entries.findIndex((e) => e.trafficId === entry.trafficId);
+    if (index >= 0) this.entries[index] = entry;
+    return entry;
+  }
+
   get(trafficId: number): TrafficEntry | undefined {
     return this.entries.find((e) => e.trafficId === trafficId);
   }
