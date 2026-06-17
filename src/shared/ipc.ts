@@ -118,7 +118,10 @@ export type WorkerInbound =
 export type WorkerOutbound =
   | { type: 'started'; port: number }
   | { type: 'stopped' }
-  | { type: 'traffic'; entry: TrafficEntry }
+  // streamId correlates repeated notifies for one long-lived call (gRPC
+  // streaming) so main updates the same entry in place instead of appending a
+  // new row per frame. Absent for one-shot HTTP/1.1 entries.
+  | { type: 'traffic'; entry: TrafficEntry; streamId?: string }
   | { type: 'server-error'; error: ProxyErrorInfo }
   | { type: 'breakpoint-hit'; hit: BreakpointHit }
   | { type: 'breakpoint-errors'; errors: BreakpointCompileError[] };

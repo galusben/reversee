@@ -51,15 +51,33 @@ function sendToRenderer(channel: string, payload: unknown): void {
 const trafficStore = new TrafficStore();
 const protoStore = new ProtoStore(path.join(app.getPath('userData'), 'proto'));
 
-/** Store an entry (assigning its stable id) and push it to the renderer. */
-function recordTraffic(entry: TrafficEntry): TrafficEntry {
+// Correlates a worker streamId to the main-assigned trafficId so repeated
+// notifies for one streaming call update the same entry instead of appending.
+const streamToTrafficId = new Map<string, number>();
+
+/**
+ * Store an entry and push it to the renderer. With a `streamId` (a long-lived
+ * gRPC call) the first notify appends a new entry and later notifies update it
+ * in place; without one (one-shot HTTP requests, replays) it always appends.
+ */
+function recordTraffic(entry: TrafficEntry, streamId?: string): TrafficEntry {
+  if (streamId !== undefined) {
+    const existing = streamToTrafficId.get(streamId);
+    if (existing !== undefined) {
+      entry.trafficId = existing;
+      const updated = trafficStore.update(entry);
+      sendToRenderer(IPC.trafficEvent, updated);
+      return updated;
+    }
+  }
   const stored = trafficStore.add(entry);
+  if (streamId !== undefined) streamToTrafficId.set(streamId, stored.trafficId);
   sendToRenderer(IPC.trafficEvent, stored);
   return stored;
 }
 
 const proxyHost = new ProxyHost({
-  onTraffic: (entry) => recordTraffic(entry),
+  onTraffic: (entry, streamId) => recordTraffic(entry, streamId),
   onStateChanged: (running, port) => sendToRenderer(IPC.proxyStateEvent, { running, port }),
   onServerError: (error) => sendToRenderer(IPC.proxyErrorEvent, error),
   onBreakpointHit: (hit) => sendToRenderer(IPC.breakpointHitEvent, hit),
@@ -119,6 +137,7 @@ function registerIpc(): void {
   ipcMain.handle(IPC.trafficGetAll, () => trafficStore.getAll());
   ipcMain.handle(IPC.trafficClear, () => {
     trafficStore.clear();
+    streamToTrafficId.clear();
     sendToRenderer(IPC.trafficClearedEvent, undefined);
   });
   ipcMain.handle(IPC.clipboardWrite, (_event, text: unknown) => {
@@ -253,6 +272,7 @@ if (!gotLock) {
       onResetCache: (): void => {
         resetCache();
         trafficStore.clear();
+        streamToTrafficId.clear();
         sendToRenderer(IPC.trafficClearedEvent, undefined);
       },
     };

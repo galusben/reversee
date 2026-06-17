@@ -48,6 +48,7 @@
           "Traffic inspection: headers, bodies, timings, copy-as-curl",
           "Request and response interceptors (JavaScript)",
           "Breakpoints: hold, edit, and resume requests",
+          "gRPC over HTTP/2: proxy and decode unary and streaming calls from .proto/.desc",
           "Redirect and host-header rewriting",
           "Locally generated, trustable root certificate",
           "MCP server for AI agents (Claude Code, Cursor)",
@@ -213,6 +214,7 @@
         </a>
         <nav class="nav-links">
           <a href="#features">Features</a>
+          <a href="#grpc">gRPC</a>
           <a href="#ai">For AI agents</a>
           <a href="#install">Install</a>
           <a href="https://github.com/galusben/reversee#readme">Docs</a>
@@ -270,6 +272,11 @@
               <p>Hold requests matching a URL pattern, edit the URL, headers, and body, then continue.</p>
             </div>
             <div class="card">
+              <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l2 5 4-10 2 5h6"/></svg></div>
+              <h3>gRPC</h3>
+              <p>Proxy native gRPC over HTTP/2 and decode every message — unary and streaming — into readable JSON from your <code>.proto</code>/<code>.desc</code>.</p>
+            </div>
+            <div class="card">
               <div class="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5"/></svg></div>
               <h3>Redirect &amp; host rewriting</h3>
               <p>Keep redirect chains and Host headers pointed back at the proxy so flows just work.</p>
@@ -279,6 +286,24 @@
               <h3>Copy as curl &amp; export</h3>
               <p>Reproduce any captured request as a curl command, and export diagnostics in a click.</p>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="grpc" class="section-soft">
+        <div class="wrap">
+          <h2 class="section-title">Debug gRPC, decoded</h2>
+          <p class="section-sub">
+            Turn on gRPC and Reversee runs an HTTP/2 listener (h2 via ALPN, or cleartext h2c).
+            Import your <code>.proto</code> or compiled <code>.desc</code> and every message — unary and
+            server/client/bidi streaming — is decoded to JSON, matched by method, with the
+            <code>grpc-status</code> on each row.
+          </p>
+          <div class="shot">
+            <img
+              src="./screenshots/grpc-decoded.png"
+              alt="Reversee decoding gRPC: a traffic table of gRPC calls with grpc-status, and a detail pane showing the request and response protobuf messages as JSON."
+            />
           </div>
         </div>
       </section>

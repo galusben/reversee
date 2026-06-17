@@ -18,7 +18,7 @@ import type {
 } from '../shared/types';
 
 export interface ProxyHostEvents {
-  onTraffic(entry: TrafficEntry): void;
+  onTraffic(entry: TrafficEntry, streamId?: string): void;
   onStateChanged(running: boolean, port?: number): void;
   onServerError(error: ProxyErrorInfo): void;
   onBreakpointHit(hit: BreakpointHit): void;
@@ -84,7 +84,7 @@ export class ProxyHost {
         this.events.onStateChanged(false);
         break;
       case 'traffic':
-        this.events.onTraffic(msg.entry);
+        this.events.onTraffic(msg.entry, msg.streamId);
         break;
       case 'server-error':
         this.pendingStart?.reject(msg.error);

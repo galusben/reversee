@@ -66,7 +66,8 @@ async function start(msg: Extract<WorkerInbound, { type: 'start' }>): Promise<vo
   }
   const onServerError = (err: NodeJS.ErrnoException): void =>
     send({ type: 'server-error', error: { code: err.code, message: err.message } });
-  const notify = (entry: TrafficEntry): void => send({ type: 'traffic', entry });
+  const notify = (entry: TrafficEntry, streamId?: string): void =>
+    send({ type: 'traffic', entry, streamId });
 
   // gRPC needs HTTP/2 + trailers, which the HTTP/1.1 server can't do. When
   // enabled we run the HTTP/2 server and inject the proto registry so captured
