@@ -43,6 +43,8 @@ Every captured request has a stable, monotonic `trafficId` (never reset across c
 
 The Reversee app owns the tool catalog and serves it to the bridge at startup, so tools added in app updates reach agents automatically without reinstalling `reversee-mcp`.
 
+Full tool reference (every tool, exact parameters, verbatim descriptions, and agent workflows): https://galusben.github.io/reversee/mcp.html — Markdown source: https://github.com/galusben/reversee/blob/main/docs/mcp-tools.md
+
 Headless mode (agent- or CI-driven, no UI):
 - `reversee --headless --allow-mcp-control` runs with no window on just the proxy + MCP socket, until killed.
 - Use a separate `REVERSEE_USER_DATA` directory to isolate an agent's instance from a GUI instance (each gets its own control socket).
@@ -65,3 +67,4 @@ Headless mode (agent- or CI-driven, no UI):
 - [Testing](https://github.com/galusben/reversee/blob/main/TESTING.md): the test layers and how they map to CI.
 - [Releasing](https://github.com/galusben/reversee/blob/main/RELEASING.md): the tag-driven release pipeline.
 - [reversee-mcp package](https://github.com/galusben/reversee/blob/main/mcp/README.md): the MCP bridge's tools and security model.
+- [MCP tools reference](https://github.com/galusben/reversee/blob/main/docs/mcp-tools.md): every MCP tool with exact parameters, verbatim descriptions, examples, and agent workflows ([web version](https://galusben.github.io/reversee/mcp.html)).

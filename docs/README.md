@@ -16,7 +16,9 @@ entry points, then dive into the topic you need.
   source area with its entry-point files, and "common change → files to touch"
   recipes.
 - **[features.md](features.md)** — what humans can do in the UI and what agents
-  can do over MCP (the 11 tools + the gated-mutation model).
+  can do over MCP (the tool summary + the gated-mutation model).
+- **[mcp-tools.md](mcp-tools.md)** — the full MCP tool reference: every tool with
+  exact parameters, verbatim descriptions, examples, and agent workflows.
 - **[conventions.md](conventions.md)** — coding/process conventions and the map of
   related repositories and artifacts.
 - **[adr/](adr/README.md)** — Architecture Decision Records: the key decisions and
