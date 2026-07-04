@@ -56,7 +56,8 @@ Agents drive the running app through the `reversee-mcp` stdio bridge. Setup is i
 
 > Source of truth: `MCP_TOOL_CATALOG` in
 > [`src/main/mcp/catalog.ts`](../src/main/mcp/catalog.ts). The table below is a
-> summary — the catalog has the exact input schemas and descriptions.
+> summary; **[mcp-tools.md](mcp-tools.md)** is the full reference (exact
+> parameters, verbatim descriptions, examples, and agent workflows).
 
 | Tool | Purpose | Mutating? |
 | --- | --- | --- |
