@@ -4,11 +4,7 @@ import net from 'node:net';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {
-  startControlServer,
-  socketPathFor,
-  tokenPathFor,
-} from '../../src/main/mcp/control-server';
+import { startControlServer, socketPathFor, tokenPathFor } from '../../src/main/mcp/control-server';
 
 let dir;
 let server;

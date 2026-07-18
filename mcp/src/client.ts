@@ -107,7 +107,11 @@ export class ReverseeClient {
               sawHello = true;
               socket.write(JSON.stringify({ id: 1, method, params }) + '\n');
             } else {
-              fail(new ControlCallError((message['error'] as ControlError) ?? { message: 'handshake rejected' }));
+              fail(
+                new ControlCallError(
+                  (message['error'] as ControlError) ?? { message: 'handshake rejected' }
+                )
+              );
             }
             continue;
           }

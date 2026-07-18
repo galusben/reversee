@@ -23,7 +23,10 @@ export interface DecodedJwt {
 const JWT_RE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/;
 
 /** Decodes a JWT string, or returns null if it is not a well-formed JWT. */
-export function decodeJwt(token: string, nowSeconds = Math.floor(Date.now() / 1000)): DecodedJwt | null {
+export function decodeJwt(
+  token: string,
+  nowSeconds = Math.floor(Date.now() / 1000)
+): DecodedJwt | null {
   const t = token.trim();
   if (!JWT_RE.test(t)) return null;
   const [h, p] = t.split('.');
@@ -35,7 +38,12 @@ export function decodeJwt(token: string, nowSeconds = Math.floor(Date.now() / 10
   } catch {
     return null;
   }
-  if (typeof header !== 'object' || header === null || typeof payload !== 'object' || payload === null) {
+  if (
+    typeof header !== 'object' ||
+    header === null ||
+    typeof payload !== 'object' ||
+    payload === null
+  ) {
     return null;
   }
   const out: DecodedJwt = { header, payload };

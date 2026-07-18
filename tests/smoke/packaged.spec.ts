@@ -30,7 +30,9 @@ test('packaged app launches, exposes the API, reports the expected version', asy
       'object'
     );
 
-    const version = await page.evaluate(() => (window as { reversee: { getVersion(): Promise<string> } }).reversee.getVersion());
+    const version = await page.evaluate(() =>
+      (window as { reversee: { getVersion(): Promise<string> } }).reversee.getVersion()
+    );
     if (EXPECTED_VERSION) {
       expect(version).toBe(EXPECTED_VERSION);
     } else {

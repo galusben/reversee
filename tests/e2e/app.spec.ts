@@ -87,7 +87,13 @@ test('filter, summary, and JWT decode', async () => {
   });
   const listenPort = await freePort();
   launched = await launchApp({
-    settings: { dest: '127.0.0.1', destProtocol: 'http', destPort: upstream.port, listenProtocol: 'http', listenPort },
+    settings: {
+      dest: '127.0.0.1',
+      destProtocol: 'http',
+      destPort: upstream.port,
+      listenProtocol: 'http',
+      listenPort,
+    },
   });
   const { page } = launched;
   await page.getByRole('button', { name: 'Start' }).click();
@@ -187,7 +193,10 @@ test('breakpoint holds a request, edits flow to the upstream', async () => {
   await page.getByText('+ add header').click();
   const lastRow = page.getByLabel(/Header \d+ name/).last();
   await lastRow.fill('x-breakpoint');
-  await page.getByLabel(/Header \d+ value/).last().fill('edited');
+  await page
+    .getByLabel(/Header \d+ value/)
+    .last()
+    .fill('edited');
   await page.getByRole('button', { name: 'Continue' }).click();
 
   const res = await pending;

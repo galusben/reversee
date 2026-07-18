@@ -6,8 +6,8 @@ the desktop UI, and agents through the Model Context Protocol.
 ## Human / UI
 
 - **Configure the proxy** — listen protocol (http/https) + port, destination
-  protocol + host + port. Toggles: *rewrite host* (override the Host header),
-  *rewrite redirects* (rewrite 3xx `Location`), *allow self-signed upstream*.
+  protocol + host + port. Toggles: _rewrite host_ (override the Host header),
+  _rewrite redirects_ (rewrite 3xx `Location`), _allow self-signed upstream_.
 - **Start / stop** — from the settings bar; status shows the listen port or the
   error (e.g. `EADDRINUSE`).
 - **Inspect traffic** — a table of method / URL / status / content-type; click a row
@@ -20,9 +20,9 @@ the desktop UI, and agents through the Model Context Protocol.
   sandboxed and don't crash the proxy.
 - **Breakpoints** — hold requests matching a URL regex + HTTP methods; held requests
   land in a FIFO queue where you edit URL/headers/body and resume.
-- **gRPC** — check *gRPC* in the settings bar to run an HTTP/2 listener (h2 via ALPN
+- **gRPC** — check _gRPC_ in the settings bar to run an HTTP/2 listener (h2 via ALPN
   on https, cleartext h2c on http) that proxies native gRPC. Import `.proto`/`.desc`
-  definitions (*gRPC → Proto Specs*; protobufjs, no `protoc`) and every message —
+  definitions (_gRPC → Proto Specs_; protobufjs, no `protoc`) and every message —
   unary and server/client/bidi streaming — is decoded into JSON in the detail pane's
   gRPC tab, with the `grpc-status` shown on the row. Matched by method
   (`/package.Service/Method`). gRPC mode is HTTP/2-only on that port.
@@ -59,27 +59,27 @@ Agents drive the running app through the `reversee-mcp` stdio bridge. Setup is i
 > summary; **[mcp-tools.md](mcp-tools.md)** is the full reference (exact
 > parameters, verbatim descriptions, examples, and agent workflows).
 
-| Tool | Purpose | Mutating? |
-| --- | --- | --- |
-| `get_status` | App version, proxy run state, listen/dest config, traffic & breakpoint counts. | no |
-| `get_config` | Full proxy configuration. | no |
-| `update_config` | Patch the configuration (partial settings object). | **yes** |
-| `start_proxy` | Start the proxy with the current config. | **yes** |
-| `stop_proxy` | Stop the proxy. | **yes** |
-| `restart_proxy` | Restart the worker (recovers a wedged interceptor). | **yes** |
-| `list_traffic` | Paged captured requests; bodies elided. | no |
-| `search_traffic` | Filter requests server-side (method, status, URL/regex, content-type, header, body, timing, errors). | no |
-| `summarize_session` | Aggregate view: status classes, methods, content types, top hosts, errors, slowest. | no |
-| `get_traffic_entry` | One request in full: headers, bodies, timings, curl, upstream target, decoded JWTs, decoded gRPC. | no |
-| `replay_request` | Re-send a captured request with optional edits (method/url/headers/body). | **yes** |
-| `set_interceptor` | Install request/response interceptor JS for mocking / fault injection. | **yes** |
-| `decode_jwt` | Decode a JWT's header and claims (inspection only). | no |
-| `list_breakpoints` | The configured breakpoint rules. | no |
-| `list_proto_specs` | Saved protobuf specs used to decode gRPC, plus compile errors. | no |
-| `add_proto_spec` | Save a protobuf spec (`.proto` text or base64 FileDescriptorSet) for gRPC decoding. | **yes** |
-| `remove_proto_spec` | Delete a saved protobuf spec by id. | **yes** |
-| `validate_setup` | Setup checks: destination, ports, root cert, proxy process. | no |
-| `export_diagnostics` | Versions, platform, settings, state, log location — for bug reports. | no |
+| Tool                 | Purpose                                                                                              | Mutating? |
+| -------------------- | ---------------------------------------------------------------------------------------------------- | --------- |
+| `get_status`         | App version, proxy run state, listen/dest config, traffic & breakpoint counts.                       | no        |
+| `get_config`         | Full proxy configuration.                                                                            | no        |
+| `update_config`      | Patch the configuration (partial settings object).                                                   | **yes**   |
+| `start_proxy`        | Start the proxy with the current config.                                                             | **yes**   |
+| `stop_proxy`         | Stop the proxy.                                                                                      | **yes**   |
+| `restart_proxy`      | Restart the worker (recovers a wedged interceptor).                                                  | **yes**   |
+| `list_traffic`       | Paged captured requests; bodies elided.                                                              | no        |
+| `search_traffic`     | Filter requests server-side (method, status, URL/regex, content-type, header, body, timing, errors). | no        |
+| `summarize_session`  | Aggregate view: status classes, methods, content types, top hosts, errors, slowest.                  | no        |
+| `get_traffic_entry`  | One request in full: headers, bodies, timings, curl, upstream target, decoded JWTs, decoded gRPC.    | no        |
+| `replay_request`     | Re-send a captured request with optional edits (method/url/headers/body).                            | **yes**   |
+| `set_interceptor`    | Install request/response interceptor JS for mocking / fault injection.                               | **yes**   |
+| `decode_jwt`         | Decode a JWT's header and claims (inspection only).                                                  | no        |
+| `list_breakpoints`   | The configured breakpoint rules.                                                                     | no        |
+| `list_proto_specs`   | Saved protobuf specs used to decode gRPC, plus compile errors.                                       | no        |
+| `add_proto_spec`     | Save a protobuf spec (`.proto` text or base64 FileDescriptorSet) for gRPC decoding.                  | **yes**   |
+| `remove_proto_spec`  | Delete a saved protobuf spec by id.                                                                  | **yes**   |
+| `validate_setup`     | Setup checks: destination, ports, root cert, proxy process.                                          | no        |
+| `export_diagnostics` | Versions, platform, settings, state, log location — for bug reports.                                 | no        |
 
 19 tools; the 8 marked mutating are gated.
 

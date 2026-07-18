@@ -30,7 +30,9 @@ const reqFrame = (text) => encodeGrpcFrame(Buffer.from(EchoRequest.encode({ text
 const replyFrame = (text) => encodeGrpcFrame(Buffer.from(EchoReply.encode({ text }).finish()));
 
 function listen(server) {
-  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port)));
+  return new Promise((resolve) =>
+    server.listen(0, '127.0.0.1', () => resolve(server.address().port))
+  );
 }
 
 // A minimal gRPC server over h2c that reads the request message and replies
@@ -48,14 +50,24 @@ function startGrpcUpstream() {
       if (path === '/test.Echo/Boom') {
         // Trailers-Only: status rides in the response HEADERS, END_STREAM.
         stream.respond(
-          { ':status': '200', 'content-type': 'application/grpc', 'grpc-status': '5', 'grpc-message': 'not found' },
+          {
+            ':status': '200',
+            'content-type': 'application/grpc',
+            'grpc-status': '5',
+            'grpc-message': 'not found',
+          },
           { endStream: true }
         );
         return;
       }
 
-      stream.respond({ ':status': '200', 'content-type': 'application/grpc+proto' }, { waitForTrailers: true });
-      stream.on('wantTrailers', () => stream.sendTrailers({ 'grpc-status': '0', 'grpc-message': 'OK' }));
+      stream.respond(
+        { ':status': '200', 'content-type': 'application/grpc+proto' },
+        { waitForTrailers: true }
+      );
+      stream.on('wantTrailers', () =>
+        stream.sendTrailers({ 'grpc-status': '0', 'grpc-message': 'OK' })
+      );
 
       if (path === '/test.Echo/ServerStream') {
         for (let i = 1; i <= 3; i++) stream.write(replyFrame(`${name} #${i}`));
@@ -92,7 +104,9 @@ function grpcCall(port, path, text) {
     stream.on('data', (c) => chunks.push(c));
     stream.on('end', () => {
       session.close();
-      const messages = parseGrpcFrames(Buffer.concat(chunks)).frames.map((f) => EchoReply.decode(f.data).text);
+      const messages = parseGrpcFrames(Buffer.concat(chunks)).frames.map(
+        (f) => EchoReply.decode(f.data).text
+      );
       resolve({ status, messages, trailers, raw: Buffer.concat(chunks) });
     });
     stream.on('error', reject);
@@ -101,7 +115,9 @@ function grpcCall(port, path, text) {
 }
 
 const resolveMethod = (path) =>
-  path.startsWith('/test.Echo/') ? { specId: 's1', requestType: EchoRequest, responseType: EchoReply } : undefined;
+  path.startsWith('/test.Echo/')
+    ? { specId: 's1', requestType: EchoRequest, responseType: EchoReply }
+    : undefined;
 
 let upstream;
 let proxy;
@@ -154,10 +170,18 @@ describe('gRPC over the HTTP/2 proxy', () => {
     expect(res.messages).toEqual(['bob #1', 'bob #2', 'bob #3']);
 
     const entry = latestFor('/test.Echo/ServerStream');
-    expect(entry.grpc.responseMessages.map((m) => m.json.text)).toEqual(['bob #1', 'bob #2', 'bob #3']);
+    expect(entry.grpc.responseMessages.map((m) => m.json.text)).toEqual([
+      'bob #1',
+      'bob #2',
+      'bob #3',
+    ]);
     expect(entry.grpc.status).toBe(0);
     // Raw response bytes pass through byte-for-byte.
-    const reframed = Buffer.concat([replyFrame('bob #1'), replyFrame('bob #2'), replyFrame('bob #3')]);
+    const reframed = Buffer.concat([
+      replyFrame('bob #1'),
+      replyFrame('bob #2'),
+      replyFrame('bob #3'),
+    ]);
     expect(Buffer.compare(res.raw, reframed)).toBe(0);
   });
 

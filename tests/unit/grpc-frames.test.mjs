@@ -71,7 +71,9 @@ describe('decodeFrame', () => {
   it('gunzips a compressed frame before decoding', () => {
     const payload = Buffer.from(Hello.encode({ name: 'gz', count: 1 }).finish());
     const gz = zlib.gzipSync(payload);
-    const [msg] = parseGrpcFrames(encodeGrpcFrame(gz, true)).frames.map((f) => decodeFrame(f, Hello));
+    const [msg] = parseGrpcFrames(encodeGrpcFrame(gz, true)).frames.map((f) =>
+      decodeFrame(f, Hello)
+    );
     expect(msg.json).toEqual({ name: 'gz', count: 1 });
   });
 

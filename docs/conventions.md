@@ -6,7 +6,7 @@ walkthrough is in [CONTRIBUTING.md](../CONTRIBUTING.md).
 ## Quality gates
 
 - **`npm run lint` and `npm run typecheck` must pass before committing** — both gate
-  CI, on the app *and* the `mcp/` workspace.
+  CI, on the app _and_ the `mcp/` workspace.
 - `npm run format` (prettier) keeps formatting consistent.
 
 ## Testing
@@ -43,13 +43,13 @@ Releases are **tag-driven** — never hand-publish. A `v*` tag drives a gated pi
 
 ## Related repositories and artifacts
 
-| Artifact | Where | Notes |
-| --- | --- | --- |
-| App source (this repo) | `galusben/reversee` | The Electron app + the `mcp/` workspace. |
-| Homebrew cask tap | `galusben/homebrew-reversee` | Auto-updated on stable releases by the release pipeline. |
-| MCP bridge (npm) | `reversee-mcp` | <https://www.npmjs.com/package/reversee-mcp>. Built from `mcp/`. |
-| Landing site | GitHub Pages from `docs/` | <https://galusben.github.io/reversee/>. |
-| Homepage | reversee.ninja | Marketing site. |
-| Releases | GitHub Releases | <https://github.com/galusben/reversee/releases>. |
+| Artifact               | Where                        | Notes                                                            |
+| ---------------------- | ---------------------------- | ---------------------------------------------------------------- |
+| App source (this repo) | `galusben/reversee`          | The Electron app + the `mcp/` workspace.                         |
+| Homebrew cask tap      | `galusben/homebrew-reversee` | Auto-updated on stable releases by the release pipeline.         |
+| MCP bridge (npm)       | `reversee-mcp`               | <https://www.npmjs.com/package/reversee-mcp>. Built from `mcp/`. |
+| Landing site           | GitHub Pages from `docs/`    | <https://galusben.github.io/reversee/>.                          |
+| Homepage               | reversee.ninja               | Marketing site.                                                  |
+| Releases               | GitHub Releases              | <https://github.com/galusben/reversee/releases>.                 |
 
 License: MIT.

@@ -6,7 +6,7 @@ Status: accepted
 
 Agents reach the app through the `reversee-mcp` stdio bridge, distributed on npm and
 typically run via `npx`. If the bridge hardcoded its tool list, every new or changed
-tool would require republishing the bridge *and* every user clearing their npx cache
+tool would require republishing the bridge _and_ every user clearing their npx cache
 and reinstalling — so the app and the agent surface would drift, and shipping a tool
 would be a two-package release.
 
@@ -24,7 +24,7 @@ had a hardcoded list).
 
 - Tools added in an app update reach agents automatically — no bridge republish, no
   npx cache dance.
-- `catalog.ts` is the single source of truth for tool definitions *and* which tools
+- `catalog.ts` is the single source of truth for tool definitions _and_ which tools
   are gated; the module is kept dependency-free so it can be unit-tested headlessly.
 - Adding a tool = catalog entry + `handlers.ts` implementation + a catalog test
   assertion (see [TESTING.md](../../TESTING.md)).

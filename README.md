@@ -8,7 +8,7 @@ Reversee sits between your client and a destination server. Point your client at
 
 ## Features
 
-- **HTTP and HTTPS** on both sides — listen on either protocol, forward to either protocol. HTTPS listening uses a locally generated root CA you can trust once (macOS: *Proxy Settings → Manage Root Cert*).
+- **HTTP and HTTPS** on both sides — listen on either protocol, forward to either protocol. HTTPS listening uses a locally generated root CA you can trust once (macOS: _Proxy Settings → Manage Root Cert_).
 - **Traffic inspection** — method, path, status, content type, headers, request/response bodies (plain and formatted), and per-request timings (DNS, TCP, TLS, first byte, total).
 - **Interceptors** — JavaScript snippets that rewrite requests (`requestParams`: host, path, method, port, headers, body) or responses (`responseParams`: statusCode, headers, body) on the fly.
 - **Breakpoints** — hold requests matching a URL regex + methods, edit the URL, headers, and body, then continue.
@@ -87,24 +87,24 @@ The package is published as [`reversee-mcp`](https://www.npmjs.com/package/rever
 
 ### Tools
 
-| Tool | Description |
-| --- | --- |
-| `get_status` | App version, proxy state, listen/destination config, traffic count |
-| `get_config` / `update_config` | Read / change the proxy configuration |
-| `start_proxy` / `stop_proxy` / `restart_proxy` | Control the proxy process |
-| `list_traffic` | Captured requests (newest last), bodies elided |
-| `search_traffic` | Filter requests server-side (method, status, URL/regex, content-type, header, body, timing, errors) — fetch only what matters |
-| `summarize_session` | Aggregate view: status classes, methods, content types, top hosts, errors, slowest |
-| `get_traffic_entry` | One request in full: headers, bodies, timings, curl, upstream target, decoded JWTs, and decoded gRPC |
-| `replay_request` | Re-send a captured request with optional edits (method/url/headers/body) to test a hypothesis |
-| `set_interceptor` | Install request/response interceptor JS for mocking or fault injection |
-| `decode_jwt` | Decode a JWT's header and claims (inspection only) |
-| `list_breakpoints` | The configured breakpoint rules |
-| `list_proto_specs` / `add_proto_spec` / `remove_proto_spec` | Manage protobuf specs used to decode gRPC (add/remove gated) |
-| `validate_setup` | Setup checks (destination, ports, root cert, proxy process) |
-| `export_diagnostics` | Versions, platform, settings, state — for bug reports |
+| Tool                                                        | Description                                                                                                                   |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `get_status`                                                | App version, proxy state, listen/destination config, traffic count                                                            |
+| `get_config` / `update_config`                              | Read / change the proxy configuration                                                                                         |
+| `start_proxy` / `stop_proxy` / `restart_proxy`              | Control the proxy process                                                                                                     |
+| `list_traffic`                                              | Captured requests (newest last), bodies elided                                                                                |
+| `search_traffic`                                            | Filter requests server-side (method, status, URL/regex, content-type, header, body, timing, errors) — fetch only what matters |
+| `summarize_session`                                         | Aggregate view: status classes, methods, content types, top hosts, errors, slowest                                            |
+| `get_traffic_entry`                                         | One request in full: headers, bodies, timings, curl, upstream target, decoded JWTs, and decoded gRPC                          |
+| `replay_request`                                            | Re-send a captured request with optional edits (method/url/headers/body) to test a hypothesis                                 |
+| `set_interceptor`                                           | Install request/response interceptor JS for mocking or fault injection                                                        |
+| `decode_jwt`                                                | Decode a JWT's header and claims (inspection only)                                                                            |
+| `list_breakpoints`                                          | The configured breakpoint rules                                                                                               |
+| `list_proto_specs` / `add_proto_spec` / `remove_proto_spec` | Manage protobuf specs used to decode gRPC (add/remove gated)                                                                  |
+| `validate_setup`                                            | Setup checks (destination, ports, root cert, proxy process)                                                                   |
+| `export_diagnostics`                                        | Versions, platform, settings, state — for bug reports                                                                         |
 
-`replay_request`, `set_interceptor`, `update_config`, `add_proto_spec`, `remove_proto_spec`, and the start/stop/restart tools are gated behind *Allow MCP to Control the Proxy* (or `--allow-mcp-control` headless); the rest are always available read-only.
+`replay_request`, `set_interceptor`, `update_config`, `add_proto_spec`, `remove_proto_spec`, and the start/stop/restart tools are gated behind _Allow MCP to Control the Proxy_ (or `--allow-mcp-control` headless); the rest are always available read-only.
 
 The app owns this list — it serves the catalog to the bridge at startup, so **tools added in an app update appear automatically** with no MCP-server reinstall (the bridge is a generic passthrough). When the app is not running, the bridge advertises a built-in fallback list and each call returns a "launch Reversee" message.
 
@@ -123,8 +123,8 @@ This touches only Reversee's `npx` cache; the next run pulls the latest publishe
 ### Security model
 
 - The bridge talks to the app over a **local socket** (unix domain socket / Windows named pipe), never a TCP port, with a per-boot token — only your user account can reach it.
-- It is **read-only by default**. `start_proxy`, `stop_proxy`, `restart_proxy`, `update_config`, `replay_request`, `set_interceptor`, `add_proto_spec`, and `remove_proto_spec` are rejected until you check *Proxy Settings → Allow MCP to Control the Proxy* in the app.
-- *Proxy Settings → Enable MCP Integration* turns the socket off entirely.
+- It is **read-only by default**. `start_proxy`, `stop_proxy`, `restart_proxy`, `update_config`, `replay_request`, `set_interceptor`, `add_proto_spec`, and `remove_proto_spec` are rejected until you check _Proxy Settings → Allow MCP to Control the Proxy_ in the app.
+- _Proxy Settings → Enable MCP Integration_ turns the socket off entirely.
 
 ### Headless mode (for agents)
 
@@ -138,7 +138,7 @@ REVERSEE_USER_DATA="$(mktemp -d)" reversee --headless --allow-mcp-control &
 Then point the MCP client at the same profile (`REVERSEE_USER_DATA`) and drive it. Flags:
 
 - `--headless` — no window/dock; runs on the MCP socket until killed. Implies MCP enabled.
-- `--allow-mcp-control` — the launch-time equivalent of *Allow MCP to Control the Proxy* (start/stop/configure).
+- `--allow-mcp-control` — the launch-time equivalent of _Allow MCP to Control the Proxy_ (start/stop/configure).
 - `--no-mcp` / `--allow-mcp` — force the socket off / on.
 
 Flags are session overrides and never change your saved settings. Using a separate `REVERSEE_USER_DATA` lets a headless agent instance coexist with your GUI instance (each gets its own control socket). On Linux a display is still required — wrap with `xvfb-run`.

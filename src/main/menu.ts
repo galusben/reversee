@@ -2,13 +2,7 @@
 // menu was read directly by the proxy at start time via the remote module);
 // snapshot-at-start semantics are preserved because settings are captured in
 // the proxy:start payload.
-import {
-  app,
-  Menu,
-  shell,
-  type BrowserWindow,
-  type MenuItemConstructorOptions,
-} from 'electron';
+import { app, Menu, shell, type BrowserWindow, type MenuItemConstructorOptions } from 'electron';
 import { IPC } from '../shared/ipc';
 import { getSettings, setSettings, onSettingsChanged, type RootCertPem } from './settings';
 import { certificateTrustDialog, exportRootCert } from './certs/certs';

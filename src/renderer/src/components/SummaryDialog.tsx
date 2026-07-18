@@ -11,10 +11,18 @@ function statusColor(cls: string): string {
   return 'text-emerald-700';
 }
 
-function Counts({ title, entries }: { title: string; entries: Array<[string, number]> }): React.JSX.Element {
+function Counts({
+  title,
+  entries,
+}: {
+  title: string;
+  entries: Array<[string, number]>;
+}): React.JSX.Element {
   return (
     <div>
-      <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">{title}</div>
+      <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+        {title}
+      </div>
       {entries.length === 0 ? (
         <div className="text-sm text-neutral-400">—</div>
       ) : (
@@ -59,12 +67,20 @@ export function SummaryDialog(): React.JSX.Element {
 
           <div className="grid grid-cols-3 gap-5">
             <Counts title="Status" entries={Object.entries(s.byStatusClass).sort()} />
-            <Counts title="Method" entries={Object.entries(s.byMethod).sort((a, b) => b[1] - a[1])} />
-            <Counts title="Content type" entries={Object.entries(s.contentTypes).sort((a, b) => b[1] - a[1])} />
+            <Counts
+              title="Method"
+              entries={Object.entries(s.byMethod).sort((a, b) => b[1] - a[1])}
+            />
+            <Counts
+              title="Content type"
+              entries={Object.entries(s.contentTypes).sort((a, b) => b[1] - a[1])}
+            />
           </div>
 
           <div className="mt-5">
-            <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">Top hosts</div>
+            <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+              Top hosts
+            </div>
             <ul className="space-y-1 text-sm">
               {s.hosts.slice(0, 6).map((h) => (
                 <li key={h.host} className="flex justify-between gap-3">
@@ -77,13 +93,18 @@ export function SummaryDialog(): React.JSX.Element {
 
           {s.slowest.length > 0 && (
             <div className="mt-5">
-              <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">Slowest</div>
+              <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                Slowest
+              </div>
               <ul className="space-y-1 text-sm">
                 {s.slowest.map((r) => (
                   <li key={r.trafficId}>
                     <button
                       type="button"
-                      onClick={() => { select(r.trafficId); setOpen(false); }}
+                      onClick={() => {
+                        select(r.trafficId);
+                        setOpen(false);
+                      }}
                       className="flex w-full justify-between gap-3 text-left hover:text-blue-600"
                     >
                       <span className="truncate">
@@ -107,7 +128,10 @@ export function SummaryDialog(): React.JSX.Element {
                   <li key={r.trafficId}>
                     <button
                       type="button"
-                      onClick={() => { select(r.trafficId); setOpen(false); }}
+                      onClick={() => {
+                        select(r.trafficId);
+                        setOpen(false);
+                      }}
                       className="flex w-full justify-between gap-3 text-left hover:text-blue-600"
                     >
                       <span className="truncate">

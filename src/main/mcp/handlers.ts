@@ -61,10 +61,19 @@ function trafficSummary(entry: TrafficEntry): Record<string, unknown> {
 // Filter keys accepted by search_traffic (mirrors TrafficFilter).
 function pickFilter(p: Record<string, unknown>): TrafficFilter {
   const f: TrafficFilter = {};
-  for (const k of ['text', 'method', 'urlContains', 'urlRegex', 'contentType', 'header', 'bodyContains'] as const) {
+  for (const k of [
+    'text',
+    'method',
+    'urlContains',
+    'urlRegex',
+    'contentType',
+    'header',
+    'bodyContains',
+  ] as const) {
     if (typeof p[k] === 'string') f[k] = p[k] as string;
   }
-  if (typeof p['status'] === 'string' || typeof p['status'] === 'number') f.status = p['status'] as string | number;
+  if (typeof p['status'] === 'string' || typeof p['status'] === 'number')
+    f.status = p['status'] as string | number;
   if (typeof p['minTotalMs'] === 'number') f.minTotalMs = p['minTotalMs'] as number;
   if (typeof p['hasError'] === 'boolean') f.hasError = p['hasError'] as boolean;
   return f;
@@ -166,7 +175,10 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
       const p = (params ?? {}) as Record<string, unknown>;
       const matched = filterTraffic(ctx.trafficStore.getAll(), pickFilter(p));
       const offset = Math.max(0, typeof p['offset'] === 'number' ? (p['offset'] as number) : 0);
-      const limit = Math.min(200, Math.max(1, typeof p['limit'] === 'number' ? (p['limit'] as number) : 50));
+      const limit = Math.min(
+        200,
+        Math.max(1, typeof p['limit'] === 'number' ? (p['limit'] as number) : 50)
+      );
       return {
         matched: matched.length,
         offset,
@@ -193,7 +205,8 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
       if (typeof p.trafficId !== 'number') throw new Error('trafficId (number) is required');
       const entry = ctx.trafficStore.get(p.trafficId);
       if (!entry) throw new Error(`no traffic entry with id ${p.trafficId}`);
-      if (!entry.request.target) throw new Error('that entry has no recorded upstream target to replay to');
+      if (!entry.request.target)
+        throw new Error('that entry has no recorded upstream target to replay to');
       const replayed = await replayRequest(
         {
           target: entry.request.target,

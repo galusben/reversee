@@ -86,7 +86,9 @@ export function ProtoSpecsDialog(): React.JSX.Element {
             </tbody>
           </table>
           {specs.length === 0 && (
-            <div className="py-3 text-center text-xs text-neutral-400">No proto specs imported.</div>
+            <div className="py-3 text-center text-xs text-neutral-400">
+              No proto specs imported.
+            </div>
           )}
         </Dialog.Content>
       </Dialog.Portal>

@@ -1,7 +1,7 @@
 # Architecture Decision Records
 
 An ADR captures one significant decision: its **context**, the **decision**, and the
-**consequences**. They explain *why* the code looks the way it does, so future
+**consequences**. They explain _why_ the code looks the way it does, so future
 changes don't relitigate settled trade-offs or quietly violate them. Format is
 [MADR](https://adr.github.io/madr/)-lite.
 

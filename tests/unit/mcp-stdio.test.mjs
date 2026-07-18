@@ -66,7 +66,9 @@ async function init(b) {
     capabilities: {},
     clientInfo: { name: 'test', version: '1' },
   });
-  b.proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
+  b.proc.stdin.write(
+    JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n'
+  );
 }
 
 describe('reversee-mcp bridge over stdio', () => {
@@ -81,13 +83,21 @@ describe('reversee-mcp bridge over stdio', () => {
         list_tools: () => ({
           tools: [
             { name: 'get_status', description: 'status', inputSchema: { type: 'object' } },
-            { name: 'demo_new_tool', description: 'a tool the bridge never shipped with', inputSchema: { type: 'object' } },
+            {
+              name: 'demo_new_tool',
+              description: 'a tool the bridge never shipped with',
+              inputSchema: { type: 'object' },
+            },
           ],
           recommendedBridge: '2.0.0',
         }),
         // Echo the handshake-reported bridge version, proving the bridge sends
         // it (the real app uses this to emit the upgrade advisory).
-        get_status: (_p, ctx) => ({ running: false, appVersion: '9.9.9-test', reportedBridge: ctx.bridgeVersion }),
+        get_status: (_p, ctx) => ({
+          running: false,
+          appVersion: '9.9.9-test',
+          reportedBridge: ctx.bridgeVersion,
+        }),
       },
     });
 

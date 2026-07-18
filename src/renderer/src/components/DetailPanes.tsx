@@ -111,11 +111,13 @@ function DecodedView({ tokens }: { tokens: FoundToken[] }): React.JSX.Element {
             )}
           </div>
           <pre className="overflow-auto p-2.5 font-mono text-xs leading-5">
-{JSON.stringify({ header: t.jwt.header, payload: t.jwt.payload }, null, 2)}
+            {JSON.stringify({ header: t.jwt.header, payload: t.jwt.payload }, null, 2)}
           </pre>
         </div>
       ))}
-      <p className="text-xs text-neutral-400">JWTs are decoded for inspection — signatures are not verified.</p>
+      <p className="text-xs text-neutral-400">
+        JWTs are decoded for inspection — signatures are not verified.
+      </p>
     </div>
   );
 }
