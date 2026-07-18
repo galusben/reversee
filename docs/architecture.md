@@ -48,26 +48,26 @@ Four boundaries, each typed:
 
 System integration, state, and the MCP control surface.
 
-| File | Responsibility |
-| --- | --- |
-| `index.ts` | App lifecycle, IPC registration, proxy startup, MCP socket init, headless mode (`--headless`). |
-| `proxy-host.ts` | Owns the proxy `utilityProcess`: spawn, message routing, restart, teardown. |
-| `settings.ts` | Persistence via electron-store; validation and change listeners. |
-| `traffic-store.ts` | Ring buffer (capped) of captured traffic entries. |
-| `windows.ts` | BrowserWindow creation and lifecycle. |
-| `menu.ts` | Application menu, including the MCP setup item and cache reset. |
-| `updater.ts` | electron-updater auto-update integration. |
-| `certs/certs.ts` | Root CA generation/persistence (node-forge) for HTTPS interception. |
-| `cli-args.ts` | CLI flag parsing (`--headless`, `--allow-mcp-control`). |
+| File                   | Responsibility                                                                                                                                                           |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `index.ts`             | App lifecycle, IPC registration, proxy startup, MCP socket init, headless mode (`--headless`).                                                                           |
+| `proxy-host.ts`        | Owns the proxy `utilityProcess`: spawn, message routing, restart, teardown.                                                                                              |
+| `settings.ts`          | Persistence via electron-store; validation and change listeners.                                                                                                         |
+| `traffic-store.ts`     | Ring buffer (capped) of captured traffic entries.                                                                                                                        |
+| `windows.ts`           | BrowserWindow creation and lifecycle.                                                                                                                                    |
+| `menu.ts`              | Application menu, including the MCP setup item and cache reset.                                                                                                          |
+| `updater.ts`           | electron-updater auto-update integration.                                                                                                                                |
+| `certs/certs.ts`       | Root CA generation/persistence (node-forge) for HTTPS interception.                                                                                                      |
+| `cli-args.ts`          | CLI flag parsing (`--headless`, `--allow-mcp-control`).                                                                                                                  |
 | `proto/proto-store.ts` | gRPC proto-spec store: hybrid storage (metadata `index.json` + `.proto`/`.desc` files under `userData/proto/`) and `compile()` (protobufjs) producing the worker bundle. |
 
 ### `src/main/mcp/` — control socket + tool catalog
 
-| File | Responsibility |
-| --- | --- |
-| `catalog.ts` | **The authoritative MCP tool catalog** + the bridge-version advisory. Single source of truth. |
+| File                | Responsibility                                                                                             |
+| ------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `catalog.ts`        | **The authoritative MCP tool catalog** + the bridge-version advisory. Single source of truth.              |
 | `control-server.ts` | Local socket / named pipe server; per-boot token auth; rejects mutating methods unless control is enabled. |
-| `handlers.ts` | Implements each tool, backed by main's stores. |
+| `handlers.ts`       | Implements each tool, backed by main's stores.                                                             |
 
 ## `src/preload/index.ts` — the renderer bridge
 
@@ -95,17 +95,17 @@ Entry: `src/renderer/src/main.tsx` → `App.tsx`.
 `core/` is plain Node with **no Electron imports** (ESLint-enforced) so it can be
 unit-tested headlessly — see [ADR 0001](adr/0001-electron-free-proxy-core.md).
 
-| File | Responsibility |
-| --- | --- |
-| `worker.ts` | `utilityProcess` entry; speaks typed messages over `parentPort`; owns breakpoint gating and server lifecycle. |
-| `core/server.ts` | HTTP/1.1 HTTP/HTTPS listener; buffers request bodies; calls the optional gate (breakpoints) then proxies. |
-| `core/proxy.ts` | Upstream connect, request/response forwarding, decompression, traffic recording. |
-| `core/http2.ts` | HTTP/2 listener used when `enableGrpc` is set; per-stream forward with gRPC frame decode both directions and grpc-status trailer capture (unary + streaming). |
-| `core/interceptor.ts` | VM-sandboxed JS execution for request/response mutation. |
-| `core/breakpoints.ts` | Regex compilation and URL + method matching. |
-| `core/curl.ts` | Builds copy-pasteable curl commands from captured requests. |
-| `core/grpc-frames.ts` | gRPC length-prefixed message framing (`[1B flag][4B len][protobuf]`), incremental `FrameAccumulator`, per-message gunzip, decode-against-type. |
-| `core/grpc-registry.ts` | Rebuilds the compiled proto bundle (from main) and resolves a gRPC `:path` to request/response message types. |
+| File                    | Responsibility                                                                                                                                                |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `worker.ts`             | `utilityProcess` entry; speaks typed messages over `parentPort`; owns breakpoint gating and server lifecycle.                                                 |
+| `core/server.ts`        | HTTP/1.1 HTTP/HTTPS listener; buffers request bodies; calls the optional gate (breakpoints) then proxies.                                                     |
+| `core/proxy.ts`         | Upstream connect, request/response forwarding, decompression, traffic recording.                                                                              |
+| `core/http2.ts`         | HTTP/2 listener used when `enableGrpc` is set; per-stream forward with gRPC frame decode both directions and grpc-status trailer capture (unary + streaming). |
+| `core/interceptor.ts`   | VM-sandboxed JS execution for request/response mutation.                                                                                                      |
+| `core/breakpoints.ts`   | Regex compilation and URL + method matching.                                                                                                                  |
+| `core/curl.ts`          | Builds copy-pasteable curl commands from captured requests.                                                                                                   |
+| `core/grpc-frames.ts`   | gRPC length-prefixed message framing (`[1B flag][4B len][protobuf]`), incremental `FrameAccumulator`, per-message gunzip, decode-against-type.                |
+| `core/grpc-registry.ts` | Rebuilds the compiled proto bundle (from main) and resolves a gRPC `:path` to request/response message types.                                                 |
 
 ## gRPC decoding
 
@@ -151,11 +151,11 @@ bundles deps). Breakpoint gating stays on the HTTP/1.1 path for now.
 
 ## `mcp/` — the `reversee-mcp` bridge (separate npm package)
 
-| File | Responsibility |
-| --- | --- |
-| `src/cli.ts` | stdio MCP server entry; fetches the catalog from the running app, falls back to the frozen copy. |
-| `src/client.ts` | ndjson client for the control socket; token auth, lifecycle, error recovery. |
-| `src/catalog.ts` | Frozen fallback catalog (used only when the app is down). |
+| File             | Responsibility                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------ |
+| `src/cli.ts`     | stdio MCP server entry; fetches the catalog from the running app, falls back to the frozen copy. |
+| `src/client.ts`  | ndjson client for the control socket; token auth, lifecycle, error recovery.                     |
+| `src/catalog.ts` | Frozen fallback catalog (used only when the app is down).                                        |
 
 The app owns the catalog and serves it to the bridge at startup, so tools added in
 app updates reach agents without republishing the bridge —

@@ -39,7 +39,9 @@ describe('GrpcRegistry', () => {
   it('resolves a known :path to message types and decodes a frame', () => {
     const resolved = registry.resolve('/greet.Greeter/SayHello');
     expect(resolved).toBeTruthy();
-    const wire = encodeGrpcFrame(Buffer.from(resolved.requestType.encode({ name: 'ada' }).finish()));
+    const wire = encodeGrpcFrame(
+      Buffer.from(resolved.requestType.encode({ name: 'ada' }).finish())
+    );
     const [msg] = decodeMessages(wire, resolved.requestType);
     expect(msg.json).toEqual({ name: 'ada' });
   });

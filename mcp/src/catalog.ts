@@ -24,43 +24,112 @@ const noInput = { type: 'object', properties: {}, additionalProperties: false };
 // the agent still sees a meaningful tool list. The app's copy is authoritative
 // whenever it is reachable, so drift here is harmless.
 export const FALLBACK_CATALOG: ToolDef[] = [
-  { name: 'get_status', description: 'Current Reversee state: app version, proxy running, config, traffic and breakpoint counts.', inputSchema: noInput },
+  {
+    name: 'get_status',
+    description:
+      'Current Reversee state: app version, proxy running, config, traffic and breakpoint counts.',
+    inputSchema: noInput,
+  },
   { name: 'get_config', description: 'Full Reversee proxy configuration.', inputSchema: noInput },
   {
     name: 'update_config',
-    description: 'Update Reversee configuration (partial settings object). Requires "Allow MCP to Control the Proxy".',
-    inputSchema: { type: 'object', properties: { patch: { type: 'object' } }, required: ['patch'], additionalProperties: false },
+    description:
+      'Update Reversee configuration (partial settings object). Requires "Allow MCP to Control the Proxy".',
+    inputSchema: {
+      type: 'object',
+      properties: { patch: { type: 'object' } },
+      required: ['patch'],
+      additionalProperties: false,
+    },
     mutating: true,
   },
-  { name: 'start_proxy', description: 'Start the reverse proxy. Requires control enabled in the app.', inputSchema: noInput, mutating: true },
-  { name: 'stop_proxy', description: 'Stop the reverse proxy. Requires control enabled in the app.', inputSchema: noInput, mutating: true },
-  { name: 'restart_proxy', description: 'Restart the proxy worker. Requires control enabled in the app.', inputSchema: noInput, mutating: true },
+  {
+    name: 'start_proxy',
+    description: 'Start the reverse proxy. Requires control enabled in the app.',
+    inputSchema: noInput,
+    mutating: true,
+  },
+  {
+    name: 'stop_proxy',
+    description: 'Stop the reverse proxy. Requires control enabled in the app.',
+    inputSchema: noInput,
+    mutating: true,
+  },
+  {
+    name: 'restart_proxy',
+    description: 'Restart the proxy worker. Requires control enabled in the app.',
+    inputSchema: noInput,
+    mutating: true,
+  },
   {
     name: 'list_traffic',
     description: 'List captured requests (bodies elided).',
-    inputSchema: { type: 'object', properties: { offset: { type: 'integer', minimum: 0 }, limit: { type: 'integer', minimum: 1, maximum: 200 } }, additionalProperties: false },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        offset: { type: 'integer', minimum: 0 },
+        limit: { type: 'integer', minimum: 1, maximum: 200 },
+      },
+      additionalProperties: false,
+    },
   },
   {
     name: 'get_traffic_entry',
     description: 'Full details of one captured request: headers, bodies, timings, curl.',
-    inputSchema: { type: 'object', properties: { trafficId: { type: 'integer' } }, required: ['trafficId'], additionalProperties: false },
+    inputSchema: {
+      type: 'object',
+      properties: { trafficId: { type: 'integer' } },
+      required: ['trafficId'],
+      additionalProperties: false,
+    },
   },
-  { name: 'list_breakpoints', description: 'List the configured breakpoint rules.', inputSchema: noInput },
-  { name: 'list_proto_specs', description: 'List saved protobuf specs used to decode gRPC traffic, plus compile errors.', inputSchema: noInput },
+  {
+    name: 'list_breakpoints',
+    description: 'List the configured breakpoint rules.',
+    inputSchema: noInput,
+  },
+  {
+    name: 'list_proto_specs',
+    description: 'List saved protobuf specs used to decode gRPC traffic, plus compile errors.',
+    inputSchema: noInput,
+  },
   {
     name: 'add_proto_spec',
-    description: 'Save a protobuf spec (raw .proto text or base64 FileDescriptorSet) for decoding gRPC. Requires control enabled.',
-    inputSchema: { type: 'object', properties: { name: { type: 'string' }, source: { type: 'string', enum: ['proto', 'descriptor'] }, content: { type: 'string' } }, required: ['name', 'source', 'content'], additionalProperties: false },
+    description:
+      'Save a protobuf spec (raw .proto text or base64 FileDescriptorSet) for decoding gRPC. Requires control enabled.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        source: { type: 'string', enum: ['proto', 'descriptor'] },
+        content: { type: 'string' },
+      },
+      required: ['name', 'source', 'content'],
+      additionalProperties: false,
+    },
     mutating: true,
   },
   {
     name: 'remove_proto_spec',
     description: 'Delete a saved protobuf spec by id. Requires control enabled.',
-    inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false },
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
     mutating: true,
   },
-  { name: 'validate_setup', description: 'Run setup checks (destination, ports, root cert, proxy process).', inputSchema: noInput },
-  { name: 'export_diagnostics', description: 'Export diagnostics for bug reports.', inputSchema: noInput },
+  {
+    name: 'validate_setup',
+    description: 'Run setup checks (destination, ports, root cert, proxy process).',
+    inputSchema: noInput,
+  },
+  {
+    name: 'export_diagnostics',
+    description: 'Export diagnostics for bug reports.',
+    inputSchema: noInput,
+  },
 ];
 
 /** Fetches the catalog from the running app; falls back to the embedded copy. */

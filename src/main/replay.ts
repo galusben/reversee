@@ -28,10 +28,14 @@ export interface ReplaySource {
 function decodeForView(body: Buffer, encoding: string | undefined): Buffer {
   try {
     switch (encoding) {
-      case 'gzip': return zlib.gunzipSync(body);
-      case 'br': return zlib.brotliDecompressSync(body);
-      case 'deflate': return zlib.inflateSync(body);
-      default: return body;
+      case 'gzip':
+        return zlib.gunzipSync(body);
+      case 'br':
+        return zlib.brotliDecompressSync(body);
+      case 'deflate':
+        return zlib.inflateSync(body);
+      default:
+        return body;
     }
   } catch {
     return body; // keep raw bytes if decoding fails
@@ -68,7 +72,9 @@ export function replayRequest(
   const mod = protocol === 'https' ? https : http;
 
   return new Promise((resolve) => {
-    const finish = (entry: Partial<TrafficEntry> & { response: TrafficEntry['response'] }): void => {
+    const finish = (
+      entry: Partial<TrafficEntry> & { response: TrafficEntry['response'] }
+    ): void => {
       resolve({
         trafficId: 0, // assigned by TrafficStore
         replay: true,

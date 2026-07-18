@@ -30,7 +30,11 @@ export const RECOMMENDED_BRIDGE_VERSION = '2.1.0';
 
 /** Numeric semver-ish compare of the release core (ignores pre-release tags). */
 export function isOlderVersion(a: string, b: string): boolean {
-  const core = (v: string) => v.split('-')[0].split('.').map((n) => parseInt(n, 10) || 0);
+  const core = (v: string) =>
+    v
+      .split('-')[0]
+      .split('.')
+      .map((n) => parseInt(n, 10) || 0);
   const [a0 = 0, a1 = 0, a2 = 0] = core(a);
   const [b0 = 0, b1 = 0, b2 = 0] = core(b);
   if (a0 !== b0) return a0 < b0;
@@ -53,7 +57,11 @@ export interface BridgeAdvisory {
 export function buildBridgeAdvisory(bridgeVersion: string | undefined): BridgeAdvisory {
   const outdated = !bridgeVersion || isOlderVersion(bridgeVersion, RECOMMENDED_BRIDGE_VERSION);
   if (!outdated) {
-    return { upToDate: true, recommended: RECOMMENDED_BRIDGE_VERSION, reportedVersion: bridgeVersion };
+    return {
+      upToDate: true,
+      recommended: RECOMMENDED_BRIDGE_VERSION,
+      reportedVersion: bridgeVersion,
+    };
   }
   return {
     upToDate: false,
@@ -77,7 +85,8 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
   },
   {
     name: 'get_config',
-    description: 'Full Reversee proxy configuration (listen/destination, interceptors, rewrite flags).',
+    description:
+      'Full Reversee proxy configuration (listen/destination, interceptors, rewrite flags).',
     inputSchema: noInput,
   },
   {
@@ -99,7 +108,8 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
   },
   {
     name: 'start_proxy',
-    description: 'Start the reverse proxy with the current configuration. Requires control to be enabled in the app.',
+    description:
+      'Start the reverse proxy with the current configuration. Requires control to be enabled in the app.',
     inputSchema: noInput,
     mutating: true,
   },
@@ -124,7 +134,12 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
       type: 'object',
       properties: {
         offset: { type: 'integer', minimum: 0, description: 'Skip this many entries' },
-        limit: { type: 'integer', minimum: 1, maximum: 200, description: 'Max entries to return (default 50)' },
+        limit: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 200,
+          description: 'Max entries to return (default 50)',
+        },
       },
       additionalProperties: false,
     },
@@ -137,7 +152,10 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        text: { type: 'string', description: 'Free-text substring across method, URL, status, content-type' },
+        text: {
+          type: 'string',
+          description: 'Free-text substring across method, URL, status, content-type',
+        },
         method: { type: 'string', description: 'HTTP method (exact, case-insensitive)' },
         status: {
           description: 'Exact (404), class ("2xx"/"4xx"), or comparison (">=400", "<300")',
@@ -146,12 +164,23 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
         urlContains: { type: 'string' },
         urlRegex: { type: 'string', description: 'Regex matched against the request URL' },
         contentType: { type: 'string', description: 'Substring of the response content-type' },
-        header: { type: 'string', description: '"key" (present) or "key:value" (value contains), req or res' },
+        header: {
+          type: 'string',
+          description: '"key" (present) or "key:value" (value contains), req or res',
+        },
         bodyContains: { type: 'string', description: 'Substring in the request or response body' },
         minTotalMs: { type: 'number', description: 'Only requests at least this slow (ms)' },
-        hasError: { type: 'boolean', description: 'Only failures (connector error or status >= 400)' },
+        hasError: {
+          type: 'boolean',
+          description: 'Only failures (connector error or status >= 400)',
+        },
         offset: { type: 'integer', minimum: 0 },
-        limit: { type: 'integer', minimum: 1, maximum: 200, description: 'Max results (default 50)' },
+        limit: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 200,
+          description: 'Max results (default 50)',
+        },
       },
       additionalProperties: false,
     },
@@ -163,7 +192,14 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
       'the error requests, and the slowest requests. Use this to orient before drilling in.',
     inputSchema: {
       type: 'object',
-      properties: { slowest: { type: 'integer', minimum: 1, maximum: 50, description: 'How many slowest to list (default 5)' } },
+      properties: {
+        slowest: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 50,
+          description: 'How many slowest to list (default 5)',
+        },
+      },
       additionalProperties: false,
     },
   },
@@ -174,7 +210,9 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
       'target, and any decoded JWTs found in its Authorization header or cookies.',
     inputSchema: {
       type: 'object',
-      properties: { trafficId: { type: 'integer', description: 'Id from list_traffic or search_traffic' } },
+      properties: {
+        trafficId: { type: 'integer', description: 'Id from list_traffic or search_traffic' },
+      },
       required: ['trafficId'],
       additionalProperties: false,
     },
@@ -222,7 +260,10 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
       type: 'object',
       properties: {
         kind: { type: 'string', enum: ['request', 'response'] },
-        code: { type: 'string', description: 'Interceptor JavaScript. Omit to leave the code unchanged.' },
+        code: {
+          type: 'string',
+          description: 'Interceptor JavaScript. Omit to leave the code unchanged.',
+        },
         enabled: { type: 'boolean', description: 'Turn this interceptor on or off.' },
       },
       required: ['kind'],
@@ -232,10 +273,17 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
   },
   {
     name: 'decode_jwt',
-    description: 'Decode a JWT (header + claims, with exp/iat parsed). Inspection only — the signature is not verified.',
+    description:
+      'Decode a JWT (header + claims, with exp/iat parsed). Inspection only — the signature is not verified.',
     inputSchema: {
       type: 'object',
-      properties: { token: { type: 'string', description: 'The JWT string (with or without a "Bearer " prefix is fine — pass the token)' } },
+      properties: {
+        token: {
+          type: 'string',
+          description:
+            'The JWT string (with or without a "Bearer " prefix is fine — pass the token)',
+        },
+      },
       required: ['token'],
       additionalProperties: false,
     },
@@ -286,7 +334,8 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
   },
   {
     name: 'validate_setup',
-    description: 'Run setup checks: destination configured, ports valid, root certificate present, proxy process state.',
+    description:
+      'Run setup checks: destination configured, ports valid, root certificate present, proxy process state.',
     inputSchema: noInput,
   },
   {

@@ -24,24 +24,24 @@ claude mcp add reversee -- npx -y reversee-mcp
 
 ## Tools
 
-| Tool | Description |
-| --- | --- |
-| `get_status` | App version, proxy state, listen/destination config, traffic count |
-| `get_config` | Read the proxy configuration |
-| `update_config` | Change the configuration (gated, see below) |
-| `start_proxy` / `stop_proxy` / `restart_proxy` | Control the proxy (gated) |
-| `list_traffic` | Captured requests, paged, bodies elided |
-| `search_traffic` | Filter requests server-side (method, status, URL/regex, content-type, header, body, timing, errors) |
-| `summarize_session` | Aggregate view: status classes, methods, content types, hosts, errors, slowest |
-| `get_traffic_entry` | One request in full: headers, bodies, timings, curl, upstream target, decoded JWTs, decoded gRPC |
-| `replay_request` | Re-send a captured request with optional edits (gated) |
-| `set_interceptor` | Install request/response interceptor JS for mocking/fault injection (gated) |
-| `decode_jwt` | Decode a JWT header + claims (inspection only) |
-| `list_breakpoints` | Configured breakpoint rules |
-| `list_proto_specs` | Saved protobuf specs used to decode gRPC, plus compile errors |
-| `add_proto_spec` / `remove_proto_spec` | Save (`.proto` text or base64 FileDescriptorSet) / delete a protobuf spec (gated) |
-| `validate_setup` | Setup checks: destination, ports, root cert, proxy process |
-| `export_diagnostics` | Versions, platform, settings, state — for bug reports |
+| Tool                                           | Description                                                                                         |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `get_status`                                   | App version, proxy state, listen/destination config, traffic count                                  |
+| `get_config`                                   | Read the proxy configuration                                                                        |
+| `update_config`                                | Change the configuration (gated, see below)                                                         |
+| `start_proxy` / `stop_proxy` / `restart_proxy` | Control the proxy (gated)                                                                           |
+| `list_traffic`                                 | Captured requests, paged, bodies elided                                                             |
+| `search_traffic`                               | Filter requests server-side (method, status, URL/regex, content-type, header, body, timing, errors) |
+| `summarize_session`                            | Aggregate view: status classes, methods, content types, hosts, errors, slowest                      |
+| `get_traffic_entry`                            | One request in full: headers, bodies, timings, curl, upstream target, decoded JWTs, decoded gRPC    |
+| `replay_request`                               | Re-send a captured request with optional edits (gated)                                              |
+| `set_interceptor`                              | Install request/response interceptor JS for mocking/fault injection (gated)                         |
+| `decode_jwt`                                   | Decode a JWT header + claims (inspection only)                                                      |
+| `list_breakpoints`                             | Configured breakpoint rules                                                                         |
+| `list_proto_specs`                             | Saved protobuf specs used to decode gRPC, plus compile errors                                       |
+| `add_proto_spec` / `remove_proto_spec`         | Save (`.proto` text or base64 FileDescriptorSet) / delete a protobuf spec (gated)                   |
+| `validate_setup`                               | Setup checks: destination, ports, root cert, proxy process                                          |
+| `export_diagnostics`                           | Versions, platform, settings, state — for bug reports                                               |
 
 The Reversee app owns this list and serves it to the bridge at startup, so tools added in an app update appear automatically — this package rarely needs updating. When the app is not running, a built-in fallback list is advertised.
 
@@ -58,8 +58,8 @@ for d in ~/.npm/_npx/*/; do [ -e "$d/node_modules/reversee-mcp" ] && rm -rf "$d"
 ## Security model
 
 - The bridge talks to the app over a **local unix domain socket / Windows named pipe** with a per-boot token — never a TCP port. Only your user account can reach it.
-- **Read-only by default.** The mutating tools (`start_proxy`, `stop_proxy`, `restart_proxy`, `update_config`, `add_proto_spec`, `remove_proto_spec`) are rejected until you check *Proxy Settings → Allow MCP to Control the Proxy* in the Reversee app.
-- *Proxy Settings → Enable MCP Integration* in the app turns the socket off entirely.
+- **Read-only by default.** The mutating tools (`start_proxy`, `stop_proxy`, `restart_proxy`, `update_config`, `add_proto_spec`, `remove_proto_spec`) are rejected until you check _Proxy Settings → Allow MCP to Control the Proxy_ in the Reversee app.
+- _Proxy Settings → Enable MCP Integration_ in the app turns the socket off entirely.
 
 If Reversee is not running, every tool returns a clear "launch the app" message.
 

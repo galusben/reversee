@@ -55,11 +55,16 @@ function statusMatches(code: number | undefined, spec: string | number): boolean
   if (cmp) {
     const n = Number(cmp[2]);
     switch (cmp[1]) {
-      case '>=': return code >= n;
-      case '<=': return code <= n;
-      case '>': return code > n;
-      case '<': return code < n;
-      default: return code === n;
+      case '>=':
+        return code >= n;
+      case '<=':
+        return code <= n;
+      case '>':
+        return code > n;
+      case '<':
+        return code < n;
+      default:
+        return code === n;
     }
   }
   return false;
@@ -82,7 +87,8 @@ function matchesFilter(entry: TrafficEntry, f: TrafficFilter): boolean {
 
   if (f.method && entry.request.method.toLowerCase() !== f.method.toLowerCase()) return false;
   if (f.status !== undefined && !statusMatches(status, f.status)) return false;
-  if (f.urlContains && !entry.request.url.toLowerCase().includes(f.urlContains.toLowerCase())) return false;
+  if (f.urlContains && !entry.request.url.toLowerCase().includes(f.urlContains.toLowerCase()))
+    return false;
   if (f.urlRegex) {
     try {
       if (!new RegExp(f.urlRegex).test(entry.request.url)) return false;
@@ -90,7 +96,8 @@ function matchesFilter(entry: TrafficEntry, f: TrafficFilter): boolean {
       return false; // an invalid regex matches nothing rather than throwing
     }
   }
-  if (f.contentType && !contentTypeOf(entry).toLowerCase().includes(f.contentType.toLowerCase())) return false;
+  if (f.contentType && !contentTypeOf(entry).toLowerCase().includes(f.contentType.toLowerCase()))
+    return false;
   if (f.header && !headerMatches(entry, f.header)) return false;
   if (f.bodyContains) {
     const needle = f.bodyContains.toLowerCase();
@@ -107,7 +114,12 @@ function matchesFilter(entry: TrafficEntry, f: TrafficFilter): boolean {
   }
   if (f.text) {
     const t = f.text.toLowerCase();
-    const hay = [entry.request.method, entry.request.url, String(status ?? ''), contentTypeOf(entry)]
+    const hay = [
+      entry.request.method,
+      entry.request.url,
+      String(status ?? ''),
+      contentTypeOf(entry),
+    ]
       .join(' ')
       .toLowerCase();
     if (!hay.includes(t)) return false;
@@ -125,7 +137,13 @@ export interface TrafficSummary {
   byMethod: Record<string, number>;
   contentTypes: Record<string, number>;
   hosts: Array<{ host: string; count: number }>;
-  errors: Array<{ trafficId: number; method: string; url: string; status?: number; error?: string }>;
+  errors: Array<{
+    trafficId: number;
+    method: string;
+    url: string;
+    status?: number;
+    error?: string;
+  }>;
   slowest: Array<{ trafficId: number; method: string; url: string; totalMs: number }>;
 }
 

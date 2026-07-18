@@ -36,11 +36,11 @@ If any check fails the release stays a draft and users are unaffected.
 
 Configured on the `reversee` repo (Settings → Secrets → Actions):
 
-| Secret | Purpose |
-| --- | --- |
-| `CSC_LINK`, `CSC_KEY_PASSWORD` | macOS Developer ID signing certificate (.p12, base64) and its password |
-| `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` | Notarization with Apple's notary service |
-| `TAP_GITHUB_TOKEN` | Fine-grained PAT with Contents:write on `homebrew-reversee`, for the cask update |
+| Secret                                                     | Purpose                                                                          |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `CSC_LINK`, `CSC_KEY_PASSWORD`                             | macOS Developer ID signing certificate (.p12, base64) and its password           |
+| `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` | Notarization with Apple's notary service                                         |
+| `TAP_GITHUB_TOKEN`                                         | Fine-grained PAT with Contents:write on `homebrew-reversee`, for the cask update |
 
 Missing signing secrets → unsigned build; missing `TAP_GITHUB_TOKEN` → the Homebrew step is skipped. The build still succeeds either way.
 

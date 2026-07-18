@@ -2,30 +2,34 @@
 
 Reversee has four test layers. All of them except the packaged smoke test run on every PR.
 
-| Layer | Tool | Location | Run locally | Runs in CI |
-| --- | --- | --- | --- | --- |
-| Unit & integration | Vitest | `tests/unit/*.test.mjs` | `npm test` | `checks` job (every push/PR) |
-| App end-to-end | Playwright (Electron) | `tests/e2e/*.spec.ts` | `npm run build && npx playwright test` | `e2e` (macOS) + `e2e-windows` |
-| MCP end-to-end | Vitest (spawns the bridge) | `tests/unit/mcp-stdio.test.mjs` | `npm test` | `checks` job |
-| Packaged smoke | Playwright | `tests/smoke/packaged.spec.ts` | (see below) | **Release only** (tag-triggered) |
+| Layer              | Tool                       | Location                        | Run locally                            | Runs in CI                       |
+| ------------------ | -------------------------- | ------------------------------- | -------------------------------------- | -------------------------------- |
+| Unit & integration | Vitest                     | `tests/unit/*.test.mjs`         | `npm test`                             | `checks` job (every push/PR)     |
+| App end-to-end     | Playwright (Electron)      | `tests/e2e/*.spec.ts`           | `npm run build && npx playwright test` | `e2e` (macOS) + `e2e-windows`    |
+| MCP end-to-end     | Vitest (spawns the bridge) | `tests/unit/mcp-stdio.test.mjs` | `npm test`                             | `checks` job                     |
+| Packaged smoke     | Playwright                 | `tests/smoke/packaged.spec.ts`  | (see below)                            | **Release only** (tag-triggered) |
 
 `npm test` runs Vitest, which includes both the unit/integration suite and the MCP end-to-end (the latter builds and spawns the real bridge in `beforeAll`). `npm run lint` and `npm run typecheck` round out the `checks` job.
 
 ## What each layer covers
 
 ### Unit & integration (`tests/unit/`)
+
 - **Proxy core** (`proxy.core`, `interceptor`, `curl`, `breakpoints`) — the request-forwarding logic, run headlessly against real `http`/`https` fixture servers (no Electron). This is the safety net the whole refactor was built on.
 - **Traffic store** (`traffic-store`) — ring-buffer cap, eviction, body truncation.
 - **gRPC** (`grpc-frames`, `grpc-registry`, `proto-store`, `grpc-proxy`) — length-prefixed framing (multi-frame, compression, truncation, incremental accumulator), proto-spec CRUD on disk, `.proto`/`.desc` compilation + method-map building, registry resolution, and a full round-trip through `createHttp2ProxyServer` against a hand-rolled h2c gRPC upstream (unary, server-streaming, and a non-OK Trailers-Only status — asserting decoded JSON both ways, the captured grpc-status, and raw passthrough). All headless (protobufjs and `node:http2` are dependency-light).
 - **MCP** — `control-server` (token handshake, gating, permissions), `mcp-catalog` (the app-owned tool catalog + derived mutating set), `mcp-bridge` (`resolveCatalog` against the real control server incl. offline fallback, version-advisory logic), `mcp-client` (the bridge's socket client against the real server).
 
 ### App end-to-end (`tests/e2e/`)
+
 Playwright drives the built app (`out/`) through real user flows: launch + sandbox assertions, configure/start/proxy/inspect, request & response interceptors, breakpoint hold→edit→resume, invalid-port handling, settings persistence across relaunch, HTTPS listening, and EADDRINUSE surfacing. `grpc.spec.ts` enables gRPC, seeds a proto spec, drives a real h2c gRPC call (unary + server-streaming) through the running app, and asserts the decoded messages and grpc-status in the UI — and with `CAPTURE_SCREENSHOTS=1` it regenerates the gRPC docs screenshots (`docs/screenshots/grpc-*.png`). Needs `npm run build` first.
 
 ### MCP end-to-end (`tests/unit/mcp-stdio.test.mjs`)
+
 Spawns the **real built `reversee-mcp` bridge** and speaks MCP JSON-RPC over stdio against the real control server — the exact path Claude Code / Cursor use. Verifies the bridge advertises the **app's** catalog (including a tool the bridge never shipped with — proving the dynamic catalog), forwards calls, carries the version advisory, and falls back gracefully when the app is down.
 
 ### Packaged smoke (`tests/smoke/packaged.spec.ts`)
+
 Drives the **final signed, notarized app bundle** (not the dev build). It runs only in the release pipeline (`release.yml` → `verify-mac`), after the artifact is downloaded from the draft GitHub release and Gatekeeper-checked, because it needs the packaged binary. To run it by hand against a built app:
 
 ```sh

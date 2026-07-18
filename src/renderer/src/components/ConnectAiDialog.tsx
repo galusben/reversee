@@ -31,7 +31,11 @@ function CopyBlock({ label, text }: { label: string; text: string }): React.JSX.
           aria-label={`Copy ${label}`}
           className="flex shrink-0 items-center gap-1 rounded-md border border-neutral-300 px-2 py-1.5 text-xs text-neutral-600 hover:bg-neutral-50"
         >
-          {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden /> : <Copy className="h-3.5 w-3.5" aria-hidden />}
+          {copied ? (
+            <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
+          ) : (
+            <Copy className="h-3.5 w-3.5" aria-hidden />
+          )}
           {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
@@ -71,8 +75,9 @@ export function ConnectAiDialog(): React.JSX.Element {
 
           <div className="mt-4 flex items-center justify-between border-t border-neutral-100 pt-3">
             <p className="text-xs text-neutral-500">
-              Read-only by default — enable <span className="font-medium">Allow MCP to Control the Proxy</span>{' '}
-              in the Proxy Settings menu to let agents start/stop it.
+              Read-only by default — enable{' '}
+              <span className="font-medium">Allow MCP to Control the Proxy</span> in the Proxy
+              Settings menu to let agents start/stop it.
             </p>
             <a
               href={REPO}

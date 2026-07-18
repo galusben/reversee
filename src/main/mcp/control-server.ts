@@ -29,10 +29,7 @@ export interface ControlContext {
   bridgeVersion?: string;
 }
 
-export type ControlHandler = (
-  params: unknown,
-  ctx: ControlContext
-) => Promise<unknown> | unknown;
+export type ControlHandler = (params: unknown, ctx: ControlContext) => Promise<unknown> | unknown;
 
 export interface ControlServerOptions {
   /** Directory for the socket and token files (the app passes userData). */
@@ -119,8 +116,14 @@ export function startControlServer(options: ControlServerOptions): Promise<Contr
       if (!authenticated) {
         if (tokensMatch(message['token'], token)) {
           authenticated = true;
-          if (typeof message['bridgeVersion'] === 'string') ctx.bridgeVersion = message['bridgeVersion'];
-          send({ ok: true, server: 'reversee', protocol: PROTOCOL_VERSION, version: options.appVersion });
+          if (typeof message['bridgeVersion'] === 'string')
+            ctx.bridgeVersion = message['bridgeVersion'];
+          send({
+            ok: true,
+            server: 'reversee',
+            protocol: PROTOCOL_VERSION,
+            version: options.appVersion,
+          });
         } else {
           logger.warn('mcp control: handshake with bad token rejected');
           send({ ok: false, error: { code: 'bad-token', message: 'invalid token' } });

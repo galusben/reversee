@@ -114,7 +114,10 @@ export function TrafficTable(): React.JSX.Element {
     <div className="flex min-h-0 grow flex-col">
       <div className="flex items-center gap-2 border-b border-neutral-200 bg-white px-3 py-1.5">
         <div className="relative grow">
-          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" aria-hidden />
+          <Search
+            className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400"
+            aria-hidden
+          />
           <input
             type="text"
             aria-label="Filter traffic"
@@ -140,7 +143,9 @@ export function TrafficTable(): React.JSX.Element {
           aria-pressed={errorsOnly}
           title="Show only failures (status ≥ 400 or connection errors)"
           className={`rounded-md border px-2 py-1 text-xs font-medium ${
-            errorsOnly ? 'border-red-300 bg-red-50 text-red-700' : 'border-neutral-300 text-neutral-600 hover:bg-neutral-50'
+            errorsOnly
+              ? 'border-red-300 bg-red-50 text-red-700'
+              : 'border-neutral-300 text-neutral-600 hover:bg-neutral-50'
           }`}
         >
           Errors

@@ -33,7 +33,7 @@ claude mcp add reversee -- npx -y reversee-mcp
 
 - **Read-only by default.** The 11 read tools are always available. The 8
   **mutating** tools (marked 🔒 below) are rejected until the user enables
-  *Proxy Settings → Allow MCP to Control the Proxy* in the app, or the app is
+  _Proxy Settings → Allow MCP to Control the Proxy_ in the app, or the app is
   launched headless with `--allow-mcp-control`.
 - **Local and authenticated.** The bridge reaches the app over a per-boot token on
   a Unix domain socket / Windows named pipe (mode 0600) — never a TCP port. See
@@ -43,7 +43,7 @@ claude mcp add reversee -- npx -y reversee-mcp
 ## The `trafficId` handle
 
 Every captured request has a stable, monotonic `trafficId`. It is assigned once,
-never reused, and never reset — not on *clear*, not on a proxy restart. It is the
+never reused, and never reset — not on _clear_, not on a proxy restart. It is the
 durable handle you pass to `get_traffic_entry` and `replay_request`. Prefer it over
 list positions, which shift as new traffic arrives.
 
@@ -93,9 +93,9 @@ No parameters.
 > rewriteRedirects/rewriteHost/allowSelfSignedUpstream (bool). Requires "Allow MCP
 > to Control the Proxy" enabled in the app. Returns the resulting config.
 
-| Param | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `patch` | object | yes | Partial settings object; see the keys in the description. |
+| Param   | Type   | Required | Notes                                                     |
+| ------- | ------ | -------- | --------------------------------------------------------- |
+| `patch` | object | yes      | Partial settings object; see the keys in the description. |
 
 ```jsonc
 // point the proxy at a new upstream on port 8443
@@ -131,10 +131,10 @@ No parameters. Reach for this if an interceptor wedged the worker.
 > List captured requests (newest last): method, URL, status, content type, total
 > time. Bodies are elided; use get_traffic_entry for full details.
 
-| Param | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `offset` | integer ≥ 0 | no | Skip this many entries. |
-| `limit` | integer 1–200 | no | Max entries to return (default 50). |
+| Param    | Type          | Required | Notes                               |
+| -------- | ------------- | -------- | ----------------------------------- |
+| `offset` | integer ≥ 0   | no       | Skip this many entries.             |
+| `limit`  | integer 1–200 | no       | Max entries to return (default 50). |
 
 ### `search_traffic`
 
@@ -142,20 +142,20 @@ No parameters. Reach for this if an interceptor wedged the worker.
 > dumping everything). All filters combine with AND. Bodies are elided in results;
 > use get_traffic_entry for full detail.
 
-| Param | Type | Notes |
-| --- | --- | --- |
-| `text` | string | Free-text substring across method, URL, status, content-type. |
-| `method` | string | HTTP method (exact, case-insensitive). |
-| `status` | integer \| string | Exact (`404`), class (`"2xx"`/`"4xx"`), or comparison (`">=400"`, `"<300"`). |
-| `urlContains` | string | Substring of the request URL. |
-| `urlRegex` | string | Regex matched against the request URL. |
-| `contentType` | string | Substring of the response content-type. |
-| `header` | string | `"key"` (present) or `"key:value"` (value contains), request or response. |
-| `bodyContains` | string | Substring in the request or response body. |
-| `minTotalMs` | number | Only requests at least this slow (ms). |
-| `hasError` | boolean | Only failures (connector error or status ≥ 400). |
-| `offset` | integer ≥ 0 | Skip this many matches. |
-| `limit` | integer 1–200 | Max results (default 50). |
+| Param          | Type              | Notes                                                                        |
+| -------------- | ----------------- | ---------------------------------------------------------------------------- |
+| `text`         | string            | Free-text substring across method, URL, status, content-type.                |
+| `method`       | string            | HTTP method (exact, case-insensitive).                                       |
+| `status`       | integer \| string | Exact (`404`), class (`"2xx"`/`"4xx"`), or comparison (`">=400"`, `"<300"`). |
+| `urlContains`  | string            | Substring of the request URL.                                                |
+| `urlRegex`     | string            | Regex matched against the request URL.                                       |
+| `contentType`  | string            | Substring of the response content-type.                                      |
+| `header`       | string            | `"key"` (present) or `"key:value"` (value contains), request or response.    |
+| `bodyContains` | string            | Substring in the request or response body.                                   |
+| `minTotalMs`   | number            | Only requests at least this slow (ms).                                       |
+| `hasError`     | boolean           | Only failures (connector error or status ≥ 400).                             |
+| `offset`       | integer ≥ 0       | Skip this many matches.                                                      |
+| `limit`        | integer 1–200     | Max results (default 50).                                                    |
 
 ```jsonc
 // slow failing API calls only
@@ -168,8 +168,8 @@ No parameters. Reach for this if an interceptor wedged the worker.
 > content types, top hosts, the error requests, and the slowest requests. Use this
 > to orient before drilling in.
 
-| Param | Type | Notes |
-| --- | --- | --- |
+| Param     | Type         | Notes                                          |
+| --------- | ------------ | ---------------------------------------------- |
 | `slowest` | integer 1–50 | How many slowest requests to list (default 5). |
 
 ### `get_traffic_entry`
@@ -178,9 +178,9 @@ No parameters. Reach for this if an interceptor wedged the worker.
 > copy-pasteable curl command, the upstream target, and any decoded JWTs found in
 > its Authorization header or cookies.
 
-| Param | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `trafficId` | integer | yes | Id from `list_traffic` or `search_traffic`. |
+| Param       | Type    | Required | Notes                                       |
+| ----------- | ------- | -------- | ------------------------------------------- |
+| `trafficId` | integer | yes      | Id from `list_traffic` or `search_traffic`. |
 
 Returns the full request/response, plus decoded gRPC when a matching proto spec is
 loaded and decoded JWTs when the request carries a bearer token or JWT cookie.
@@ -190,9 +190,9 @@ loaded and decoded JWTs when the request carries a bearer token or JWT cookie.
 > Decode a JWT (header + claims, with exp/iat parsed). Inspection only — the
 > signature is not verified.
 
-| Param | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `token` | string | yes | The JWT string. A leading `Bearer ` is fine — pass the token. |
+| Param   | Type   | Required | Notes                                                         |
+| ------- | ------ | -------- | ------------------------------------------------------------- |
+| `token` | string | yes      | The JWT string. A leading `Bearer ` is fine — pass the token. |
 
 ---
 
@@ -205,18 +205,21 @@ loaded and decoded JWTs when the request carries a bearer token or JWT cookie.
 > Records a new traffic entry and returns it. Requires control to be enabled in
 > the app.
 
-| Param | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `trafficId` | integer | yes | The captured request to replay. |
-| `overrides` | object | no | Edits applied before sending (below). |
-| `overrides.method` | string | no | Replacement HTTP method. |
-| `overrides.url` | string | no | Request path, e.g. `/api/users?page=2`. |
-| `overrides.headers` | object | no | Merged into the original headers; a `null` value deletes that header. |
-| `overrides.body` | string | no | Replacement request body. |
+| Param               | Type    | Required | Notes                                                                 |
+| ------------------- | ------- | -------- | --------------------------------------------------------------------- |
+| `trafficId`         | integer | yes      | The captured request to replay.                                       |
+| `overrides`         | object  | no       | Edits applied before sending (below).                                 |
+| `overrides.method`  | string  | no       | Replacement HTTP method.                                              |
+| `overrides.url`     | string  | no       | Request path, e.g. `/api/users?page=2`.                               |
+| `overrides.headers` | object  | no       | Merged into the original headers; a `null` value deletes that header. |
+| `overrides.body`    | string  | no       | Replacement request body.                                             |
 
 ```jsonc
 // re-run request 42 as an authed request to page 2
-{ "trafficId": 42, "overrides": { "url": "/api/users?page=2", "headers": { "authorization": "Bearer <token>" } } }
+{
+  "trafficId": 42,
+  "overrides": { "url": "/api/users?page=2", "headers": { "authorization": "Bearer <token>" } },
+}
 ```
 
 The replayed entry is flagged so you can tell it apart from live traffic, and it
@@ -233,15 +236,19 @@ gets its own `trafficId`.
 > `responseParams.statusCode = 500; responseParams.body = "{\"error\":\"injected\"}";`.
 > Requires control to be enabled in the app.
 
-| Param | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `kind` | `"request"` \| `"response"` | yes | Which interceptor to set. |
-| `code` | string | no | Interceptor JavaScript. Omit to leave the code unchanged (e.g. just toggle `enabled`). |
-| `enabled` | boolean | no | Turn this interceptor on or off. |
+| Param     | Type                        | Required | Notes                                                                                  |
+| --------- | --------------------------- | -------- | -------------------------------------------------------------------------------------- |
+| `kind`    | `"request"` \| `"response"` | yes      | Which interceptor to set.                                                              |
+| `code`    | string                      | no       | Interceptor JavaScript. Omit to leave the code unchanged (e.g. just toggle `enabled`). |
+| `enabled` | boolean                     | no       | Turn this interceptor on or off.                                                       |
 
 ```jsonc
 // inject a 500 on every response, for fault-injection testing
-{ "kind": "response", "code": "responseParams.statusCode = 500; responseParams.body = '{\"error\":\"injected\"}';", "enabled": true }
+{
+  "kind": "response",
+  "code": "responseParams.statusCode = 500; responseParams.body = '{\"error\":\"injected\"}';",
+  "enabled": true,
+}
 ```
 
 You write real JavaScript — there is no DSL. The code runs once per matching
@@ -271,20 +278,20 @@ No parameters.
 > the updated spec list and compile errors. Requires "Allow MCP to Control the
 > Proxy" enabled in the app.
 
-| Param | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `name` | string | yes | Label for the spec. |
-| `source` | `"proto"` \| `"descriptor"` | yes | Content kind. |
-| `content` | string | yes | `.proto` text for `"proto"`; base64 FileDescriptorSet for `"descriptor"`. |
+| Param     | Type                        | Required | Notes                                                                     |
+| --------- | --------------------------- | -------- | ------------------------------------------------------------------------- |
+| `name`    | string                      | yes      | Label for the spec.                                                       |
+| `source`  | `"proto"` \| `"descriptor"` | yes      | Content kind.                                                             |
+| `content` | string                      | yes      | `.proto` text for `"proto"`; base64 FileDescriptorSet for `"descriptor"`. |
 
 ### `remove_proto_spec` 🔒
 
 > Delete a saved protobuf spec by id. Requires "Allow MCP to Control the Proxy"
 > enabled in the app.
 
-| Param | Type | Required | Notes |
-| --- | --- | --- | --- |
-| `id` | string | yes | Spec id from `list_proto_specs`. |
+| Param | Type   | Required | Notes                            |
+| ----- | ------ | -------- | -------------------------------- |
+| `id`  | string | yes      | Spec id from `list_proto_specs`. |
 
 ---
 

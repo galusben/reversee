@@ -46,8 +46,10 @@ function unframe(buf: Buffer): Buffer[] {
   return out;
 }
 
-const helloRequest = (name: string): Buffer => frame(Buffer.from(HelloRequest.encode({ name }).finish()));
-const helloReply = (message: string): Buffer => frame(Buffer.from(HelloReply.encode({ message }).finish()));
+const helloRequest = (name: string): Buffer =>
+  frame(Buffer.from(HelloRequest.encode({ name }).finish()));
+const helloReply = (message: string): Buffer =>
+  frame(Buffer.from(HelloReply.encode({ message }).finish()));
 
 export interface GrpcUpstream {
   port: number;
@@ -68,7 +70,9 @@ export function startGrpcUpstream(): Promise<GrpcUpstream> {
         { ':status': 200, 'content-type': 'application/grpc+proto' },
         { waitForTrailers: true }
       );
-      stream.on('wantTrailers', () => stream.sendTrailers({ 'grpc-status': '0', 'grpc-message': 'OK' }));
+      stream.on('wantTrailers', () =>
+        stream.sendTrailers({ 'grpc-status': '0', 'grpc-message': 'OK' })
+      );
       if (path === '/greet.Greeter/SayManyHellos') {
         for (let i = 1; i <= 3; i++) stream.write(helloReply(`Hello ${name} #${i}`));
       } else {
@@ -139,6 +143,8 @@ export function seedProtoSpec(userDataDir: string): void {
   fs.writeFileSync(path.join(dir, 'greeter.proto'), GREETER_PROTO);
   fs.writeFileSync(
     path.join(dir, 'index.json'),
-    JSON.stringify([{ id: 'greeter', name: 'greeter.proto', source: 'proto', fileName: 'greeter.proto' }])
+    JSON.stringify([
+      { id: 'greeter', name: 'greeter.proto', source: 'proto', fileName: 'greeter.proto' },
+    ])
   );
 }

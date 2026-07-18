@@ -28,7 +28,12 @@
     <!-- LLM-friendly: point crawlers/assistants at the machine-readable summary and
          the canonical catalog docs. -->
     <link rel="alternate" type="text/markdown" title="llms.txt" href="./llms.txt" />
-    <link rel="alternate" type="text/markdown" title="MCP tools (Markdown)" href="https://github.com/galusben/reversee/blob/main/docs/mcp-tools.md" />
+    <link
+      rel="alternate"
+      type="text/markdown"
+      title="MCP tools (Markdown)"
+      href="https://github.com/galusben/reversee/blob/main/docs/mcp-tools.md"
+    />
 
     <script type="application/ld+json">
       {
@@ -88,19 +93,39 @@
         --radius: 14px;
         --maxw: 1080px;
       }
-      * { box-sizing: border-box; }
-      html { scroll-behavior: smooth; }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
       body {
         margin: 0;
-        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
         color: var(--ink);
         background: var(--bg);
         line-height: 1.6;
         -webkit-font-smoothing: antialiased;
       }
-      a { color: var(--brand1); text-decoration: none; }
-      a:hover { text-decoration: underline; }
-      .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+      a {
+        color: var(--brand1);
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      .wrap {
+        max-width: var(--maxw);
+        margin: 0 auto;
+        padding: 0 24px;
+      }
       .grad-text {
         background: linear-gradient(90deg, var(--brand1), var(--brand2));
         -webkit-background-clip: text;
@@ -108,93 +133,271 @@
         color: transparent;
       }
       .btn {
-        display: inline-flex; align-items: center; gap: 8px;
-        padding: 11px 18px; border-radius: 10px; font-weight: 600; font-size: 15px;
-        border: 1px solid transparent; cursor: pointer; text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 11px 18px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 15px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        text-decoration: none;
       }
-      .btn-primary { background: linear-gradient(90deg, var(--brand1), var(--brand2)); color: #fff; }
-      .btn-primary:hover { opacity: 0.92; text-decoration: none; }
-      .btn-ghost { background: #fff; border-color: var(--line); color: var(--ink); }
-      .btn-ghost:hover { background: var(--bg-soft); text-decoration: none; }
+      .btn-primary {
+        background: linear-gradient(90deg, var(--brand1), var(--brand2));
+        color: #fff;
+      }
+      .btn-primary:hover {
+        opacity: 0.92;
+        text-decoration: none;
+      }
+      .btn-ghost {
+        background: #fff;
+        border-color: var(--line);
+        color: var(--ink);
+      }
+      .btn-ghost:hover {
+        background: var(--bg-soft);
+        text-decoration: none;
+      }
 
       /* Nav */
       header.nav {
-        position: sticky; top: 0; z-index: 20;
-        background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(8px);
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(8px);
         border-bottom: 1px solid var(--line);
       }
-      .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 66px; }
-      .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 18px; color: var(--ink); }
-      .brand:hover { text-decoration: none; }
-      .brand-logo { height: 46px; width: auto; display: block; }
-      .nav-links { display: flex; align-items: center; gap: 22px; font-size: 15px; }
-      .nav-links a { color: var(--muted); }
-      .nav-links a:hover { color: var(--ink); text-decoration: none; }
+      .nav-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 66px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        font-weight: 700;
+        font-size: 18px;
+        color: var(--ink);
+      }
+      .brand:hover {
+        text-decoration: none;
+      }
+      .brand-logo {
+        height: 46px;
+        width: auto;
+        display: block;
+      }
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        font-size: 15px;
+      }
+      .nav-links a {
+        color: var(--muted);
+      }
+      .nav-links a:hover {
+        color: var(--ink);
+        text-decoration: none;
+      }
 
       /* Hero */
-      .hero { position: relative; overflow: hidden; padding: 60px 0 24px; }
+      .hero {
+        position: relative;
+        overflow: hidden;
+        padding: 60px 0 24px;
+      }
       .hero::before {
-        content: ""; position: absolute; inset: -40% 0 auto 0; height: 420px; z-index: -1;
-        background: radial-gradient(60% 100% at 50% 0%, rgba(99, 102, 241, 0.14), transparent 70%),
+        content: '';
+        position: absolute;
+        inset: -40% 0 auto 0;
+        height: 420px;
+        z-index: -1;
+        background:
+          radial-gradient(60% 100% at 50% 0%, rgba(99, 102, 241, 0.14), transparent 70%),
           radial-gradient(50% 80% at 80% 10%, rgba(217, 70, 239, 0.12), transparent 70%);
       }
-      .crumbs { font-size: 14px; color: var(--muted); margin-bottom: 10px; }
-      .hero h1 { font-size: clamp(30px, 4.6vw, 46px); line-height: 1.1; letter-spacing: -0.02em; margin: 6px 0 14px; }
-      .hero p.lede { font-size: clamp(16px, 2vw, 19px); color: var(--muted); max-width: 720px; margin: 0 0 22px; }
-      .cta-row { display: flex; gap: 12px; flex-wrap: wrap; }
+      .crumbs {
+        font-size: 14px;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+      .hero h1 {
+        font-size: clamp(30px, 4.6vw, 46px);
+        line-height: 1.1;
+        letter-spacing: -0.02em;
+        margin: 6px 0 14px;
+      }
+      .hero p.lede {
+        font-size: clamp(16px, 2vw, 19px);
+        color: var(--muted);
+        max-width: 720px;
+        margin: 0 0 22px;
+      }
+      .cta-row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
 
       /* Sections */
-      section { padding: 40px 0; }
-      .section-soft { background: var(--bg-soft); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-      h2.section-title { font-size: clamp(22px, 3vw, 30px); letter-spacing: -0.02em; margin: 0 0 8px; }
-      .section-sub { color: var(--muted); margin: 0 0 24px; font-size: 16px; max-width: 760px; }
+      section {
+        padding: 40px 0;
+      }
+      .section-soft {
+        background: var(--bg-soft);
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+      }
+      h2.section-title {
+        font-size: clamp(22px, 3vw, 30px);
+        letter-spacing: -0.02em;
+        margin: 0 0 8px;
+      }
+      .section-sub {
+        color: var(--muted);
+        margin: 0 0 24px;
+        font-size: 16px;
+        max-width: 760px;
+      }
 
       /* Setup cards */
-      .setup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-      @media (max-width: 760px) { .setup-grid { grid-template-columns: 1fr; } }
-      .codelabel { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 7px; }
-      pre.code {
-        background: var(--code-bg); color: #e2e8f0; border-radius: 10px; padding: 14px 16px;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13.5px;
-        line-height: 1.55; overflow-x: auto; margin: 0;
+      .setup-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
       }
-      pre.code .k { color: #c4b5fd; }
+      @media (max-width: 760px) {
+        .setup-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .codelabel {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted);
+        margin: 0 0 7px;
+      }
+      pre.code {
+        background: var(--code-bg);
+        color: #e2e8f0;
+        border-radius: 10px;
+        padding: 14px 16px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 13.5px;
+        line-height: 1.55;
+        overflow-x: auto;
+        margin: 0;
+      }
+      pre.code .k {
+        color: #c4b5fd;
+      }
 
       /* Tool list */
-      .toolgroup { margin: 0 0 34px; }
+      .toolgroup {
+        margin: 0 0 34px;
+      }
       .toolgroup > h3 {
-        font-size: 15px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
-        margin: 0 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--line);
+        font-size: 15px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin: 0 0 14px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--line);
       }
       .tool {
-        border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; margin: 0 0 14px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 18px 20px;
+        margin: 0 0 14px;
         background: #fff;
       }
-      .tool-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+      .tool-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 6px;
+      }
       .tool-name {
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-        font-size: 16px; font-weight: 700; color: var(--ink);
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--ink);
       }
       .tag {
-        font-size: 11.5px; font-weight: 700; letter-spacing: 0.03em; padding: 2px 9px; border-radius: 999px;
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        padding: 2px 9px;
+        border-radius: 999px;
       }
-      .tag-read { color: #15803d; background: #dcfce7; border: 1px solid #bbf7d0; }
-      .tag-gated { color: #b45309; background: #fef3c7; border: 1px solid #fde68a; }
-      .tool p.desc { margin: 0 0 8px; color: var(--ink); font-size: 15px; }
-      .tool p.params { margin: 0; color: var(--muted); font-size: 13.5px; }
-      .tool p.params code, .tool p.desc code {
-        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.8px;
-        background: var(--bg-soft); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px;
+      .tag-read {
+        color: #15803d;
+        background: #dcfce7;
+        border: 1px solid #bbf7d0;
+      }
+      .tag-gated {
+        color: #b45309;
+        background: #fef3c7;
+        border: 1px solid #fde68a;
+      }
+      .tool p.desc {
+        margin: 0 0 8px;
+        color: var(--ink);
+        font-size: 15px;
+      }
+      .tool p.params {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13.5px;
+      }
+      .tool p.params code,
+      .tool p.desc code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12.8px;
+        background: var(--bg-soft);
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        padding: 1px 5px;
       }
       .note {
-        border-left: 3px solid var(--brand1); background: var(--bg-soft); border-radius: 0 8px 8px 0;
-        padding: 12px 16px; margin: 0 0 24px; font-size: 15px; color: var(--ink);
+        border-left: 3px solid var(--brand1);
+        background: var(--bg-soft);
+        border-radius: 0 8px 8px 0;
+        padding: 12px 16px;
+        margin: 0 0 24px;
+        font-size: 15px;
+        color: var(--ink);
       }
 
-      footer { padding: 44px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
-      .foot-inner { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
-      .foot-links { display: flex; gap: 18px; flex-wrap: wrap; }
-      .foot-links a { color: var(--muted); }
+      footer {
+        padding: 44px 0;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .foot-inner {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        flex-wrap: wrap;
+      }
+      .foot-links {
+        display: flex;
+        gap: 18px;
+        flex-wrap: wrap;
+      }
+      .foot-links a {
+        color: var(--muted);
+      }
     </style>
   </head>
   <body>
@@ -219,15 +422,19 @@
           <div class="crumbs"><a href="./">Reversee</a> → MCP tools</div>
           <h1>Reversee <span class="grad-text">MCP tools</span></h1>
           <p class="lede">
-            Reversee exposes <strong>19 Model Context Protocol tools</strong> so AI agents — Claude Code,
-            Cursor, or any MCP client — can inspect and control its reverse proxy: search and summarize
-            captured traffic, replay requests, install interceptors for mocking and fault injection, and
-            decode JWTs and gRPC. Read-only by default; the proxy-changing tools stay locked until you
-            opt in.
+            Reversee exposes <strong>19 Model Context Protocol tools</strong> so AI agents — Claude
+            Code, Cursor, or any MCP client — can inspect and control its reverse proxy: search and
+            summarize captured traffic, replay requests, install interceptors for mocking and fault
+            injection, and decode JWTs and gRPC. Read-only by default; the proxy-changing tools stay
+            locked until you opt in.
           </p>
           <div class="cta-row">
             <a class="btn btn-primary" href="#setup">Set up in one line</a>
-            <a class="btn btn-ghost" href="https://github.com/galusben/reversee/blob/main/docs/mcp-tools.md">Full reference (Markdown) ↗</a>
+            <a
+              class="btn btn-ghost"
+              href="https://github.com/galusben/reversee/blob/main/docs/mcp-tools.md"
+              >Full reference (Markdown) ↗</a
+            >
           </div>
         </div>
       </section>
@@ -235,7 +442,9 @@
       <section id="setup" class="section-soft">
         <div class="wrap">
           <h2 class="section-title">Setup</h2>
-          <p class="section-sub">Launch the Reversee app, then register the server. No config files, no API keys.</p>
+          <p class="section-sub">
+            Launch the Reversee app, then register the server. No config files, no API keys.
+          </p>
           <div class="setup-grid">
             <div>
               <p class="codelabel">Claude Code</p>
@@ -257,21 +466,22 @@
         <div class="wrap">
           <h2 class="section-title">How access works</h2>
           <p class="section-sub">
-            The bridge talks to the app over a token-authenticated local socket (Unix domain socket /
-            Windows named pipe, mode 0600) — never a TCP port. Only your user account can reach it.
+            The bridge talks to the app over a token-authenticated local socket (Unix domain socket
+            / Windows named pipe, mode 0600) — never a TCP port. Only your user account can reach
+            it.
           </p>
           <div class="note">
             <strong>Read-only by default.</strong> The 11
             <span class="tag tag-read">READ</span> tools are always available. The 8
             <span class="tag tag-gated">CONTROL</span> tools are rejected until you enable
-            <em>Proxy Settings → Allow MCP to Control the Proxy</em> in the app (or launch headless with
-            <code>--allow-mcp-control</code>). When the app isn't running, every call returns a clear
-            “launch Reversee” message.
+            <em>Proxy Settings → Allow MCP to Control the Proxy</em> in the app (or launch headless
+            with <code>--allow-mcp-control</code>). When the app isn't running, every call returns a
+            clear “launch Reversee” message.
           </div>
           <p class="section-sub">
-            Every captured request has a stable, monotonic <code>trafficId</code> — assigned once, never
-            reused, never reset (not on clear, not on a proxy restart). It's the durable handle you pass to
-            <code>get_traffic_entry</code> and <code>replay_request</code>.
+            Every captured request has a stable, monotonic <code>trafficId</code> — assigned once,
+            never reused, never reset (not on clear, not on a proxy restart). It's the durable
+            handle you pass to <code>get_traffic_entry</code> and <code>replay_request</code>.
           </p>
         </div>
       </section>
@@ -281,25 +491,41 @@
           <h2 class="section-title">The 19 tools</h2>
           <p class="section-sub">
             Descriptions below are verbatim — this is exactly what an agent reads in the
-            <code>tools/list</code> response. The app owns this catalog and serves it to the bridge at
-            startup, so tools added in an update reach agents automatically.
+            <code>tools/list</code> response. The app owns this catalog and serves it to the bridge
+            at startup, so tools added in an update reach agents automatically.
           </p>
 
           <div class="toolgroup">
             <h3>Orientation &amp; status</h3>
             <div class="tool">
-              <div class="tool-head"><span class="tool-name">get_status</span><span class="tag tag-read">READ</span></div>
-              <p class="desc">Current Reversee state: app version, whether the proxy is running, listen/destination config, traffic and breakpoint counts.</p>
+              <div class="tool-head">
+                <span class="tool-name">get_status</span><span class="tag tag-read">READ</span>
+              </div>
+              <p class="desc">
+                Current Reversee state: app version, whether the proxy is running,
+                listen/destination config, traffic and breakpoint counts.
+              </p>
               <p class="params">No parameters.</p>
             </div>
             <div class="tool">
-              <div class="tool-head"><span class="tool-name">validate_setup</span><span class="tag tag-read">READ</span></div>
-              <p class="desc">Run setup checks: destination configured, ports valid, root certificate present, proxy process state.</p>
+              <div class="tool-head">
+                <span class="tool-name">validate_setup</span><span class="tag tag-read">READ</span>
+              </div>
+              <p class="desc">
+                Run setup checks: destination configured, ports valid, root certificate present,
+                proxy process state.
+              </p>
               <p class="params">No parameters.</p>
             </div>
             <div class="tool">
-              <div class="tool-head"><span class="tool-name">export_diagnostics</span><span class="tag tag-read">READ</span></div>
-              <p class="desc">Export diagnostics: versions, platform, full settings, proxy state, traffic count, breakpoints, log location.</p>
+              <div class="tool-head">
+                <span class="tool-name">export_diagnostics</span
+                ><span class="tag tag-read">READ</span>
+              </div>
+              <p class="desc">
+                Export diagnostics: versions, platform, full settings, proxy state, traffic count,
+                breakpoints, log location.
+              </p>
               <p class="params">No parameters.</p>
             </div>
           </div>
@@ -307,28 +533,55 @@
           <div class="toolgroup">
             <h3>Configuration &amp; proxy control</h3>
             <div class="tool">
-              <div class="tool-head"><span class="tool-name">get_config</span><span class="tag tag-read">READ</span></div>
-              <p class="desc">Full Reversee proxy configuration (listen/destination, interceptors, rewrite flags).</p>
+              <div class="tool-head">
+                <span class="tool-name">get_config</span><span class="tag tag-read">READ</span>
+              </div>
+              <p class="desc">
+                Full Reversee proxy configuration (listen/destination, interceptors, rewrite flags).
+              </p>
               <p class="params">No parameters.</p>
             </div>
             <div class="tool">
-              <div class="tool-head"><span class="tool-name">update_config</span><span class="tag tag-gated">CONTROL</span></div>
-              <p class="desc">Update Reversee configuration. Accepts a partial settings object; unknown keys and invalid values are ignored. Keys: listenProtocol/destProtocol (http|https), listenPort/destPort (1-65535), dest (host), interceptRequest/interceptResponse (bool), requestInterceptor/responseInterceptor (JS source), rewriteRedirects/rewriteHost/allowSelfSignedUpstream (bool). Requires "Allow MCP to Control the Proxy" enabled in the app. Returns the resulting config.</p>
+              <div class="tool-head">
+                <span class="tool-name">update_config</span
+                ><span class="tag tag-gated">CONTROL</span>
+              </div>
+              <p class="desc">
+                Update Reversee configuration. Accepts a partial settings object; unknown keys and
+                invalid values are ignored. Keys: listenProtocol/destProtocol (http|https),
+                listenPort/destPort (1-65535), dest (host), interceptRequest/interceptResponse
+                (bool), requestInterceptor/responseInterceptor (JS source),
+                rewriteRedirects/rewriteHost/allowSelfSignedUpstream (bool). Requires "Allow MCP to
+                Control the Proxy" enabled in the app. Returns the resulting config.
+              </p>
               <p class="params"><code>patch</code> (object, required) — partial settings object.</p>
             </div>
             <div class="tool">
-              <div class="tool-head"><span class="tool-name">start_proxy</span><span class="tag tag-gated">CONTROL</span></div>
-              <p class="desc">Start the reverse proxy with the current configuration. Requires control to be enabled in the app.</p>
+              <div class="tool-head">
+                <span class="tool-name">start_proxy</span><span class="tag tag-gated">CONTROL</span>
+              </div>
+              <p class="desc">
+                Start the reverse proxy with the current configuration. Requires control to be
+                enabled in the app.
+              </p>
               <p class="params">No parameters.</p>
             </div>
             <div class="tool">
-              <div class="tool-head"><span class="tool-name">stop_proxy</span><span class="tag tag-gated">CONTROL</span></div>
+              <div class="tool-head">
+                <span class="tool-name">stop_proxy</span><span class="tag tag-gated">CONTROL</span>
+              </div>
               <p class="desc">Stop the reverse proxy. Requires control to be enabled in the app.</p>
               <p class="params">No parameters.</p>
             </div>
             <div class="tool">
-              <div class="tool-head"><span class="tool-name">restart_proxy</span><span class="tag tag-gated">CONTROL</span></div>
-              <p class="desc">Restart the proxy worker process (also recovers from a wedged interceptor). Requires control to be enabled in the app.</p>
+              <div class="tool-head">
+                <span class="tool-name">restart_proxy</span
+                ><span class="tag tag-gated">CONTROL</span>
+              </div>
+              <p class="desc">
+                Restart the proxy worker process (also recovers from a wedged interceptor). Requires
+                control to be enabled in the app.
+              </p>
               <p class="params">No parameters.</p>
             </div>
           </div>
@@ -336,66 +589,161 @@
           <div class="toolgroup">
             <h3>Inspecting traffic</h3>
             <div class="tool">
-              <div class="tool-head"><span class="tool-name">list_traffic</span><span class="tag tag-read">READ</span></div>
-              <p class="desc">List captured requests (newest last): method, URL, status, content type, total time. Bodies are elided; use get_traffic_entry for full details.</p>
-              <p class="params"><code>offset</code> (integer ≥ 0), <code>limit</code> (integer 1–200, default 50).</p>
+              <div class="tool-head">
+                <span class="tool-name">list_traffic</span><span class="tag tag-read">READ</span>
+              </div>
+              <p class="desc">
+                List captured requests (newest last): method, URL, status, content type, total time.
+                Bodies are elided; use get_traffic_entry for full details.
+              </p>
+              <p class="params">
+                <code>offset</code> (integer ≥ 0), <code>limit</code> (integer 1–200, default 50).
+              </p>
             </div>
             <div class="tool">
-              <div class="tool-head"><span class="tool-name">search_traffic</span><span class="tag tag-read">READ</span></div>
-              <p class="desc">Filter captured requests server-side so you fetch only what matters (avoids dumping everything). All filters combine with AND. Bodies are elided in results; use get_traffic_entry for full detail.</p>
-              <p class="params"><code>text</code>, <code>method</code>, <code>status</code> (e.g. <code>404</code>, <code>"2xx"</code>, <code>"&gt;=400"</code>), <code>urlContains</code>, <code>urlRegex</code>, <code>contentType</code>, <code>header</code>, <code>bodyContains</code>, <code>minTotalMs</code>, <code>hasError</code>, <code>offset</code>, <code>limit</code>.</p>
+              <div class="tool-head">
+                <span class="tool-name">search_traffic</span><span class="tag tag-read">READ</span>
+              </div>
+              <p class="desc">
+                Filter captured requests server-side so you fetch only what matters (avoids dumping
+                everything). All filters combine with AND. Bodies are elided in results; use
+                get_traffic_entry for full detail.
+              </p>
+              <p class="params">
+                <code>text</code>, <code>method</code>, <code>status</code> (e.g. <code>404</code>,
+                <code>"2xx"</code>, <code>"&gt;=400"</code>), <code>urlContains</code>,
+                <code>urlRegex</code>, <code>contentType</code>, <code>header</code>,
+                <code>bodyContains</code>, <code>minTotalMs</code>, <code>hasError</code>,
+                <code>offset</code>, <code>limit</code>.
+              </p>
             </div>
             <div class="tool">
-              <div class="tool-head"><span class="tool-name">summarize_session</span><span class="tag tag-read">READ</span></div>
-              <p class="desc">Aggregate view of all captured traffic: counts by status class and method, content types, top hosts, the error requests, and the slowest requests. Use this to orient before drilling in.</p>
+              <div class="tool-head">
+                <span class="tool-name">summarize_session</span
+                ><span class="tag tag-read">READ</span>
+              </div>
+              <p class="desc">
+                Aggregate view of all captured traffic: counts by status class and method, content
+                types, top hosts, the error requests, and the slowest requests. Use this to orient
+                before drilling in.
+              </p>
               <p class="params"><code>slowest</code> (integer 1–50, default 5).</p>
             </div>
             <div class="tool">
-              <div class="tool-head"><span class="tool-name">get_traffic_entry</span><span class="tag tag-read">READ</span></div>
-              <p class="desc">Full details of one captured request: headers, bodies, timings, a copy-pasteable curl command, the upstream target, and any decoded JWTs found in its Authorization header or cookies.</p>
+              <div class="tool-head">
+                <span class="tool-name">get_traffic_entry</span
+                ><span class="tag tag-read">READ</span>
+              </div>
+              <p class="desc">
+                Full details of one captured request: headers, bodies, timings, a copy-pasteable
+                curl command, the upstream target, and any decoded JWTs found in its Authorization
+                header or cookies.
+              </p>
               <p class="params"><code>trafficId</code> (integer, required).</p>
             </div>
             <div class="tool">
-              <div class="tool-head"><span class="tool-name">decode_jwt</span><span class="tag tag-read">READ</span></div>
-              <p class="desc">Decode a JWT (header + claims, with exp/iat parsed). Inspection only — the signature is not verified.</p>
-              <p class="params"><code>token</code> (string, required) — a leading <code>Bearer </code> is fine.</p>
+              <div class="tool-head">
+                <span class="tool-name">decode_jwt</span><span class="tag tag-read">READ</span>
+              </div>
+              <p class="desc">
+                Decode a JWT (header + claims, with exp/iat parsed). Inspection only — the signature
+                is not verified.
+              </p>
+              <p class="params">
+                <code>token</code> (string, required) — a leading <code>Bearer </code> is fine.
+              </p>
             </div>
           </div>
 
           <div class="toolgroup">
             <h3>Acting on traffic</h3>
             <div class="tool">
-              <div class="tool-head"><span class="tool-name">replay_request</span><span class="tag tag-gated">CONTROL</span></div>
-              <p class="desc">Re-send a captured request to its upstream, optionally with edits — the agent way to test a hypothesis ("what if this header/body/status were different?"). Records a new traffic entry and returns it. Requires control to be enabled in the app.</p>
-              <p class="params"><code>trafficId</code> (integer, required), <code>overrides</code> (object: <code>method</code>, <code>url</code>, <code>headers</code> — a null value deletes a header, <code>body</code>).</p>
+              <div class="tool-head">
+                <span class="tool-name">replay_request</span
+                ><span class="tag tag-gated">CONTROL</span>
+              </div>
+              <p class="desc">
+                Re-send a captured request to its upstream, optionally with edits — the agent way to
+                test a hypothesis ("what if this header/body/status were different?"). Records a new
+                traffic entry and returns it. Requires control to be enabled in the app.
+              </p>
+              <p class="params">
+                <code>trafficId</code> (integer, required), <code>overrides</code> (object:
+                <code>method</code>, <code>url</code>, <code>headers</code> — a null value deletes a
+                header, <code>body</code>).
+              </p>
             </div>
             <div class="tool">
-              <div class="tool-head"><span class="tool-name">set_interceptor</span><span class="tag tag-gated">CONTROL</span></div>
-              <p class="desc">Install (or clear/toggle) a request or response interceptor — arbitrary JavaScript that rewrites traffic on the fly, for mocking, fault injection, or header rewriting. The code runs per matching request in a sandbox. Request interceptors can mutate <code>requestParams</code> (host, path, method, port, headers, body). Response interceptors can mutate <code>responseParams</code> (statusCode, headers, body) and read <code>requestParams</code>. Example (force a 500): <code>responseParams.statusCode = 500; responseParams.body = "{\"error\":\"injected\"}";</code>. Requires control to be enabled in the app.</p>
-              <p class="params"><code>kind</code> (<code>"request"</code> | <code>"response"</code>, required), <code>code</code> (string — omit to leave unchanged), <code>enabled</code> (boolean).</p>
+              <div class="tool-head">
+                <span class="tool-name">set_interceptor</span
+                ><span class="tag tag-gated">CONTROL</span>
+              </div>
+              <p class="desc">
+                Install (or clear/toggle) a request or response interceptor — arbitrary JavaScript
+                that rewrites traffic on the fly, for mocking, fault injection, or header rewriting.
+                The code runs per matching request in a sandbox. Request interceptors can mutate
+                <code>requestParams</code> (host, path, method, port, headers, body). Response
+                interceptors can mutate <code>responseParams</code> (statusCode, headers, body) and
+                read <code>requestParams</code>. Example (force a 500):
+                <code
+                  >responseParams.statusCode = 500; responseParams.body =
+                  "{\"error\":\"injected\"}";</code
+                >. Requires control to be enabled in the app.
+              </p>
+              <p class="params">
+                <code>kind</code> (<code>"request"</code> | <code>"response"</code>, required),
+                <code>code</code> (string — omit to leave unchanged),
+                <code>enabled</code> (boolean).
+              </p>
             </div>
           </div>
 
           <div class="toolgroup">
             <h3>Breakpoints &amp; gRPC</h3>
             <div class="tool">
-              <div class="tool-head"><span class="tool-name">list_breakpoints</span><span class="tag tag-read">READ</span></div>
+              <div class="tool-head">
+                <span class="tool-name">list_breakpoints</span
+                ><span class="tag tag-read">READ</span>
+              </div>
               <p class="desc">List the configured breakpoint rules (URL regex + HTTP methods).</p>
               <p class="params">No parameters.</p>
             </div>
             <div class="tool">
-              <div class="tool-head"><span class="tool-name">list_proto_specs</span><span class="tag tag-read">READ</span></div>
-              <p class="desc">List saved protobuf specs used to decode gRPC traffic (id, name, source) plus any compile errors.</p>
+              <div class="tool-head">
+                <span class="tool-name">list_proto_specs</span
+                ><span class="tag tag-read">READ</span>
+              </div>
+              <p class="desc">
+                List saved protobuf specs used to decode gRPC traffic (id, name, source) plus any
+                compile errors.
+              </p>
               <p class="params">No parameters.</p>
             </div>
             <div class="tool">
-              <div class="tool-head"><span class="tool-name">add_proto_spec</span><span class="tag tag-gated">CONTROL</span></div>
-              <p class="desc">Save a protobuf spec for decoding gRPC traffic. Provide raw .proto text (source "proto") or a base64-encoded FileDescriptorSet (source "descriptor"). Returns the updated spec list and compile errors. Requires "Allow MCP to Control the Proxy" enabled in the app.</p>
-              <p class="params"><code>name</code> (string, required), <code>source</code> (<code>"proto"</code> | <code>"descriptor"</code>, required), <code>content</code> (string, required).</p>
+              <div class="tool-head">
+                <span class="tool-name">add_proto_spec</span
+                ><span class="tag tag-gated">CONTROL</span>
+              </div>
+              <p class="desc">
+                Save a protobuf spec for decoding gRPC traffic. Provide raw .proto text (source
+                "proto") or a base64-encoded FileDescriptorSet (source "descriptor"). Returns the
+                updated spec list and compile errors. Requires "Allow MCP to Control the Proxy"
+                enabled in the app.
+              </p>
+              <p class="params">
+                <code>name</code> (string, required), <code>source</code> (<code>"proto"</code> |
+                <code>"descriptor"</code>, required), <code>content</code> (string, required).
+              </p>
             </div>
             <div class="tool">
-              <div class="tool-head"><span class="tool-name">remove_proto_spec</span><span class="tag tag-gated">CONTROL</span></div>
-              <p class="desc">Delete a saved protobuf spec by id. Requires "Allow MCP to Control the Proxy" enabled in the app.</p>
+              <div class="tool-head">
+                <span class="tool-name">remove_proto_spec</span
+                ><span class="tag tag-gated">CONTROL</span>
+              </div>
+              <p class="desc">
+                Delete a saved protobuf spec by id. Requires "Allow MCP to Control the Proxy"
+                enabled in the app.
+              </p>
               <p class="params"><code>id</code> (string, required).</p>
             </div>
           </div>
@@ -409,25 +757,42 @@
           <div class="toolgroup">
             <div class="tool">
               <div class="tool-head"><span class="tool-name">Triage a session</span></div>
-              <p class="desc"><code>summarize_session</code> to orient → <code>search_traffic</code> with <code>hasError: true</code> or <code>status: "&gt;=400"</code> to find failures → <code>get_traffic_entry</code> on the interesting ids for full detail.</p>
+              <p class="desc">
+                <code>summarize_session</code> to orient → <code>search_traffic</code> with
+                <code>hasError: true</code> or <code>status: "&gt;=400"</code> to find failures →
+                <code>get_traffic_entry</code> on the interesting ids for full detail.
+              </p>
             </div>
             <div class="tool">
               <div class="tool-head"><span class="tool-name">Test a fix hypothesis</span></div>
-              <p class="desc">Find the failing request, then <code>replay_request</code> with a changed header/body/url and compare the new entry — no client changes needed.</p>
+              <p class="desc">
+                Find the failing request, then <code>replay_request</code> with a changed
+                header/body/url and compare the new entry — no client changes needed.
+              </p>
             </div>
             <div class="tool">
               <div class="tool-head"><span class="tool-name">Mock or inject faults</span></div>
-              <p class="desc"><code>set_interceptor</code> (<code>response</code>) to force a status or body, drive the client, then clear it with <code>enabled: false</code>.</p>
+              <p class="desc">
+                <code>set_interceptor</code> (<code>response</code>) to force a status or body,
+                drive the client, then clear it with <code>enabled: false</code>.
+              </p>
             </div>
             <div class="tool">
-              <div class="tool-head"><span class="tool-name">Debug auth &amp; decode gRPC</span></div>
-              <p class="desc"><code>get_traffic_entry</code> surfaces decoded JWTs inline; <code>decode_jwt</code> inspects a token in hand. Load a schema with <code>add_proto_spec</code> and gRPC messages come back as JSON.</p>
+              <div class="tool-head">
+                <span class="tool-name">Debug auth &amp; decode gRPC</span>
+              </div>
+              <p class="desc">
+                <code>get_traffic_entry</code> surfaces decoded JWTs inline;
+                <code>decode_jwt</code> inspects a token in hand. Load a schema with
+                <code>add_proto_spec</code> and gRPC messages come back as JSON.
+              </p>
             </div>
           </div>
-          <p class="section-sub" style="margin-top:8px">
-            Prefer no UI? <code>reversee --headless --allow-mcp-control</code> runs the proxy + MCP socket with
-            no window, for CI- or agent-driven automation. See the
-            <a href="https://github.com/galusben/reversee#headless-mode-for-agents">headless docs</a>.
+          <p class="section-sub" style="margin-top: 8px">
+            Prefer no UI? <code>reversee --headless --allow-mcp-control</code> runs the proxy + MCP
+            socket with no window, for CI- or agent-driven automation. See the
+            <a href="https://github.com/galusben/reversee#headless-mode-for-agents">headless docs</a
+            >.
           </p>
         </div>
       </section>
@@ -436,13 +801,19 @@
     <footer>
       <div class="wrap foot-inner">
         <div>
-          <img src="./logo.png" alt="Reversee" style="height:40px; width:auto; display:block; margin-bottom:10px;" />
+          <img
+            src="./logo.png"
+            alt="Reversee"
+            style="height: 40px; width: auto; display: block; margin-bottom: 10px"
+          />
           <div>Open source under the MIT license.</div>
         </div>
         <div class="foot-links">
           <a href="./">Home</a>
           <a href="https://github.com/galusben/reversee">GitHub</a>
-          <a href="https://github.com/galusben/reversee/blob/main/docs/mcp-tools.md">MCP reference</a>
+          <a href="https://github.com/galusben/reversee/blob/main/docs/mcp-tools.md"
+            >MCP reference</a
+          >
           <a href="https://www.npmjs.com/package/reversee-mcp">reversee-mcp (npm)</a>
           <a href="./llms.txt">llms.txt</a>
         </div>

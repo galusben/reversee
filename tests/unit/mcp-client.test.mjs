@@ -5,11 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { startControlServer } from '../../src/main/mcp/control-server';
-import {
-  ReverseeClient,
-  ReverseeNotRunningError,
-  ControlCallError,
-} from '../../mcp/src/client';
+import { ReverseeClient, ReverseeNotRunningError, ControlCallError } from '../../mcp/src/client';
 
 let dir;
 let server;

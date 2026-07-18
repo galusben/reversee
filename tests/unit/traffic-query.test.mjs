@@ -23,9 +23,31 @@ function e(id, o = {}) {
 }
 
 const sample = [
-  e(1, { method: 'GET', url: '/api/users', status: 200, contentType: 'application/json', resBody: '{"ok":true}', totalMs: 12, host: 'api.example.com' }),
-  e(2, { method: 'POST', url: '/api/orders', status: 201, contentType: 'application/json', totalMs: 40, host: 'api.example.com' }),
-  e(3, { method: 'GET', url: '/missing', status: 404, contentType: 'application/json', totalMs: 5, host: 'api.example.com' }),
+  e(1, {
+    method: 'GET',
+    url: '/api/users',
+    status: 200,
+    contentType: 'application/json',
+    resBody: '{"ok":true}',
+    totalMs: 12,
+    host: 'api.example.com',
+  }),
+  e(2, {
+    method: 'POST',
+    url: '/api/orders',
+    status: 201,
+    contentType: 'application/json',
+    totalMs: 40,
+    host: 'api.example.com',
+  }),
+  e(3, {
+    method: 'GET',
+    url: '/missing',
+    status: 404,
+    contentType: 'application/json',
+    totalMs: 5,
+    host: 'api.example.com',
+  }),
   e(4, { method: 'GET', url: '/slow', status: 500, totalMs: 900, host: 'cdn.example.com' }),
   e(5, { method: 'GET', url: '/down', error: 'ECONNREFUSED', host: 'cdn.example.com' }),
 ];
