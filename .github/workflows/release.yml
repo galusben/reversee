@@ -97,9 +97,51 @@ jobs:
           REVERSEE_EXPECTED_VERSION="$VER" \
             npx playwright test -c playwright.smoke.config.ts
 
+  # The app hardcodes RECOMMENDED_BRIDGE_VERSION and nags every user whose
+  # reversee-mcp bridge is older. Users can only upgrade to what npm serves, so
+  # the bridge must be on the registry *before* the app that recommends it goes
+  # live — otherwise the nag is unsatisfiable. This gates `promote`: if the
+  # bridge cannot be published, the release stays a draft and nobody gets an app
+  # that points at a version they cannot install. See RELEASING.md.
+  publish-bridge:
+    name: Publish the MCP bridge to npm
+    needs: verify-mac
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm ci
+      - name: Publish reversee-mcp if that version is not on npm yet
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          VER="$(node -p "require('./mcp/package.json').version")"
+          if [ -n "$(npm view "reversee-mcp@${VER}" version 2>/dev/null)" ]; then
+            echo "reversee-mcp@${VER} is already published — nothing to do."
+            exit 0
+          fi
+          if [ "$HAS_NPM_TOKEN" != "true" ]; then
+            echo "::error::reversee-mcp@${VER} is not on npm and NPM_TOKEN is not configured."
+            echo "Add the NPM_TOKEN secret, or publish by hand from mcp/, then re-run this job."
+            exit 1
+          fi
+          npm publish -w reversee-mcp --access public
+      # Fails the release if the shipping app still recommends a bridge the
+      # registry does not have. This is the check that would have caught 2.1.0
+      # being bumped in-repo but never published.
+      - run: npm run check:bridge-version
+
   promote:
     name: Publish release
-    needs: verify-mac
+    needs: [verify-mac, publish-bridge]
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -18,13 +18,62 @@ Use a pre-release tag (`v2.1.0-beta.1`) to rehearse the whole pipeline safely: i
 
 ## What the pipeline does
 
-Three gated stages — nothing reaches users until the signed macOS app has been verified:
+Four gated stages — nothing reaches users until the signed macOS app has been verified:
 
 1. **build** (macOS, Windows, Linux) — `electron-builder` builds each platform, signs and notarizes the macOS app, and publishes the artifacts to a **draft** GitHub release.
 2. **verify-mac** — downloads the signed `.dmg`/`.zip` from the draft, checks the code signature, notarization staple, and Gatekeeper acceptance, then installs the app and runs a smoke test against the **real packaged binary** (window loads, preload API present, version matches the tag).
-3. **promote** — publishes the release (marks it `latest`) and updates the [Homebrew cask](https://github.com/galusben/homebrew-reversee) with the new version and per-architecture checksums.
+3. **publish-bridge** — publishes the `reversee-mcp` npm package if its version is not on the registry yet, then asserts the shipping app's bridge recommendation is satisfiable. See [The MCP bridge](#the-mcp-bridge-reversee-mcp) below.
+4. **promote** — publishes the release (marks it `latest`) and updates the [Homebrew cask](https://github.com/galusben/homebrew-reversee) with the new version and per-architecture checksums.
 
 If any check fails the release stays a draft and users are unaffected.
+
+## The MCP bridge (`reversee-mcp`)
+
+The app is not the only thing that ships. `mcp/` is a **separate npm package**,
+versioned independently of the app, and MCP clients run it straight from the
+registry (`npx -y reversee-mcp`). It is easy to forget, and forgetting it breaks
+users in a way nothing else in this repo does.
+
+**The coupling.** `src/main/mcp/catalog.ts` hardcodes
+`RECOMMENDED_BRIDGE_VERSION`. The bridge reports its own version during the
+control-socket handshake, and the app puts an upgrade advisory into every
+`get_status` when the bridge is older. That is deliberate: since 2.1.0 the
+bridge is a generic passthrough that serves the **app-owned** tool catalog, so
+new tools reach users without a bridge release — but only if they are actually
+on a 2.1.0+ bridge. The advisory is how they get pulled forward.
+
+**The invariant.**
+
+> `RECOMMENDED_BRIDGE_VERSION` must never exceed the highest `reversee-mcp`
+> version **published to npm**.
+
+Users upgrade with `npx -y reversee-mcp`, which can only ever hand them what the
+registry has. Point the constant at an unpublished version and every user is
+told, on every `get_status`, to upgrade to something that does not exist — and
+following the instructions changes nothing. Bumping `mcp/package.json` is **not**
+publishing; the two are separate acts.
+
+**What enforces it.**
+
+| Check                               | Where                                 | Catches                                               |
+| ----------------------------------- | ------------------------------------- | ----------------------------------------------------- |
+| `npm test` (`mcp-catalog.test.mjs`) | every PR                              | constant newer than `mcp/package.json` (offline)      |
+| `npm run check:bridge-version`      | by hand, and the `publish-bridge` job | constant not published to npm (hits the registry)     |
+| `publish-bridge`                    | release pipeline, gates `promote`     | a tagged release whose app points at a missing bridge |
+
+**Releasing a bridge change.** Bump `mcp/package.json`, and bump
+`RECOMMENDED_BRIDGE_VERSION` to match only if you want to pull users onto it.
+The release pipeline publishes it on the next tag. To publish by hand instead:
+
+```sh
+npm run build:mcp
+npm publish -w reversee-mcp --access public
+npm run check:bridge-version          # confirms the invariant now holds
+```
+
+Bridge versions are independent of app versions — they only happen to have
+tracked each other so far. Publishing is idempotent in the pipeline: if that
+version is already on npm, the job says so and moves on.
 
 ## Where releases go
 
@@ -41,8 +90,14 @@ Configured on the `reversee` repo (Settings → Secrets → Actions):
 | `CSC_LINK`, `CSC_KEY_PASSWORD`                             | macOS Developer ID signing certificate (.p12, base64) and its password           |
 | `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` | Notarization with Apple's notary service                                         |
 | `TAP_GITHUB_TOKEN`                                         | Fine-grained PAT with Contents:write on `homebrew-reversee`, for the cask update |
+| `NPM_TOKEN`                                                | npm automation token with publish rights on `reversee-mcp`                       |
 
 Missing signing secrets → unsigned build; missing `TAP_GITHUB_TOKEN` → the Homebrew step is skipped. The build still succeeds either way.
+
+`NPM_TOKEN` is different: it is only needed when `mcp/package.json` has a version
+that is not on npm yet. In that case the `publish-bridge` job **fails the release**
+rather than shipping an app that recommends a bridge nobody can install. Publish
+the bridge by hand (see above) and re-run the job, or add the secret.
 
 ## Verifying a published macOS build by hand
 

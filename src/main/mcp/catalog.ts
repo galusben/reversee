@@ -21,10 +21,21 @@ const noInput = { type: 'object', properties: {}, additionalProperties: false };
  * The bridge version the app wants users on. 2.1.0 is the first *generic*
  * bridge (it serves the app-owned catalog); the original 2.0.0 bridge had a
  * hardcoded tool list and cannot receive new tools, so we actively pull users
- * onto >= 2.1.0. The app reports its own bridge version in the handshake and
- * the app emits the advisory below — so even the old 2.0.0 bridge (which has
- * no advisory code of its own but passes get_status through verbatim) surfaces
+ * onto >= 2.1.0. The bridge reports its own version in the handshake and the
+ * app emits the advisory below — so even the old 2.0.0 bridge (which has no
+ * advisory code of its own but passes get_status through verbatim) surfaces
  * it. No npm registry calls are involved.
+ *
+ * INVARIANT: this must never exceed the highest `reversee-mcp` version
+ * **published to npm**. Users upgrade with `npx -y reversee-mcp`, which can
+ * only ever give them what the registry has; pointing this at an unpublished
+ * version makes the advisory unsatisfiable, so every user is told to upgrade
+ * to something they cannot install, on every get_status, forever.
+ *
+ * Bumping `mcp/package.json` is therefore not enough — the bridge has to be
+ * published too. `npm run check:bridge-version` verifies both halves against
+ * the registry, and the release pipeline publishes the bridge on a tag. See
+ * the "MCP bridge" section of RELEASING.md.
  */
 export const RECOMMENDED_BRIDGE_VERSION = '2.1.0';
 
@@ -52,7 +63,8 @@ export interface BridgeAdvisory {
 /**
  * Advisory included in get_status. A missing bridgeVersion means an old bridge
  * (pre-2.1.0 didn't report one) — treat it as outdated so those users get
- * pulled forward.
+ * pulled forward. Every version string here is derived from
+ * RECOMMENDED_BRIDGE_VERSION so a bump cannot leave stale text behind.
  */
 export function buildBridgeAdvisory(bridgeVersion: string | undefined): BridgeAdvisory {
   const outdated = !bridgeVersion || isOlderVersion(bridgeVersion, RECOMMENDED_BRIDGE_VERSION);
@@ -68,7 +80,7 @@ export function buildBridgeAdvisory(bridgeVersion: string | undefined): BridgeAd
     recommended: RECOMMENDED_BRIDGE_VERSION,
     reportedVersion: bridgeVersion,
     note:
-      `Your reversee-mcp bridge (${bridgeVersion ?? 'pre-2.1.0'}) is older than the recommended ` +
+      `Your reversee-mcp bridge (${bridgeVersion ?? `pre-${RECOMMENDED_BRIDGE_VERSION}`}) is older than the recommended ` +
       `${RECOMMENDED_BRIDGE_VERSION}. The newer bridge receives tools added in app updates automatically. ` +
       'Restart your MCP client to upgrade — on npm 11.2+ that pulls the latest. On older npm, ' +
       'clear the cache once first:\n' +

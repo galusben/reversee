@@ -20,6 +20,7 @@ npm run lint           # eslint
 npm run build          # build app into out/
 npx playwright test    # app end-to-end (needs npm run build first)
 npm run build:mcp      # build the reversee-mcp bridge
+npm run check:bridge-version  # app's recommended bridge vs. what npm actually has
 ```
 
 ## Where to find what
@@ -47,6 +48,13 @@ Full map with entry-point files and "common change → files to touch" recipes:
   source of truth for the bridge and the gated-mutation set — see
   [ADR 0002](docs/adr/0002-app-owns-mcp-tool-catalog.md).
 - **Releases are tag-driven** — never hand-publish. See [RELEASING.md](RELEASING.md).
+- **The bridge is a separate npm package.** `mcp/` ships to npm as
+  `reversee-mcp` and users run it via `npx`. The app hardcodes
+  `RECOMMENDED_BRIDGE_VERSION` (`src/main/mcp/catalog.ts`) and nags anyone on an
+  older bridge, so that constant **must never exceed what is published to npm** —
+  bumping `mcp/package.json` is not publishing. Run
+  `npm run check:bridge-version` if you touch either. See
+  [the MCP bridge section of RELEASING.md](RELEASING.md#the-mcp-bridge-reversee-mcp).
 - Read [TESTING.md](TESTING.md) before adding or changing tests; it says which of
   the four layers a change belongs in.
 - More: [docs/conventions.md](docs/conventions.md).
