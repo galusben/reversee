@@ -1,5 +1,7 @@
 // The app-owned MCP tool catalog (electron-free) and its derived mutating set.
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { isNewerVersion } from '../../scripts/check-bridge-version.mjs';
 import {
   MCP_TOOL_CATALOG,
   MCP_MUTATING_METHODS,
@@ -70,6 +72,28 @@ describe('MCP tool catalog', () => {
 
   it('recommends a sensible bridge version', () => {
     expect(RECOMMENDED_BRIDGE_VERSION).toMatch(/^\d+\.\d+\.\d+/);
+  });
+
+  // The app nags every user whose bridge is older than the recommendation, and
+  // they can only upgrade to what npm actually serves. Recommending a version
+  // this repo has not even reached means the advisory can never be satisfied.
+  // This is the offline half of `npm run check:bridge-version`; the release
+  // pipeline runs the online half, which also requires it to be *published*.
+  it('never recommends a bridge newer than mcp/package.json', () => {
+    const packaged = JSON.parse(
+      readFileSync(new URL('../../mcp/package.json', import.meta.url), 'utf8')
+    ).version;
+    expect(
+      isNewerVersion(RECOMMENDED_BRIDGE_VERSION, packaged),
+      `app recommends ${RECOMMENDED_BRIDGE_VERSION} but mcp/package.json is ${packaged}`
+    ).toBe(false);
+  });
+
+  // Guards against a bump leaving a stale version string behind in the text.
+  it('derives every version string in the advisory from the constant', () => {
+    const note = buildBridgeAdvisory(undefined).note;
+    expect(note).toContain(`pre-${RECOMMENDED_BRIDGE_VERSION}`);
+    expect(note).toContain(RECOMMENDED_BRIDGE_VERSION);
   });
 });
 

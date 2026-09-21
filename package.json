@@ -22,6 +22,7 @@
     "build:mcp": "npm run build -w reversee-mcp",
     "typecheck": "tsc --build && tsc -p mcp --noEmit",
     "lint": "eslint .",
+    "check:bridge-version": "node scripts/check-bridge-version.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
