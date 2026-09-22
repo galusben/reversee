@@ -106,11 +106,18 @@ jobs:
   publish-bridge:
     name: Publish the MCP bridge to npm
     needs: verify-mac
+    # Publishing to npm is public and permanent (unpublish is limited to 72h),
+    # so a rehearsal tag must never do it. Mirrors the homebrew job's guard.
+    if: ${{ !contains(github.ref_name, '-') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    env:
-      HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
+      # Trusted publishing: npm exchanges this short-lived OIDC token for
+      # publish rights, scoped to this repo + workflow. No long-lived secret
+      # exists, and the tarball gets a provenance attestation tying it to this
+      # commit and run. Configured at npmjs.com → reversee-mcp → Settings →
+      # Trusted Publisher (GitHub Actions, galusben/reversee, release.yml).
+      id-token: write
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
@@ -118,22 +125,19 @@ jobs:
           node-version: 22
           cache: npm
           registry-url: 'https://registry.npmjs.org'
+      # Node 22 ships npm 10.x, which predates OIDC trusted publishing. Scoped
+      # to this job so the build legs keep the npm they are tested with.
+      - name: Use an npm that supports trusted publishing
+        run: npm install -g npm@latest
       - run: npm ci
       - name: Publish reversee-mcp if that version is not on npm yet
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           VER="$(node -p "require('./mcp/package.json').version")"
           if [ -n "$(npm view "reversee-mcp@${VER}" version 2>/dev/null)" ]; then
             echo "reversee-mcp@${VER} is already published — nothing to do."
             exit 0
           fi
-          if [ "$HAS_NPM_TOKEN" != "true" ]; then
-            echo "::error::reversee-mcp@${VER} is not on npm and NPM_TOKEN is not configured."
-            echo "Add the NPM_TOKEN secret, or publish by hand from mcp/, then re-run this job."
-            exit 1
-          fi
-          npm publish -w reversee-mcp --access public
+          npm publish -w reversee-mcp --access public --provenance
       # Fails the release if the shipping app still recommends a bridge the
       # registry does not have. This is the check that would have caught 2.1.0
       # being bumped in-repo but never published.
@@ -142,6 +146,11 @@ jobs:
   promote:
     name: Publish release
     needs: [verify-mac, publish-bridge]
+    # publish-bridge is skipped on pre-release tags, and a skipped `needs` would
+    # otherwise cascade and skip promote too — silently turning every rehearsal
+    # into a no-op that never publishes. This runs promote when publish-bridge
+    # succeeded *or* was skipped, but still blocks it when publish-bridge failed.
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     permissions:
       contents: write

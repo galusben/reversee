@@ -75,6 +75,12 @@ Bridge versions are independent of app versions — they only happen to have
 tracked each other so far. Publishing is idempotent in the pipeline: if that
 version is already on npm, the job says so and moves on.
 
+**Pre-release tags skip it entirely.** An npm publish is public and permanent
+(unpublish is limited to 72 hours), so a `-beta` rehearsal must not perform one.
+`publish-bridge` is therefore guarded like the Homebrew job, and `promote` is
+written to tolerate it being skipped. The trade-off is that a rehearsal does not
+exercise the publish path — the first real run of it is a stable tag.
+
 ## Where releases go
 
 - **GitHub Releases** — the canonical download and the auto-update feed (`electron-updater`, GitHub provider). Installed apps update themselves from here.
@@ -90,14 +96,20 @@ Configured on the `reversee` repo (Settings → Secrets → Actions):
 | `CSC_LINK`, `CSC_KEY_PASSWORD`                             | macOS Developer ID signing certificate (.p12, base64) and its password           |
 | `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` | Notarization with Apple's notary service                                         |
 | `TAP_GITHUB_TOKEN`                                         | Fine-grained PAT with Contents:write on `homebrew-reversee`, for the cask update |
-| `NPM_TOKEN`                                                | npm automation token with publish rights on `reversee-mcp`                       |
 
 Missing signing secrets → unsigned build; missing `TAP_GITHUB_TOKEN` → the Homebrew step is skipped. The build still succeeds either way.
 
-`NPM_TOKEN` is different: it is only needed when `mcp/package.json` has a version
-that is not on npm yet. In that case the `publish-bridge` job **fails the release**
-rather than shipping an app that recommends a bridge nobody can install. Publish
-the bridge by hand (see above) and re-run the job, or add the secret.
+**npm needs no secret.** The bridge is published through [npm trusted
+publishing](https://docs.npmjs.com/trusted-publishers): the `publish-bridge` job
+requests a short-lived OIDC token (`permissions: id-token: write`) and npm
+exchanges it for publish rights scoped to this repo and workflow. There is no
+long-lived credential to leak, rotate or expire, and each tarball gets a
+provenance attestation tying it to the commit and run that built it.
+
+Configured at npmjs.com → `reversee-mcp` → Settings → Trusted Publisher, as
+GitHub Actions / `galusben/reversee` / `release.yml`. If that configuration is
+missing or the workflow filename changes, the publish fails with an
+authentication error — the fix is on npmjs.com, not in the repo.
 
 ## Verifying a published macOS build by hand
 
