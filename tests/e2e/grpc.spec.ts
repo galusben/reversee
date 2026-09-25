@@ -18,10 +18,12 @@ let launched: LaunchedApp | null = null;
 let upstream: GrpcUpstream | null = null;
 
 test.afterEach(async () => {
+  const rendererErrors = launched?.rendererErrors ?? [];
   await launched?.close().catch(() => {});
   await upstream?.close().catch(() => {});
   launched = null;
   upstream = null;
+  expect(rendererErrors, 'renderer console errors / uncaught exceptions').toEqual([]);
 });
 
 test('proxies and decodes native gRPC — unary and server streaming', async () => {
