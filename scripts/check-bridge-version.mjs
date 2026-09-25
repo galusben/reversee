@@ -13,8 +13,14 @@
 //      Needs network, which is why it lives here and not in the unit suite.
 //
 // Usage:
-//   node scripts/check-bridge-version.mjs          # both halves
-//   node scripts/check-bridge-version.mjs --offline  # skip the registry call
+//   node scripts/check-bridge-version.mjs             # both halves, fail fast
+//   node scripts/check-bridge-version.mjs --offline   # skip the registry call
+//   node scripts/check-bridge-version.mjs --wait      # poll up to 300s
+//   node scripts/check-bridge-version.mjs --wait=120  # poll up to 120s
+//
+// Use --wait immediately after publishing: npm reports a successful publish
+// before the version is readable, so a single read races propagation. Fail-fast
+// is the right default for a human checking the invariant by hand.
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -45,8 +51,35 @@ export function isNewerVersion(a, b) {
   return a2 > b2;
 }
 
+/** `--wait` / `--wait=<seconds>`; absent means do not poll. Default 300s. */
+export function parseWaitSeconds(argv) {
+  const arg = argv.find((a) => a === '--wait' || a.startsWith('--wait='));
+  if (!arg) return 0;
+  if (arg === '--wait') return 300;
+  const n = Number(arg.slice('--wait='.length));
+  if (!Number.isFinite(n) || n < 0) throw new Error(`invalid --wait value: ${arg}`);
+  return n;
+}
+
+/** `npm view <spec> version`, empty string when the spec is not on the registry. */
+function viewVersion(spec) {
+  try {
+    // --prefer-online: this is polled in a loop right after a publish, and a
+    // cached negative response would otherwise keep answering "not there".
+    return execFileSync('npm', ['view', spec, 'version', '--prefer-online'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim();
+  } catch {
+    return '';
+  }
+}
+
+const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
 function main() {
   const offline = process.argv.includes('--offline');
+  const waitSeconds = parseWaitSeconds(process.argv);
   const recommended = readRecommendedBridgeVersion();
   const packaged = JSON.parse(read('mcp/package.json')).version;
   const problems = [];
@@ -59,27 +92,27 @@ function main() {
   }
 
   if (!offline) {
-    let published = '';
-    try {
-      published = execFileSync('npm', ['view', `reversee-mcp@${recommended}`, 'version'], {
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'pipe'],
-      }).trim();
-    } catch {
-      published = '';
+    // npm says a fresh publish "may take a few minutes to become available",
+    // so a check run straight after one has to poll rather than read once.
+    const deadline = Date.now() + waitSeconds * 1000;
+    let published = viewVersion(`reversee-mcp@${recommended}`);
+    let waited = false;
+    while (published !== recommended && Date.now() < deadline) {
+      waited = true;
+      process.stdout.write(`waiting for reversee-mcp@${recommended} to appear on npm...\n`);
+      sleep(10_000);
+      published = viewVersion(`reversee-mcp@${recommended}`);
+    }
+    if (published === recommended && waited) {
+      console.log(`reversee-mcp@${recommended} became visible after propagation.`);
     }
     if (published !== recommended) {
-      let latest = '(unknown)';
-      try {
-        latest = execFileSync('npm', ['view', 'reversee-mcp', 'version'], {
-          encoding: 'utf8',
-          stdio: ['ignore', 'pipe', 'pipe'],
-        }).trim();
-      } catch {
-        /* registry unreachable; the message below still says what is wrong */
-      }
+      const latest = viewVersion('reversee-mcp') || '(unknown)';
       problems.push(
         `reversee-mcp@${recommended} is not on npm (latest published: ${latest}).\n` +
+          (waitSeconds
+            ? `  Still not visible after waiting ${waitSeconds}s for propagation.\n`
+            : '') +
           `  Every user would be told to upgrade to a version they cannot install.\n` +
           `  Publish it from mcp/ — see the "MCP bridge" section of RELEASING.md.`
       );

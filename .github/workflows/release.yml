@@ -141,7 +141,12 @@ jobs:
       # Fails the release if the shipping app still recommends a bridge the
       # registry does not have. This is the check that would have caught 2.1.0
       # being bumped in-repo but never published.
-      - run: npm run check:bridge-version
+      #
+      # --wait because npm returns from a publish before the version is
+      # readable ("your package is being processed and may take a few minutes
+      # to become available"). Without it this raced the publish it had just
+      # done, failed a second later, and blocked promote on v2.2.2.
+      - run: npm run check:bridge-version -- --wait
 
   promote:
     name: Publish release
