@@ -68,8 +68,13 @@ The release pipeline publishes it on the next tag. To publish by hand instead:
 ```sh
 npm run build:mcp
 npm publish -w reversee-mcp --access public
-npm run check:bridge-version          # confirms the invariant now holds
+npm run check:bridge-version -- --wait   # confirms the invariant now holds
 ```
+
+`--wait` matters straight after a publish: npm returns success before the
+version is readable ("your package is being processed and may take a few minutes
+to become available"), so a single read races propagation. Without the flag the
+check fails fast, which is what you want when verifying the invariant by hand.
 
 Bridge versions are independent of app versions — they only happen to have
 tracked each other so far. Publishing is idempotent in the pipeline: if that

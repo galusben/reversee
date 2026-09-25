@@ -1,7 +1,7 @@
 // The app-owned MCP tool catalog (electron-free) and its derived mutating set.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { isNewerVersion } from '../../scripts/check-bridge-version.mjs';
+import { isNewerVersion, parseWaitSeconds } from '../../scripts/check-bridge-version.mjs';
 import {
   MCP_TOOL_CATALOG,
   MCP_MUTATING_METHODS,
@@ -127,5 +127,26 @@ describe('buildBridgeAdvisory', () => {
     expect(buildBridgeAdvisory(RECOMMENDED_BRIDGE_VERSION).upToDate).toBe(true);
     expect(buildBridgeAdvisory('99.0.0').upToDate).toBe(true);
     expect(buildBridgeAdvisory(RECOMMENDED_BRIDGE_VERSION).note).toBeUndefined();
+  });
+});
+
+// npm returns from a publish before the version is readable, so the release
+// pipeline polls instead of reading once. Fail-fast stays the default for a
+// human running the check by hand.
+describe('parseWaitSeconds', () => {
+  it('does not wait unless asked', () => {
+    expect(parseWaitSeconds(['node', 'check.mjs'])).toBe(0);
+    expect(parseWaitSeconds(['node', 'check.mjs', '--offline'])).toBe(0);
+  });
+
+  it('defaults to 300s for a bare --wait, and honours an explicit value', () => {
+    expect(parseWaitSeconds(['node', 'check.mjs', '--wait'])).toBe(300);
+    expect(parseWaitSeconds(['node', 'check.mjs', '--wait=120'])).toBe(120);
+    expect(parseWaitSeconds(['node', 'check.mjs', '--wait=0'])).toBe(0);
+  });
+
+  it('rejects a nonsense value rather than silently not waiting', () => {
+    expect(() => parseWaitSeconds(['node', 'check.mjs', '--wait=soon'])).toThrow(/invalid --wait/);
+    expect(() => parseWaitSeconds(['node', 'check.mjs', '--wait=-5'])).toThrow(/invalid --wait/);
   });
 });
