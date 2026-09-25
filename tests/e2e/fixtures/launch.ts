@@ -15,6 +15,12 @@ export interface LaunchedApp {
   app: ElectronApplication;
   page: Page;
   userDataDir: string;
+  /**
+   * Renderer console errors and uncaught exceptions seen since launch. Specs
+   * assert this is empty after each test, so CSP violations, failed Monaco
+   * workers, or a broken preload surface fail loudly instead of silently.
+   */
+  rendererErrors: string[];
   close(): Promise<void>;
 }
 
@@ -44,12 +50,18 @@ export async function launchApp(options?: {
     },
   });
   const page = await app.firstWindow();
+  const rendererErrors: string[] = [];
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') rendererErrors.push(`console.error: ${msg.text()}`);
+  });
+  page.on('pageerror', (error) => rendererErrors.push(`pageerror: ${error.message}`));
   await page.waitForLoadState('domcontentloaded');
 
   return {
     app,
     page,
     userDataDir,
+    rendererErrors,
     close: async () => {
       await app.close();
     },

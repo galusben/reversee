@@ -14,10 +14,12 @@ let launched: LaunchedApp | null = null;
 let upstream: Upstream | null = null;
 
 test.afterEach(async () => {
+  const rendererErrors = launched?.rendererErrors ?? [];
   await launched?.close().catch(() => {});
   await upstream?.close().catch(() => {});
   launched = null;
   upstream = null;
+  expect(rendererErrors, 'renderer console errors / uncaught exceptions').toEqual([]);
 });
 
 test('launches with a visible window and secure renderer', async () => {
