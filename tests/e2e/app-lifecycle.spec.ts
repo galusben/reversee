@@ -63,10 +63,19 @@ test('the renderer reports the same version as main', async () => {
 test('window size and position persist across relaunch', async () => {
   launched = await launchApp();
   const { userDataDir } = launched;
-  const target = { x: 80, y: 90, width: 1000, height: 640 };
-  await launched.app.evaluate(({ BrowserWindow }, bounds) => {
+  // Size the target from the display so small CI screens (1024 wide) don't
+  // clamp it: a distinctive size well inside the work area.
+  const target = await launched.app.evaluate(({ BrowserWindow, screen }) => {
+    const area = screen.getPrimaryDisplay().workArea;
+    const bounds = {
+      x: area.x + 40,
+      y: area.y + 30,
+      width: Math.min(900, area.width - 120),
+      height: Math.min(600, area.height - 100),
+    };
     BrowserWindow.getAllWindows()[0].setBounds(bounds);
-  }, target);
+    return BrowserWindow.getAllWindows()[0].getBounds();
+  });
   await launched.close();
 
   launched = await launchApp({ userDataDir });
