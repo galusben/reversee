@@ -62,10 +62,6 @@ test('Monaco renders the body and formats JSON through its language worker', asy
   await expect(editor.locator('.view-line')).toHaveCount(1);
   await expect(editor).toContainText('"roles"');
 
-  // Load the JSON language mode, then format with it (see the known bug below
-  // for why the first toggle alone is not enough).
-  await page.getByRole('button', { name: 'Formatted' }).click();
-  await page.getByRole('button', { name: 'Plain' }).click();
   await page.getByRole('button', { name: 'Formatted' }).click();
   await expect.poll(() => lineCount(page), { timeout: 15_000 }).toBeGreaterThan(5);
   const formatted = page.locator('.monaco-editor').first();
@@ -79,13 +75,10 @@ test('Monaco renders the body and formats JSON through its language worker', asy
   expect(classes).toBeGreaterThan(2);
 });
 
-// KNOWN BUG (pre-existing, found while adding this suite): the first
-// "Formatted" click in a session shows the body unformatted. MonacoViewImpl
-// runs formatDocument on mount, before Monaco has lazily loaded the JSON mode
-// that registers the formatter. test.fail() keeps this documented; it will
-// start "unexpectedly passing" once fixed — then drop the annotation.
+// Regression (#31): the first "Formatted" click in a session used to run
+// formatDocument before Monaco had lazily loaded the JSON mode that registers
+// the formatter, leaving the body on one line.
 test('the first Formatted click formats the body', async () => {
-  test.fail();
   const { page } = await launchWithJsonTraffic();
   await expect(page.locator('.monaco-editor').first()).toBeVisible({ timeout: 15_000 });
   await page.getByRole('button', { name: 'Formatted' }).click();
