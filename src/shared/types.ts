@@ -28,10 +28,56 @@ export interface ProxySettings {
    * works); when http it speaks cleartext h2c (prior knowledge).
    */
   enableGrpc?: boolean;
+  /**
+   * Seconds to wait for the upstream's response headers before answering 504.
+   * 0 disables the timeout. Applies until the first response byte only, so
+   * long-lived streams (SSE, long-poll bodies) are never cut off.
+   */
+  upstreamTimeoutSec?: number;
+  /** Per-request destination overrides; the first matching enabled rule wins. */
+  routes?: RouteRule[];
+  /** Canned responses served without contacting the upstream. */
+  mocks?: MockRule[];
+  /** PEM client certificate + key presented to https upstreams (mutual TLS). */
+  upstreamClientCert?: { cert: string; key: string };
+}
+
+/**
+ * Sends matching requests to a different upstream than the default
+ * destination. Both patterns are regular expressions; an empty pattern
+ * matches everything.
+ */
+export interface RouteRule {
+  id: string;
+  enabled: boolean;
+  /** Regex matched against the request Host header (without port). */
+  hostPattern?: string;
+  /** Regex matched against the request URL (path + query). */
+  pathPattern?: string;
+  destProtocol: Protocol;
+  dest: string;
+  destPort: number;
+}
+
+/** Answers matching requests with a canned response (no upstream contact). */
+export interface MockRule {
+  id: string;
+  enabled: boolean;
+  /** HTTP method, or empty / "*" for any. */
+  method?: string;
+  /** Regex matched against the request URL (path + query). */
+  pathPattern: string;
+  statusCode: number;
+  headers: Record<string, string>;
+  body: string;
+  /** Artificial latency before responding. */
+  delayMs?: number;
 }
 
 /** Parameters of the upstream request; mutated by request interceptors. */
 export interface RequestParams {
+  /** Upstream protocol. Defaults to the destination (or matched route) protocol. */
+  protocol?: Protocol;
   host?: string;
   path?: string;
   method?: string;
@@ -58,6 +104,8 @@ export interface RequestView {
   target?: UpstreamTarget;
   /** True when the stored body was cut at the display cap. */
   truncated?: boolean;
+  /** Full body size in bytes (the stored body may be truncated). */
+  size?: number;
 }
 
 export interface ResponseView {
@@ -69,6 +117,8 @@ export interface ResponseView {
   decodeError?: string;
   /** True when the stored body was cut at the display cap. */
   truncated?: boolean;
+  /** Body bytes as sent on the wire (before display decompression). */
+  size?: number;
 }
 
 export interface Timings {
@@ -90,6 +140,52 @@ export interface TrafficEntry {
   grpc?: GrpcView;
   /** True when this entry came from replay_request rather than live proxying. */
   replay?: boolean;
+  /** True while the exchange is still in flight (waiting, streaming, or an open WebSocket). */
+  pending?: boolean;
+  /** True when a mock rule answered and no upstream was contacted. */
+  mocked?: boolean;
+  /** True when the client went away before the response completed. */
+  clientAborted?: boolean;
+  /** True when the entry was loaded from a HAR file rather than captured. */
+  imported?: boolean;
+  /** Errors thrown (or timeouts hit) by user interceptor code for this exchange. */
+  interceptorErrors?: InterceptorIssue[];
+  /** console.* output of user interceptor code for this exchange. */
+  interceptorLogs?: string[];
+  /** Present when the request upgraded to a WebSocket. */
+  ws?: WebSocketView;
+}
+
+export interface InterceptorIssue {
+  phase: 'request' | 'response';
+  message: string;
+}
+
+export type WsOpcode = 'text' | 'binary' | 'close' | 'ping' | 'pong';
+
+/** One WebSocket message (fragments are reassembled before capture). */
+export interface WsMessage {
+  /** Who sent it. */
+  from: 'client' | 'server';
+  opcode: WsOpcode;
+  /** Text payload (text frames, close reasons); binary payloads are summarized by size. */
+  text?: string;
+  /** Payload size in bytes on the wire. */
+  size: number;
+  /** Milliseconds since the upgrade completed. */
+  atMs: number;
+  /** True when the captured text was cut at the per-message cap. */
+  truncated?: boolean;
+  /** Close status code (close frames). */
+  closeCode?: number;
+}
+
+export interface WebSocketView {
+  messages: WsMessage[];
+  /** Messages seen in total; exceeds messages.length once the capture cap is hit. */
+  messageCount: number;
+  /** True once either side closed the connection. */
+  closed?: boolean;
 }
 
 /** One length-prefixed gRPC message, decoded against a proto type when one matched. */
@@ -167,11 +263,18 @@ export interface GrpcProtoBundle {
   methodMap: Record<string, GrpcMethodTypeRef>;
 }
 
+export type BreakpointPhase = 'request' | 'response';
+
 export interface BreakpointRule {
   id: string;
   /** Regex source matched against the request URL. */
   path: string;
   methods: string[];
+  /**
+   * 'request' (default) holds the request before it is forwarded; 'response'
+   * holds the upstream response before it reaches the client.
+   */
+  phase?: BreakpointPhase;
 }
 
 export interface BreakpointCompileError {

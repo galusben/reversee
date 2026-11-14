@@ -9,11 +9,16 @@ Reversee sits between your client and a destination server. Point your client at
 ## Features
 
 - **HTTP and HTTPS** on both sides — listen on either protocol, forward to either protocol. HTTPS listening uses a locally generated root CA you can trust once (macOS: _Proxy Settings → Manage Root Cert_).
-- **Traffic inspection** — method, path, status, content type, headers, request/response bodies (plain and formatted), and per-request timings (DNS, TCP, TLS, first byte, total).
-- **Interceptors** — JavaScript snippets that rewrite requests (`requestParams`: host, path, method, port, headers, body) or responses (`responseParams`: statusCode, headers, body) on the fly.
-- **Breakpoints** — hold requests matching a URL regex + methods, edit the URL, headers, and body, then continue.
+- **Traffic inspection** — a sortable table (method, path, status, content type, size, duration) with headers, request/response bodies (plain and formatted), and a per-request timing waterfall (DNS, TCP, TLS, first byte, download). Requests show up while they are still in flight.
+- **Streaming and WebSockets** — responses are streamed through, so Server-Sent Events and large downloads work as they would without the proxy. WebSocket connections are tunnelled and their messages listed.
+- **Interceptors** — JavaScript snippets that rewrite requests (`requestParams`: host, path, method, port, headers, body) or responses (`responseParams`: statusCode, headers, body) on the fly. Errors and `console.log` output are shown on the request.
+- **Breakpoints** — hold requests, or responses, matching a URL regex + methods, edit them, then continue.
+- **Routes and mocks** — send some requests to a different upstream by Host or path, or answer them with a canned response without any upstream.
+- **Replay and HAR** — re-send a captured request (as is, or edited), and export or import sessions as HAR files.
 - **gRPC** — proxy native gRPC over HTTP/2 (h2 via ALPN, or cleartext h2c) and decode every message — unary and server/client/bidi streaming — into readable JSON, using `.proto`/`.desc` definitions you import. See [gRPC](#grpc).
 - **Redirect & host rewriting** — keep redirect chains and Host headers pointed at the proxy.
+- **Upstream TLS options** — a client certificate for mutual TLS, optional certificate verification, and a response timeout.
+- **Light and dark themes**, keyboard navigation, and a configurable history size.
 - **MCP integration** — let Claude Code, Cursor, or any MCP client inspect and (optionally) control the proxy. See below.
 
 ## Install
@@ -52,6 +57,13 @@ curl http://localhost:<listen-port>/
 
 The request appears in the traffic table; click it to inspect.
 
+## HTTPS and the root certificate
+
+Listening on `https` uses a certificate signed by a root CA that Reversee generates on first run. Trust it once (macOS: _Proxy Settings → Manage Root Cert_; elsewhere export it with _Export Root Cert_ and add it to your client or system store). The listener certificate covers `localhost`, `127.0.0.1` and `::1`.
+
+- New roots are valid for ten years. Reversee warns when the root is within 30 days of expiring, and _Proxy Settings → Regenerate Root Cert…_ (or _Preferences_) replaces it. A regenerated root has to be trusted again.
+- In packaged builds the root's private key is encrypted with the operating system keychain rather than stored in plain text. If the key cannot be unlocked, Reversee keeps the saved root untouched and runs on a temporary one for that session. Profiles selected with `REVERSEE_USER_DATA` (tests, throwaway agent instances) never use the keychain.
+
 ## gRPC
 
 Reversee proxies native gRPC and decodes the protobuf messages — wire bytes carry only field numbers, so it decodes them against definitions you supply.
@@ -61,7 +73,7 @@ Reversee proxies native gRPC and decodes the protobuf messages — wire bytes ca
 3. Each call shows in the traffic table with a **gRPC** badge and its `grpc-status`. The detail pane's **gRPC** tab renders every request/response message as JSON (all four call types — unary and server/client/bidi streaming — with each streamed message listed), alongside the raw bytes.
 4. Agents can manage specs over MCP with `list_proto_specs` / `add_proto_spec` / `remove_proto_spec`, and `get_traffic_entry` returns the decoded messages and status.
 
-Enabling gRPC turns the listener into HTTP/2-only, so plain HTTP/1.1 isn't served on that port while it's on.
+With gRPC enabled the port serves both protocols: gRPC over HTTP/2 and ordinary HTTP/1.1 clients. Interceptors, breakpoints and mocks apply to the HTTP/1.1 requests; HTTP/2 streams are passed through unchanged.
 
 ## MCP integration (Claude Code / Cursor)
 
@@ -99,12 +111,15 @@ The package is published as [`reversee-mcp`](https://www.npmjs.com/package/rever
 | `replay_request`                                            | Re-send a captured request with optional edits (method/url/headers/body) to test a hypothesis                                 |
 | `set_interceptor`                                           | Install request/response interceptor JS for mocking or fault injection                                                        |
 | `decode_jwt`                                                | Decode a JWT's header and claims (inspection only)                                                                            |
-| `list_breakpoints`                                          | The configured breakpoint rules                                                                                               |
+| `list_breakpoints` / `set_breakpoints`                      | Read / replace the breakpoint rules (request or response phase)                                                               |
+| `list_held_requests` / `resume_held_request`                | See what is held at a breakpoint and resume it, optionally edited                                                             |
+| `export_har`                                                | Write captured traffic (optionally filtered) to a HAR file                                                                    |
+| `regenerate_root_cert`                                      | Replace the root CA behind the HTTPS listener (when it has expired)                                                           |
 | `list_proto_specs` / `add_proto_spec` / `remove_proto_spec` | Manage protobuf specs used to decode gRPC (add/remove gated)                                                                  |
 | `validate_setup`                                            | Setup checks (destination, ports, root cert, proxy process)                                                                   |
 | `export_diagnostics`                                        | Versions, platform, settings, state — for bug reports                                                                         |
 
-`replay_request`, `set_interceptor`, `update_config`, `add_proto_spec`, `remove_proto_spec`, and the start/stop/restart tools are gated behind _Allow MCP to Control the Proxy_ (or `--allow-mcp-control` headless); the rest are always available read-only.
+`replay_request`, `set_interceptor`, `set_breakpoints`, `resume_held_request`, `export_har`, `regenerate_root_cert`, `update_config`, `add_proto_spec`, `remove_proto_spec`, and the start/stop/restart tools are gated behind _Allow MCP to Control the Proxy_ (or `--allow-mcp-control` headless); the rest are always available read-only.
 
 The app owns this list — it serves the catalog to the bridge at startup, so **tools added in an app update appear automatically** with no MCP-server reinstall (the bridge is a generic passthrough). When the app is not running, the bridge advertises a built-in fallback list and each call returns a "launch Reversee" message.
 
@@ -123,7 +138,7 @@ This touches only Reversee's `npx` cache; the next run pulls the latest publishe
 ### Security model
 
 - The bridge talks to the app over a **local socket** (unix domain socket / Windows named pipe), never a TCP port, with a per-boot token — only your user account can reach it.
-- It is **read-only by default**. `start_proxy`, `stop_proxy`, `restart_proxy`, `update_config`, `replay_request`, `set_interceptor`, `add_proto_spec`, and `remove_proto_spec` are rejected until you check _Proxy Settings → Allow MCP to Control the Proxy_ in the app.
+- It is **read-only by default**. The twelve tools that change state (start/stop/restart, `update_config`, `replay_request`, `set_interceptor`, `set_breakpoints`, `resume_held_request`, `export_har`, `regenerate_root_cert`, `add_proto_spec`, `remove_proto_spec`) are rejected until you check _Proxy Settings → Allow MCP to Control the Proxy_ in the app.
 - _Proxy Settings → Enable MCP Integration_ turns the socket off entirely.
 
 ### Headless mode (for agents)

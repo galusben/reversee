@@ -18,6 +18,16 @@ function InterceptorEditor({ kind }: { kind: keyof typeof FIELDS }): React.JSX.E
   const settings = useProxyStore((s) => s.settings);
   const running = useProxyStore((s) => s.running);
   const updateSettings = useProxyStore((s) => s.updateSettings);
+  // The most recent run that failed, so a broken script is visible without
+  // opening each request. Cleared by the next exchange that runs cleanly.
+  const lastError = useProxyStore((s) => {
+    for (let i = s.traffic.length - 1; i >= 0; i--) {
+      const entry = s.traffic[i];
+      if (entry.mocked || entry.replay || entry.imported || entry.pending) continue;
+      return entry.interceptorErrors?.find((e) => e.phase === kind)?.message ?? null;
+    }
+    return null;
+  });
   const [open, setOpen] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout>>(null);
 
@@ -60,6 +70,11 @@ function InterceptorEditor({ kind }: { kind: keyof typeof FIELDS }): React.JSX.E
         </button>
         {running && settings[field.enabled] && (
           <span className="text-xs text-neutral-400">read-only while the proxy runs</span>
+        )}
+        {settings[field.enabled] && lastError && (
+          <span role="status" className="truncate text-xs text-red-600" title={lastError}>
+            last run failed: {lastError}
+          </span>
         )}
       </div>
       {open && (

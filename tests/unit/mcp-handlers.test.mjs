@@ -34,7 +34,7 @@ const { createMcpHandlers, MCP_MUTATING_METHODS } = await import('../../src/main
 const { MCP_TOOL_CATALOG } = await import('../../src/main/mcp/catalog');
 const { TrafficStore } = await import('../../src/main/traffic-store');
 const { ProtoStore } = await import('../../src/main/proto/proto-store');
-const { setSettings, setRootCertPem } = await import('../../src/main/settings');
+const { setSettings } = await import('../../src/main/settings');
 
 const PROTO = `syntax = "proto3";
 package demo;
@@ -45,6 +45,15 @@ let ctx;
 let handlers;
 let protoDir;
 let upstream;
+let rules;
+let held;
+let certStatus;
+const VALID_CERT = {
+  notAfter: '2036-05-01T00:00:00.000Z',
+  daysLeft: 3400,
+  expired: false,
+  expiringSoon: false,
+};
 const conn = { bridgeVersion: undefined };
 
 function entry({
@@ -74,6 +83,9 @@ beforeEach(() => {
   protoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'reversee-handlers-'));
   const trafficStore = new TrafficStore();
   const protoStore = new ProtoStore(protoDir);
+  rules = [{ id: 'GET /x', path: '/x', methods: ['GET'] }];
+  held = [];
+  certStatus = undefined;
   ctx = {
     proxyHost: {
       isRunning: false,
@@ -83,7 +95,22 @@ beforeEach(() => {
       restart: vi.fn(() => Promise.resolve(8123)),
     },
     trafficStore,
-    getBreakpointRules: () => [{ id: 'GET /x', path: '/x', methods: ['GET'] }],
+    getBreakpointRules: () => rules,
+    setBreakpointRules: vi.fn((next) => {
+      rules = next;
+    }),
+    getHeldHits: () => held,
+    resumeHeld: vi.fn((id) => {
+      held = held.filter((h) => h.id !== id);
+    }),
+    getCertStatus: () => {
+      if (!certStatus) throw new Error('no certificates');
+      return certStatus;
+    },
+    regenerateRootCert: vi.fn(() => {
+      certStatus = { ...VALID_CERT };
+      return Promise.resolve(certStatus);
+    }),
     startProxy: vi.fn(() => Promise.resolve({ ok: true, port: 8000 })),
     protoStore,
     syncProtoSpecs: vi.fn(() => {
@@ -296,8 +323,59 @@ describe('validate_setup and diagnostics', () => {
 
   it('passes once configured', () => {
     setSettings({ dest: 'api.test' });
-    setRootCertPem({ privateKey: 'k', publicKey: 'p', certificate: 'c' });
-    expect(handlers.validate_setup().ok).toBe(true);
+    certStatus = { ...VALID_CERT };
+    const result = handlers.validate_setup();
+    expect(result.ok).toBe(true);
+    const cert = result.checks.find((c) => c.name === 'root-certificate');
+    expect(cert.detail).toBe('root CA valid until 2036-05-01');
+  });
+
+  it('fails on an expired root CA and says how to fix it', () => {
+    setSettings({ dest: 'api.test' });
+    certStatus = {
+      notAfter: '2025-01-02T00:00:00.000Z',
+      daysLeft: -300,
+      expired: true,
+      expiringSoon: true,
+    };
+    const result = handlers.validate_setup();
+    expect(result.ok).toBe(false);
+    const cert = result.checks.find((c) => c.name === 'root-certificate');
+    expect(cert.detail).toMatch(/expired on 2025-01-02.*regenerate_root_cert/);
+  });
+
+  it('warns, without failing, when the root CA expires soon', () => {
+    setSettings({ dest: 'api.test' });
+    certStatus = { ...VALID_CERT, daysLeft: 12, expiringSoon: true };
+    const result = handlers.validate_setup();
+    expect(result.ok).toBe(true);
+    expect(result.checks.find((c) => c.name === 'root-certificate').detail).toMatch(/12 days left/);
+  });
+
+  it('fails when the saved root key could not be unlocked', () => {
+    setSettings({ dest: 'api.test' });
+    certStatus = { ...VALID_CERT, temporary: true, temporaryReason: 'keychain locked' };
+    const cert = handlers.validate_setup().checks.find((c) => c.name === 'root-certificate');
+    expect(cert.ok).toBe(false);
+    expect(cert.detail).toMatch(/keychain locked/);
+  });
+
+  it('checks that a configured upstream client certificate is readable', () => {
+    setSettings({
+      dest: 'api.test',
+      upstreamClientCertPath: '/nope/cert.pem',
+      upstreamClientKeyPath: '/nope/key.pem',
+    });
+    certStatus = { ...VALID_CERT };
+    const result = handlers.validate_setup();
+    expect(result.ok).toBe(false);
+    const check = result.checks.find((c) => c.name === 'upstream-client-certificate');
+    expect(check.detail).toMatch(/cannot read \/nope\/cert.pem/);
+  });
+
+  it('regenerate_root_cert returns the new validity', async () => {
+    expect(await handlers.regenerate_root_cert()).toEqual(VALID_CERT);
+    expect(ctx.regenerateRootCert).toHaveBeenCalledOnce();
   });
 
   it('export_diagnostics includes runtime versions and settings', () => {
@@ -309,5 +387,201 @@ describe('validate_setup and diagnostics', () => {
       logFile: '/tmp/reversee-logs',
     });
     expect(diag.settings).toHaveProperty('listenPort');
+  });
+});
+
+describe('breakpoint tools', () => {
+  it('set_breakpoints validates, assigns the UI ids, dedupes, and applies the rules', () => {
+    const result = handlers.set_breakpoints({
+      rules: [
+        { path: '^/api', methods: ['post', 'GET'] },
+        { path: '^/api', methods: ['GET', 'POST'] }, // same rule, different order
+        { path: '/pay', phase: 'response' },
+      ],
+    });
+    expect(result).toEqual([
+      { id: 'GET,POST ^/api', path: '^/api', methods: ['POST', 'GET'], phase: 'request' },
+      {
+        id: 'response DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT /pay',
+        path: '/pay',
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'],
+        phase: 'response',
+      },
+    ]);
+    expect(ctx.setBreakpointRules).toHaveBeenCalledWith(result);
+    expect(handlers.list_breakpoints()).toEqual(result);
+
+    expect(handlers.set_breakpoints({ rules: [] })).toEqual([]);
+  });
+
+  it('set_breakpoints rejects bad input without changing the rules', () => {
+    expect(() => handlers.set_breakpoints({})).toThrow(/rules \(array\) is required/);
+    expect(() => handlers.set_breakpoints({ rules: [{ path: '(' }] })).toThrow(
+      /not a valid regular expression/
+    );
+    expect(() => handlers.set_breakpoints({ rules: [{ path: '/x', phase: 'later' }] })).toThrow(
+      /phase must be/
+    );
+    expect(() => handlers.set_breakpoints({ rules: [{ path: '/x', methods: [] }] })).toThrow(
+      /must not be empty/
+    );
+    expect(ctx.setBreakpointRules).not.toHaveBeenCalled();
+  });
+
+  it('lists held exchanges with readable bodies', () => {
+    held = [
+      {
+        id: 4,
+        phase: 'request',
+        url: '/a',
+        method: 'POST',
+        headers: { 'x-a': '1' },
+        body: Buffer.from('req body'),
+      },
+      {
+        id: 5,
+        phase: 'response',
+        url: '/b',
+        method: 'GET',
+        statusCode: 200,
+        headers: { 'content-type': 'text/plain' },
+        body: Buffer.from('res body'),
+      },
+    ];
+    expect(handlers.list_held_requests()).toEqual([
+      {
+        id: 4,
+        phase: 'request',
+        method: 'POST',
+        url: '/a',
+        statusCode: undefined,
+        headers: { 'x-a': '1' },
+        body: 'req body',
+      },
+      {
+        id: 5,
+        phase: 'response',
+        method: 'GET',
+        url: '/b',
+        statusCode: 200,
+        headers: { 'content-type': 'text/plain' },
+        body: 'res body',
+      },
+    ]);
+  });
+
+  it('resumes a held request with merged edits', () => {
+    held = [
+      {
+        id: 4,
+        phase: 'request',
+        url: '/a',
+        method: 'POST',
+        headers: { 'x-a': '1', 'x-drop': 'y' },
+        body: Buffer.from('orig'),
+      },
+    ];
+    const result = handlers.resume_held_request({
+      id: 4,
+      edits: { url: '/edited', headers: { 'x-new': '2', 'x-drop': null }, body: 'changed' },
+    });
+    expect(result).toEqual({ resumed: 4, phase: 'request' });
+    expect(ctx.resumeHeld).toHaveBeenCalledWith(4, {
+      url: '/edited',
+      method: 'POST',
+      headers: { 'x-a': '1', 'x-new': '2' },
+      body: 'changed',
+      statusCode: undefined,
+    });
+  });
+
+  it('resumes a held response unchanged or with a new status', () => {
+    const hit = {
+      id: 5,
+      phase: 'response',
+      url: '/b',
+      method: 'GET',
+      statusCode: 200,
+      headers: {},
+      body: Buffer.from('ok'),
+    };
+    held = [hit];
+    handlers.resume_held_request({ id: 5 });
+    expect(ctx.resumeHeld).toHaveBeenLastCalledWith(5, {
+      url: '/b',
+      method: 'GET',
+      headers: {},
+      body: hit.body,
+      statusCode: 200,
+    });
+    held = [hit];
+    handlers.resume_held_request({ id: 5, edits: { statusCode: 503 } });
+    expect(ctx.resumeHeld.mock.lastCall[1].statusCode).toBe(503);
+  });
+
+  it('rejects resuming something that is not held', () => {
+    expect(() => handlers.resume_held_request({ id: 9 })).toThrow(/nothing is held with id 9/);
+    expect(() => handlers.resume_held_request({})).toThrow(/id \(number\) is required/);
+  });
+});
+
+describe('export_har', () => {
+  it('writes the (filtered) traffic as a HAR file', () => {
+    ctx.trafficStore.add(
+      entry({ url: '/keep', status: 500, target: { protocol: 'http', host: 'a.test', port: 80 } })
+    );
+    ctx.trafficStore.add(entry({ url: '/skip', status: 200 }));
+    const file = path.join(protoDir, 'out.har');
+    expect(handlers.export_har({ path: file, hasError: true })).toEqual({ path: file, entries: 1 });
+    const har = JSON.parse(fs.readFileSync(file, 'utf8'));
+    expect(har.log.version).toBe('1.2');
+    expect(har.log.creator).toEqual({ name: 'Reversee', version: '9.9.9-test' });
+    expect(har.log.entries.map((e) => e.request.url)).toEqual(['http://a.test/keep']);
+
+    expect(handlers.export_har({ path: file })).toEqual({ path: file, entries: 2 });
+  });
+
+  it('requires an absolute path', () => {
+    expect(() => handlers.export_har({ path: 'relative.har' })).toThrow(/absolute/);
+    expect(() => handlers.export_har({})).toThrow(/absolute/);
+  });
+});
+
+describe('new entry fields in tool output', () => {
+  it('summaries flag pending, mocked and WebSocket entries', () => {
+    ctx.trafficStore.add(entry({ url: '/slow', status: undefined, pending: true }));
+    ctx.trafficStore.add(entry({ url: '/mock', mocked: true }));
+    ctx.trafficStore.add(
+      entry({ url: '/ws', status: 101, ws: { messages: [], messageCount: 7, closed: true } })
+    );
+    const { entries } = handlers.list_traffic();
+    expect(entries[0]).toMatchObject({ url: '/slow', pending: true });
+    expect(entries[1]).toMatchObject({ url: '/mock', mocked: true });
+    expect(entries[2]).toMatchObject({ url: '/ws', webSocket: true, webSocketMessages: 7 });
+    expect(entries[1].pending).toBeUndefined();
+  });
+
+  it('get_traffic_entry returns WebSocket messages and interceptor diagnostics', () => {
+    const stored = ctx.trafficStore.add(
+      entry({
+        url: '/ws',
+        status: 101,
+        ws: {
+          messages: [{ from: 'client', opcode: 'text', text: 'hi', size: 2, atMs: 5 }],
+          messageCount: 1,
+        },
+        interceptorErrors: [{ phase: 'request', message: 'boom' }],
+        interceptorLogs: ['hello'],
+      })
+    );
+    const full = handlers.get_traffic_entry({ trafficId: stored.trafficId });
+    expect(full.webSocket).toEqual({
+      closed: false,
+      messageCount: 1,
+      messages: [{ from: 'client', opcode: 'text', text: 'hi', size: 2, atMs: 5 }],
+    });
+    expect(full.interceptorErrors).toEqual([{ phase: 'request', message: 'boom' }]);
+    expect(full.interceptorLogs).toEqual(['hello']);
+    expect(full.interceptorError).toBe(true);
   });
 });

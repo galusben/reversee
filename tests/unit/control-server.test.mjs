@@ -51,6 +51,7 @@ beforeEach(async () => {
   server = await startControlServer({
     dir,
     appVersion: '0.0.0-test',
+    maxLineBytes: 4096,
     isControlAllowed: () => controlAllowed,
     mutatingMethods: new Set(['start_proxy', 'update_config']),
     handlers: {
@@ -142,5 +143,21 @@ describe('control server', () => {
     // Treated as a (failed) handshake, not a method call.
     expect(reply.ok).toBe(false);
     await new Promise((resolve) => client.socket.once('close', resolve));
+  });
+
+  it('drops a peer that sends an endless line instead of buffering it forever', async () => {
+    const client = await authedClient();
+    const closed = new Promise((resolve) => client.socket.once('close', resolve));
+    client.socket.write('x'.repeat(8192)); // no newline
+    const reply = await client.next();
+    expect(reply.error.code).toBe('too-large');
+    await closed;
+  });
+
+  it('still accepts a large request that fits in one line', async () => {
+    const client = await authedClient();
+    client.send({ id: 1, method: 'get_status', params: { pad: 'y'.repeat(3000) } });
+    expect((await client.next()).id).toBe(1);
+    client.socket.destroy();
   });
 });

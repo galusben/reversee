@@ -6,6 +6,17 @@ import iconAsset from '../../resources/icon.png?asset';
 
 const EXTERNAL_LINK_ALLOWLIST = ['https://github.com/galusben/reversee'];
 
+/**
+ * True for an allowlisted URL or a path/query/fragment under it. A plain
+ * prefix test would also accept look-alikes such as ".../reversee-evil".
+ */
+export function isAllowedExternalLink(url: string): boolean {
+  return EXTERNAL_LINK_ALLOWLIST.some(
+    (allowed) =>
+      url === allowed || (/^[/?#]/.test(url.slice(allowed.length)) && url.startsWith(allowed))
+  );
+}
+
 export function createMainWindow(): BrowserWindow {
   const state = windowStateKeeper({ defaultWidth: 1100, defaultHeight: 700 });
 
@@ -30,7 +41,7 @@ export function createMainWindow(): BrowserWindow {
   // The renderer never legitimately navigates or opens windows; external
   // links go through shell.openExternal against an allowlist.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (EXTERNAL_LINK_ALLOWLIST.some((allowed) => url.startsWith(allowed))) {
+    if (isAllowedExternalLink(url)) {
       void shell.openExternal(url);
     }
     return { action: 'deny' };

@@ -27,11 +27,30 @@ export async function startUpstream(handler, { tls = false } = {}) {
   return { server, port };
 }
 
-export async function startProxyServer(settings, { gate } = {}) {
+export async function startProxyServer(settings, { gate, responseGate, captureLimit } = {}) {
+  // One element per exchange. The core notifies repeatedly for a slow or
+  // streaming exchange (pending -> progress -> done) with a stable streamId;
+  // they are folded into one entry here, as the app's traffic store does.
   const traffic = [];
+  const byStream = new Map();
+  // Every notify, as a small snapshot (entries are mutated in place).
+  const events = [];
   const waiters = [];
-  const notify = (trafficView) => {
-    traffic.push(trafficView);
+  const notify = (trafficView, streamId) => {
+    events.push({
+      streamId,
+      pending: Boolean(trafficView.pending),
+      statusCode: trafficView.response.statusCode,
+      bodyLength: trafficView.response.body?.length ?? 0,
+      wsMessages: trafficView.ws?.messages.length,
+    });
+    if (streamId !== undefined && byStream.has(streamId)) {
+      traffic[byStream.get(streamId)] = trafficView;
+    } else {
+      if (streamId !== undefined) byStream.set(streamId, traffic.length);
+      traffic.push(trafficView);
+    }
+    if (trafficView.pending) return;
     while (waiters.length) waiters.shift()(trafficView);
   };
 
@@ -41,6 +60,8 @@ export async function startProxyServer(settings, { gate } = {}) {
     notify,
     sslOptions: settings.listenProtocol === 'https' ? sslOptions : undefined,
     gate,
+    responseGate,
+    captureLimit,
   });
   const port = await server.listen();
 
@@ -48,6 +69,8 @@ export async function startProxyServer(settings, { gate } = {}) {
     server,
     port,
     traffic,
+    events,
+    /** Resolves with the next COMPLETED exchange. */
     nextTraffic: () => new Promise((resolve) => waiters.push(resolve)),
   };
 }

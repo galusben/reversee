@@ -1,11 +1,16 @@
 // Control-socket method handlers, backed by main's stores. Thin: every method
 // reads or calls the same code paths the renderer uses.
 import { app } from 'electron';
-import { getSettings, setSettings, getRootCertPem } from '../settings';
-import { isValidPort } from '../../shared/settings-schema';
+import fs from 'node:fs';
+import path from 'node:path';
+import { getSettings, setSettings } from '../settings';
+import { isValidPort, regexError } from '../../shared/settings-schema';
+import { ruleId } from '../../shared/breakpoint-id';
+import { toHar } from '../../shared/har';
+import { readClientCert } from '../client-cert';
 import { filterTraffic, summarizeTraffic, type TrafficFilter } from '../../shared/traffic-query';
 import { decodeJwt, findTokens } from '../../shared/decode';
-import { replayRequest, type ReplayOverrides } from '../replay';
+import { replayEntry, type ReplayOverrides } from '../replay';
 import {
   MCP_TOOL_CATALOG,
   MCP_MUTATING_METHODS,
@@ -16,8 +21,14 @@ import type { ControlHandler } from './control-server';
 import type { ProxyHost } from '../proxy-host';
 import type { TrafficStore } from '../traffic-store';
 import type { ProtoStore } from '../proto/proto-store';
-import type { ProtoSpecsResult, StartProxyResult } from '../../shared/ipc';
-import type { BreakpointRule, GrpcMessage, TrafficEntry } from '../../shared/types';
+import type {
+  BreakpointHit,
+  BreakpointResume,
+  ProtoSpecsResult,
+  RootCertStatus,
+  StartProxyResult,
+} from '../../shared/ipc';
+import type { BreakpointRule, GrpcMessage, Headers, TrafficEntry } from '../../shared/types';
 
 export { MCP_MUTATING_METHODS };
 
@@ -25,6 +36,13 @@ export interface McpHandlerContext {
   proxyHost: ProxyHost;
   trafficStore: TrafficStore;
   getBreakpointRules(): BreakpointRule[];
+  /** Replaces the rules everywhere: the proxy worker and the window. */
+  setBreakpointRules(rules: BreakpointRule[]): void;
+  /** Requests/responses currently held at a breakpoint. */
+  getHeldHits(): BreakpointHit[];
+  resumeHeld(id: number, params: BreakpointResume): void;
+  getCertStatus(): RootCertStatus;
+  regenerateRootCert(): Promise<RootCertStatus>;
   startProxy(): Promise<StartProxyResult>;
   protoStore: ProtoStore;
   /** Recompiles specs, pushes the bundle to the worker, and returns the new state. */
@@ -52,9 +70,16 @@ function trafficSummary(entry: TrafficEntry): Record<string, unknown> {
     statusCode: entry.response.statusCode,
     contentType: Array.isArray(contentType) ? contentType[0] : contentType,
     totalMs: entry.timings.total !== undefined ? entry.timings.total / 1_000_000 : undefined,
+    responseBytes: entry.response.size,
     error: entry.connectorError ? String(entry.connectorError) : undefined,
     ...(entry.grpc ? { grpcMethod: entry.grpc.method, grpcStatus: entry.grpc.status } : {}),
+    ...(entry.ws ? { webSocket: true, webSocketMessages: entry.ws.messageCount } : {}),
     replay: entry.replay || undefined,
+    // Still in flight: waiting for the upstream, streaming, or an open WebSocket.
+    pending: entry.pending || undefined,
+    mocked: entry.mocked || undefined,
+    clientAborted: entry.clientAborted || undefined,
+    interceptorError: entry.interceptorErrors?.length ? true : undefined,
   };
 }
 
@@ -89,13 +114,25 @@ function fullEntry(entry: TrafficEntry): Record<string, unknown> {
       curl: entry.request.curl,
       target: entry.request.target,
       truncated: entry.request.truncated,
+      bytes: entry.request.size,
     },
     response: {
       headers: entry.response.headers,
       body: bodyText(entry.response.body),
       decodeError: entry.response.decodeError,
       truncated: entry.response.truncated,
+      bytes: entry.response.size,
     },
+    webSocket: entry.ws
+      ? {
+          closed: entry.ws.closed ?? false,
+          messageCount: entry.ws.messageCount,
+          // The most recent messages; older ones are dropped past the capture cap.
+          messages: entry.ws.messages,
+        }
+      : undefined,
+    interceptorErrors: entry.interceptorErrors,
+    interceptorLogs: entry.interceptorLogs,
     grpc: entry.grpc
       ? {
           method: entry.grpc.method,
@@ -107,6 +144,94 @@ function fullEntry(entry: TrafficEntry): Record<string, unknown> {
       : undefined,
     timings: entry.timings,
     decoded: decoded.length ? decoded : undefined,
+  };
+}
+
+interface SetupCheck {
+  name: string;
+  ok: boolean;
+  detail: string;
+}
+
+/** An expired (or unreadable) root CA makes every HTTPS client reject the listener. */
+function rootCertCheck(ctx: McpHandlerContext): SetupCheck {
+  const name = 'root-certificate';
+  let status: RootCertStatus;
+  try {
+    status = ctx.getCertStatus();
+  } catch {
+    return { name, ok: false, detail: 'root CA missing' };
+  }
+  const day = status.notAfter.slice(0, 10);
+  if (status.temporary) {
+    return {
+      name,
+      ok: false,
+      detail:
+        `the stored root CA key could not be unlocked (${status.temporaryReason}); ` +
+        'running on a temporary root that clients do not trust',
+    };
+  }
+  if (status.expired) {
+    return {
+      name,
+      ok: false,
+      detail: `root CA expired on ${day} — regenerate it (regenerate_root_cert) and trust the new one`,
+    };
+  }
+  return {
+    name,
+    ok: true,
+    detail: status.expiringSoon
+      ? `root CA expires soon: ${day} (${status.daysLeft} days left)`
+      : `root CA valid until ${day}`,
+  };
+}
+
+function clientCertCheck(settings: ReturnType<typeof getSettings>): SetupCheck {
+  const name = 'upstream-client-certificate';
+  try {
+    return {
+      name,
+      ok: true,
+      detail: readClientCert(settings) ? 'client certificate and key readable' : 'not configured',
+    };
+  } catch (e) {
+    return { name, ok: false, detail: (e as Error).message };
+  }
+}
+
+const HTTP_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
+
+/** Validates the set_breakpoints input into rules (with the same ids the UI assigns). */
+function parseBreakpointRules(input: unknown): BreakpointRule[] {
+  if (!Array.isArray(input)) throw new Error('rules (array) is required; pass [] to clear');
+  return input.map((raw, i) => {
+    const r = (raw ?? {}) as { path?: unknown; methods?: unknown; phase?: unknown };
+    if (typeof r.path !== 'string' || !r.path) throw new Error(`rules[${i}].path is required`);
+    const bad = regexError(r.path);
+    if (bad) throw new Error(`rules[${i}].path is not a valid regular expression: ${bad}`);
+    const methods = Array.isArray(r.methods)
+      ? r.methods.map((m) => String(m).toUpperCase())
+      : HTTP_METHODS;
+    if (methods.length === 0) throw new Error(`rules[${i}].methods must not be empty`);
+    if (r.phase !== undefined && r.phase !== 'request' && r.phase !== 'response') {
+      throw new Error(`rules[${i}].phase must be "request" or "response"`);
+    }
+    const phase = r.phase === 'response' ? 'response' : 'request';
+    return { id: ruleId(r.path, methods, phase), path: r.path, methods, phase };
+  });
+}
+
+function heldView(hit: BreakpointHit): Record<string, unknown> {
+  return {
+    id: hit.id,
+    phase: hit.phase,
+    method: hit.method,
+    url: hit.url,
+    statusCode: hit.statusCode,
+    headers: hit.headers,
+    body: bodyText(hit.body),
   };
 }
 
@@ -205,19 +330,7 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
       if (typeof p.trafficId !== 'number') throw new Error('trafficId (number) is required');
       const entry = ctx.trafficStore.get(p.trafficId);
       if (!entry) throw new Error(`no traffic entry with id ${p.trafficId}`);
-      if (!entry.request.target)
-        throw new Error('that entry has no recorded upstream target to replay to');
-      const replayed = await replayRequest(
-        {
-          target: entry.request.target,
-          method: entry.request.method,
-          url: entry.request.url,
-          headers: entry.request.headers,
-          body: entry.request.body,
-        },
-        p.overrides ?? {},
-        getSettings().allowSelfSignedUpstream === false
-      );
+      const replayed = await replayEntry(entry, p.overrides ?? {}, getSettings());
       return fullEntry(ctx.recordTraffic(replayed));
     },
 
@@ -245,6 +358,60 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
     },
 
     list_breakpoints: () => ctx.getBreakpointRules(),
+
+    set_breakpoints: (params) => {
+      const p = (params ?? {}) as { rules?: unknown };
+      const rules = parseBreakpointRules(p.rules);
+      // Same id = same rule: keep the first.
+      const unique = rules.filter((r, i) => rules.findIndex((x) => x.id === r.id) === i);
+      ctx.setBreakpointRules(unique);
+      return unique;
+    },
+
+    list_held_requests: () => ctx.getHeldHits().map(heldView),
+
+    resume_held_request: (params) => {
+      const p = (params ?? {}) as {
+        id?: number;
+        edits?: {
+          url?: string;
+          method?: string;
+          headers?: Record<string, string | null>;
+          body?: string;
+          statusCode?: number;
+        };
+      };
+      if (typeof p.id !== 'number') throw new Error('id (number) is required');
+      const hit = ctx.getHeldHits().find((h) => h.id === p.id);
+      if (!hit) throw new Error(`nothing is held with id ${p.id} (see list_held_requests)`);
+      const edits = p.edits ?? {};
+      const headers: Headers = { ...hit.headers };
+      for (const [k, v] of Object.entries(edits.headers ?? {})) {
+        if (v === null) delete headers[k];
+        else headers[k] = v;
+      }
+      ctx.resumeHeld(hit.id, {
+        url: edits.url ?? hit.url,
+        method: edits.method ?? hit.method,
+        headers,
+        body: edits.body ?? hit.body,
+        statusCode: hit.phase === 'response' ? (edits.statusCode ?? hit.statusCode) : undefined,
+      });
+      return { resumed: hit.id, phase: hit.phase };
+    },
+
+    export_har: (params) => {
+      const p = (params ?? {}) as Record<string, unknown>;
+      const file = p['path'];
+      if (typeof file !== 'string' || !path.isAbsolute(file)) {
+        throw new Error('path (absolute file path) is required');
+      }
+      const entries = filterTraffic(ctx.trafficStore.getAll(), pickFilter(p));
+      fs.writeFileSync(file, JSON.stringify(toHar(entries, app.getVersion()), null, 2), 'utf8');
+      return { path: file, entries: entries.length };
+    },
+
+    regenerate_root_cert: () => ctx.regenerateRootCert(),
 
     list_proto_specs: (): ProtoSpecsResult => ({
       specs: ctx.protoStore.list(),
@@ -293,11 +460,8 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
           ok: isValidPort(settings.destPort),
           detail: String(settings.destPort),
         },
-        {
-          name: 'root-certificate',
-          ok: Boolean(getRootCertPem()),
-          detail: getRootCertPem() ? 'root CA present' : 'root CA missing',
-        },
+        rootCertCheck(ctx),
+        clientCertCheck(settings),
         {
           name: 'proxy-process',
           ok: true,
@@ -316,6 +480,7 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
       proxyRunning: ctx.proxyHost.isRunning,
       trafficCount: ctx.trafficStore.size,
       breakpoints: ctx.getBreakpointRules(),
+      heldAtBreakpoints: ctx.getHeldHits().length,
       logFile: app.getPath('logs'),
     }),
   };

@@ -1,23 +1,24 @@
 import { create } from 'zustand';
+import { ruleId } from '../../../shared/breakpoint-id';
 import type { BreakpointHit, BreakpointResume } from '../../../shared/ipc';
-import type { BreakpointCompileError, BreakpointRule } from '../../../shared/types';
+import type {
+  BreakpointCompileError,
+  BreakpointPhase,
+  BreakpointRule,
+} from '../../../shared/types';
 
-/** Stable rule id; methods are sorted so [GET,POST] and [POST,GET] dedupe
- * (the 1.x id concatenated methods unsorted and created duplicates). */
-export function ruleId(path: string, methods: string[]): string {
-  return [...methods].sort().join(',') + ' ' + path;
-}
+export { ruleId };
 
 interface BreakpointStore {
   rules: BreakpointRule[];
-  /** FIFO queue of held requests; the head is shown in the panel. */
+  /** FIFO queue of held requests and responses; the head is shown in the panel. */
   hits: BreakpointHit[];
   compileErrors: BreakpointCompileError[];
   editorOpen: boolean;
 
   init(): Promise<void>;
   setEditorOpen(open: boolean): void;
-  addRule(path: string, methods: string[]): Promise<void>;
+  addRule(path: string, methods: string[], phase?: BreakpointPhase): Promise<void>;
   removeRule(id: string): Promise<void>;
   resume(id: number, params: BreakpointResume): Promise<void>;
 }
@@ -34,16 +35,25 @@ export const useBreakpointStore = create<BreakpointStore>((set, get) => ({
     window.reversee.onBreakpointHit((hit) => set({ hits: [...get().hits, hit] }));
     window.reversee.onBreakpointErrors((compileErrors) => set({ compileErrors }));
     window.reversee.onOpenBreakpoints(() => set({ editorOpen: true }));
+    // An agent (MCP) can resume a held exchange or replace the rules too.
+    window.reversee.onBreakpointResumed((id) =>
+      set({ hits: get().hits.filter((h) => h.id !== id) })
+    );
+    window.reversee.onBreakpointsChanged((rules) => set({ rules }));
+    // Stopping the proxy closes every held connection: nothing left to resume.
+    window.reversee.onProxyState(({ running }) => {
+      if (!running && get().hits.length) set({ hits: [] });
+    });
   },
 
   setEditorOpen(open) {
     set({ editorOpen: open });
   },
 
-  async addRule(path, methods) {
-    const id = ruleId(path, methods);
+  async addRule(path, methods, phase = 'request') {
+    const id = ruleId(path, methods, phase);
     if (get().rules.some((r) => r.id === id)) return;
-    const rules = [...get().rules, { id, path, methods }];
+    const rules = [...get().rules, { id, path, methods, phase }];
     await window.reversee.setBreakpoints(rules);
     set({ rules, compileErrors: [] });
   },

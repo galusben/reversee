@@ -27,6 +27,8 @@ export interface LaunchedApp {
 export async function launchApp(options?: {
   userDataDir?: string;
   settings?: Record<string, unknown>;
+  /** Raw top-level keys for config.json (e.g. a pre-existing root certificate). */
+  config?: Record<string, unknown>;
 }): Promise<LaunchedApp> {
   const userDataDir =
     options?.userDataDir ?? fs.mkdtempSync(path.join(os.tmpdir(), 'reversee-e2e-'));
@@ -39,6 +41,14 @@ export async function launchApp(options?: {
       : {};
     existing.appSettings = { ...existing.appSettings, ...options.settings };
     fs.writeFileSync(configPath, JSON.stringify(existing));
+  }
+
+  if (options?.config) {
+    const configPath = path.join(userDataDir, 'config.json');
+    const existing = fs.existsSync(configPath)
+      ? JSON.parse(fs.readFileSync(configPath, 'utf8'))
+      : {};
+    fs.writeFileSync(configPath, JSON.stringify({ ...existing, ...options.config }));
   }
 
   const app = await electron.launch({

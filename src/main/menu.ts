@@ -10,11 +10,19 @@ import { checkForUpdatesInteractive } from './updater';
 
 const HOMEPAGE = 'https://github.com/galusben/reversee';
 
-export function createMenu(
-  win: BrowserWindow,
-  root: RootCertPem,
-  hooks: { onResetCache(): void }
-): void {
+export interface MenuHooks {
+  /** The current root CA (it can be regenerated while the app runs). */
+  getRoot(): RootCertPem;
+  onResetCache(): void;
+  onClearTraffic(): void;
+  onExportHar(): void;
+  onImportHar(): void;
+  onRegenerateRootCert(): void;
+}
+
+let syncRegistered = false;
+
+export function createMenu(win: BrowserWindow, hooks: MenuHooks): void {
   const isMac = process.platform === 'darwin';
   const settings = getSettings();
 
@@ -38,6 +46,33 @@ export function createMenu(
         ]
       : []),
     {
+      label: 'File',
+      submenu: [
+        {
+          label: 'Export HAR…',
+          id: 'export-har',
+          accelerator: 'CmdOrCtrl+Shift+E',
+          click: () => hooks.onExportHar(),
+        },
+        {
+          label: 'Import HAR…',
+          id: 'import-har',
+          accelerator: 'CmdOrCtrl+O',
+          click: () => hooks.onImportHar(),
+        },
+        { type: 'separator' },
+        {
+          label: 'Preferences…',
+          id: 'preferences',
+          accelerator: 'CmdOrCtrl+,',
+          click: () => win.webContents.send(IPC.openPreferencesEvent),
+        },
+        ...(isMac
+          ? []
+          : ([{ type: 'separator' }, { role: 'quit' }] as MenuItemConstructorOptions[])),
+      ],
+    },
+    {
       label: 'Edit',
       submenu: [
         { role: 'undo' },
@@ -58,6 +93,38 @@ export function createMenu(
               },
             ] as MenuItemConstructorOptions[])
           : []),
+      ],
+    },
+    {
+      label: 'Proxy',
+      submenu: [
+        {
+          label: 'Start / Stop Proxy',
+          id: 'toggle-proxy',
+          accelerator: 'F5',
+          click: () => win.webContents.send(IPC.toggleProxyEvent),
+        },
+        { type: 'separator' },
+        {
+          label: 'Filter Traffic',
+          id: 'focus-filter',
+          // Not CmdOrCtrl+F: that must keep working as find inside the editors.
+          accelerator: 'CmdOrCtrl+Shift+F',
+          click: () => win.webContents.send(IPC.focusFilterEvent),
+        },
+        {
+          label: 'Clear Traffic',
+          id: 'clear-traffic',
+          accelerator: 'CmdOrCtrl+K',
+          click: () => hooks.onClearTraffic(),
+        },
+        { type: 'separator' },
+        {
+          label: 'Routes && Mocks…',
+          id: 'rules',
+          accelerator: 'CmdOrCtrl+Shift+M',
+          click: () => win.webContents.send(IPC.openRulesEvent),
+        },
       ],
     },
     {
@@ -118,16 +185,21 @@ export function createMenu(
         },
         {
           label: 'Export Root Cert',
-          click: () => void exportRootCert(win, root),
+          click: () => void exportRootCert(win, hooks.getRoot()),
         },
         ...(isMac
           ? [
               {
                 label: 'Manage Root Cert',
-                click: (): void => certificateTrustDialog(win, root),
+                click: (): void => certificateTrustDialog(win, hooks.getRoot()),
               },
             ]
           : []),
+        {
+          label: 'Regenerate Root Cert…',
+          id: 'regenerate-root',
+          click: () => hooks.onRegenerateRootCert(),
+        },
       ],
     },
     {
@@ -174,7 +246,10 @@ export function createMenu(
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 
   // Keep the checkboxes in sync when settings change from elsewhere
-  // (renderer, reset cache, or MCP later).
+  // (renderer, reset cache, or MCP). Registered once: the menu is rebuilt when
+  // the window is re-created, and the listener looks the live menu up by id.
+  if (syncRegistered) return;
+  syncRegistered = true;
   onSettingsChanged((next) => {
     const menu = Menu.getApplicationMenu();
     const sync = (id: string, checked: boolean): void => {

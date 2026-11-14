@@ -17,6 +17,13 @@ import type { Logger } from '../../shared/types';
 
 export const PROTOCOL_VERSION = 1;
 
+/**
+ * Largest request line accepted. Generous (a proto descriptor travels base64
+ * in one line) but bounded, so a peer that never sends a newline cannot grow
+ * the buffer until the main process runs out of memory.
+ */
+export const MAX_LINE_BYTES = 32 * 1024 * 1024;
+
 export interface ControlRequest {
   id: number | string;
   method: string;
@@ -40,6 +47,8 @@ export interface ControlServerOptions {
   isControlAllowed(): boolean;
   appVersion: string;
   logger?: Logger;
+  /** Largest request line accepted; defaults to MAX_LINE_BYTES. */
+  maxLineBytes?: number;
 }
 
 export interface ControlServer {
@@ -71,6 +80,7 @@ function tokensMatch(presented: unknown, expected: string): boolean {
 
 export function startControlServer(options: ControlServerOptions): Promise<ControlServer> {
   const logger = options.logger ?? noop;
+  const maxLineBytes = options.maxLineBytes ?? MAX_LINE_BYTES;
   const socketPath = socketPathFor(options.dir);
   const tokenPath = tokenPathFor(options.dir);
 
@@ -94,6 +104,12 @@ export function startControlServer(options: ControlServerOptions): Promise<Contr
     socket.on('error', (err) => logger.debug('mcp socket error', err));
     socket.on('data', (chunk) => {
       buffer += chunk.toString('utf8');
+      if (buffer.length > maxLineBytes && buffer.indexOf('\n') < 0) {
+        logger.warn('mcp control: oversized request line rejected');
+        send({ error: { code: 'too-large', message: 'request line too large' } });
+        socket.destroy();
+        return;
+      }
       let newline;
       while ((newline = buffer.indexOf('\n')) >= 0) {
         const line = buffer.slice(0, newline);
