@@ -318,6 +318,63 @@ describe('edited bodies', () => {
   });
 });
 
+describe('hardening found in review', () => {
+  it('fails only the request when an edit produces an illegal upstream request', async () => {
+    const { proxyServer } = await setup((req, res) => res.end('ok'), {
+      settings: {
+        interceptRequest: true,
+        requestInterceptor:
+          "if (requestParams.path === '/bad-method') requestParams.method = 'NOT VALID';" +
+          "if (requestParams.path === '/bad-header') requestParams.headers['x-bad'] = 'line\\nbreak';",
+      },
+    });
+    for (const path of ['/bad-method', '/bad-header']) {
+      const trafficPromise = proxyServer.nextTraffic();
+      const res = await request({ port: proxyServer.port, path });
+      expect(res.statusCode, path).toBe(502);
+      expect(res.body.toString(), path).toContain('Reversee could not get a response');
+      expect((await trafficPromise).connectorError, path).toBeTruthy();
+    }
+    // The proxy is still alive and serving.
+    expect((await request({ port: proxyServer.port, path: '/fine' })).body.toString()).toBe('ok');
+  });
+
+  it('does not pile timing listeners onto a reused keep-alive socket', async () => {
+    const sockets = new Set();
+    const { proxyServer } = await setup((req, res) => res.end('ok'));
+    const agent = new http.Agent({ keepAlive: true, maxSockets: 1 });
+    const get = () =>
+      new Promise((resolve, reject) => {
+        http
+          .get({ hostname: '127.0.0.1', port: proxyServer.port, agent }, (res) => {
+            res.resume();
+            res.on('end', resolve);
+          })
+          .on('error', reject);
+      });
+    // The proxy's own upstream sockets come from the global agent.
+    const original = http.globalAgent.createConnection;
+    http.globalAgent.createConnection = function (...args) {
+      const socket = original.apply(this, args);
+      sockets.add(socket);
+      return socket;
+    };
+    try {
+      for (let i = 0; i < 30; i++) await get();
+    } finally {
+      http.globalAgent.createConnection = original;
+      agent.destroy();
+    }
+    expect(sockets.size).toBeGreaterThan(0);
+    expect(sockets.size).toBeLessThan(30); // sockets really were reused
+    for (const socket of sockets) {
+      for (const event of ['lookup', 'connect', 'secureConnect']) {
+        expect(socket.listenerCount(event), event).toBeLessThanOrEqual(2);
+      }
+    }
+  });
+});
+
 describe('interceptor diagnostics on the traffic entry', () => {
   it('records thrown errors and console output per phase', async () => {
     const { proxyServer } = await setup((req, res) => res.end('ok'), {

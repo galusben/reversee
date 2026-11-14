@@ -309,7 +309,16 @@ function forwardStream(
     if (key.startsWith(':') || HOP_BY_HOP.has(key)) continue;
     outHeaders[key] = headers[key];
   }
-  const upstream = session.request(outHeaders);
+  let upstream: http2.ClientHttp2Stream;
+  try {
+    upstream = session.request(outHeaders);
+  } catch (err) {
+    // e.g. a connection-specific header HTTP/2 forbids, or a session that
+    // died this instant: fail this stream, not the worker.
+    session.removeListener('error', onSessionError);
+    onSessionError(err as Error);
+    return;
+  }
   upstream.on('close', () => {
     session.removeListener('error', onSessionError);
     finalize();

@@ -280,35 +280,6 @@ export function handleRequest(
   requestView.size = bodyLength(requestParams.body);
 
   let timedOut = false;
-  const connector = (protocol === 'https' ? https : http).request(
-    upstreamRequestOptions(requestParams, settings),
-    onResponse
-  );
-
-  const timeoutMs = (settings.upstreamTimeoutSec ?? 0) * 1000;
-  if (timeoutMs > 0) {
-    headerTimer = setTimeout(() => {
-      timedOut = true;
-      const err = new Error(
-        `no response from the upstream within ${settings.upstreamTimeoutSec} s`
-      ) as NodeJS.ErrnoException;
-      err.code = 'ETIMEDOUT';
-      connector.destroy(err);
-    }, timeoutMs);
-  }
-
-  connector.on('socket', (socket) => {
-    socket.on('lookup', () => {
-      timings.dnsLookup = elapsed();
-    });
-    socket.on('connect', () => {
-      timings.tcpConnection = elapsed();
-    });
-    socket.on('secureConnect', () => {
-      timings.tlsHandshake = elapsed();
-    });
-  });
-
   const failUpstream = (err: NodeJS.ErrnoException): void => {
     if (finalized) return;
     logger.info(err);
@@ -340,6 +311,49 @@ export function handleRequest(
     responseView.size = Buffer.byteLength(text);
     finalize();
   };
+
+  // http.request validates its input synchronously: an interceptor or a
+  // breakpoint edit that produced an illegal method, header or path must fail
+  // this one request, not throw out of the handler and take the worker down.
+  let connector: http.ClientRequest;
+  try {
+    connector = (protocol === 'https' ? https : http).request(
+      upstreamRequestOptions(requestParams, settings),
+      onResponse
+    );
+  } catch (err) {
+    failUpstream(err as NodeJS.ErrnoException);
+    return;
+  }
+
+  const timeoutMs = (settings.upstreamTimeoutSec ?? 0) * 1000;
+  if (timeoutMs > 0) {
+    headerTimer = setTimeout(() => {
+      timedOut = true;
+      const err = new Error(
+        `no response from the upstream within ${settings.upstreamTimeoutSec} s`
+      ) as NodeJS.ErrnoException;
+      err.code = 'ETIMEDOUT';
+      connector.destroy(err);
+    }, timeoutMs);
+  }
+
+  connector.on('socket', (socket) => {
+    // A keep-alive socket is handed to many requests. Listening on one that is
+    // already connected would never fire and would pile up three listeners
+    // per request for as long as the socket lives.
+    if (!socket.connecting) return;
+    socket.once('lookup', () => {
+      timings.dnsLookup = elapsed();
+    });
+    socket.once('connect', () => {
+      timings.tcpConnection = elapsed();
+    });
+    socket.once('secureConnect', () => {
+      timings.tlsHandshake = elapsed();
+    });
+  });
+
   connector.on('error', failUpstream);
   // A write racing the client's disconnect must not surface as an uncaught error.
   clientRes.on('error', (err) => logger.debug('client response error', err));

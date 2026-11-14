@@ -137,9 +137,19 @@ export function handleUpgrade(
   sockets.add(clientSocket);
   clientSocket.on('error', (err) => logger.debug('websocket client socket error', err));
 
-  const connector = (protocol === 'https' ? https : http).request(
-    upstreamRequestOptions(requestParams, settings)
-  );
+  let connector: http.ClientRequest;
+  try {
+    connector = (protocol === 'https' ? https : http).request(
+      upstreamRequestOptions(requestParams, settings)
+    );
+  } catch (err) {
+    // Illegal header/path after an interceptor edit: fail this handshake only.
+    entry.connectorError = err;
+    responseView.statusCode = 502;
+    clientSocket.end('HTTP/1.1 502 Bad Gateway\r\nconnection: close\r\ncontent-length: 0\r\n\r\n');
+    finalize();
+    return;
+  }
 
   let timedOut = false;
   const timeoutMs = (settings.upstreamTimeoutSec ?? 0) * 1000;
@@ -190,6 +200,8 @@ export function handleUpgrade(
   // relay its answer as a plain close-delimited HTTP response.
   connector.on('response', (res) => {
     clearHeaderTimer();
+    // We end the socket ourselves below; that close is not a client abort.
+    clientSocket.removeListener('close', onEarlyClose);
     timings.firstByte = elapsed();
     responseView.statusCode = res.statusCode;
     responseView.headers = { ...res.headers };
