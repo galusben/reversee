@@ -15,7 +15,9 @@ describe('MCP tool catalog', () => {
     const names = MCP_TOOL_CATALOG.map((t) => t.name).sort();
     expect(names).toEqual(
       [
+        'add_mock',
         'add_proto_spec',
+        'add_route',
         'decode_jwt',
         'export_diagnostics',
         'export_har',
@@ -25,9 +27,11 @@ describe('MCP tool catalog', () => {
         'list_breakpoints',
         'list_held_requests',
         'list_proto_specs',
+        'list_rules',
         'list_traffic',
         'regenerate_root_cert',
         'remove_proto_spec',
+        'remove_rule',
         'replay_request',
         'restart_proxy',
         'resume_held_request',
@@ -38,6 +42,7 @@ describe('MCP tool catalog', () => {
         'stop_proxy',
         'summarize_session',
         'update_config',
+        'update_rule',
         'validate_setup',
       ].sort()
     );
@@ -58,10 +63,13 @@ describe('MCP tool catalog', () => {
   it('derives the mutating set from the catalog', () => {
     expect([...MCP_MUTATING_METHODS].sort()).toEqual(
       [
+        'add_mock',
         'add_proto_spec',
+        'add_route',
         'export_har',
         'regenerate_root_cert',
         'remove_proto_spec',
+        'remove_rule',
         'replay_request',
         'restart_proxy',
         'resume_held_request',
@@ -70,6 +78,7 @@ describe('MCP tool catalog', () => {
         'start_proxy',
         'stop_proxy',
         'update_config',
+        'update_rule',
       ].sort()
     );
     // Read-only tools are not gated.

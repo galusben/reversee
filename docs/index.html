@@ -6,7 +6,7 @@
     <title>Reversee — open-source reverse-proxy web debugger, built for AI agents</title>
     <meta
       name="description"
-      content="Reversee is an open-source reverse-proxy web debugger. See, intercept, and edit HTTP/HTTPS traffic — and let AI agents (Claude Code, Cursor) inspect and control it over MCP."
+      content="Reversee is an open-source reverse-proxy web debugger. See, intercept, mock, and edit HTTP/HTTPS traffic — and let AI agents (Claude Code, Cursor) inspect and control it over MCP."
     />
     <link rel="canonical" href="https://galusben.github.io/reversee/" />
     <link rel="icon" type="image/png" href="./logo.png" />
@@ -19,7 +19,7 @@
     />
     <meta
       property="og:description"
-      content="Open-source. See, intercept, and edit HTTP/HTTPS traffic. Drive it from Claude Code or Cursor over MCP, or run it headless for agents."
+      content="Open-source. See, intercept, mock, and edit HTTP/HTTPS traffic. Drive it from Claude Code or Cursor over MCP, or run it headless for agents."
     />
     <meta property="og:url" content="https://galusben.github.io/reversee/" />
     <meta
@@ -604,6 +604,26 @@
                   stroke="currentColor"
                   stroke-width="2"
                 >
+                  <path d="M16 3h5v5M8 3H3v5" />
+                  <path d="M12 22v-8.3a4 4 0 0 0-1.2-2.8L3 3M15 9l6-6" />
+                </svg>
+              </div>
+              <h3>Mocks &amp; routes</h3>
+              <p>
+                Answer any request with a response you write, or send part of the traffic to a
+                different server. No code, and changes apply while the proxy runs.
+              </p>
+            </div>
+            <div class="card">
+              <div class="ico">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
                   <circle cx="12" cy="12" r="9" />
                   <path d="M12 8v4l2 2" />
                 </svg>
@@ -674,6 +694,26 @@
         </div>
       </section>
 
+      <section id="mocks">
+        <div class="wrap">
+          <h2 class="section-title">Mock any endpoint in seconds</h2>
+          <p class="section-sub">
+            Fake an endpoint that does not exist yet, force a 500, or slow a call down, without
+            touching the backend. Pick a path, write the response, save: the running proxy answers
+            the next request. Right-click any captured request and choose
+            <b>Mock This Response</b> to start from the real thing. Routes work the same way,
+            sending <code>/api/v2</code> to a service on your machine while everything else goes to
+            staging.
+          </p>
+          <div class="shot">
+            <img
+              src="./screenshots/mocks.png"
+              alt="Reversee's Routes and mocks screen: a mock named Feature flags that answers GET /api/flags with a JSON body, a second mock returning 503 after a delay, and a note that it matches 2 of 4 captured requests."
+            />
+          </div>
+        </div>
+      </section>
+
       <section id="grpc" class="section-soft">
         <div class="wrap">
           <h2 class="section-title">Debug gRPC, decoded</h2>
@@ -727,6 +767,14 @@
               <div class="feat">
                 <span class="dot">◆</span
                 ><span
+                  ><b>Mock by asking.</b> “Make <code>/api/flags</code> return this JSON” becomes
+                  one <code>add_mock</code> call, live on the running proxy.
+                  <code>add_route</code> redirects a path to another server.</span
+                >
+              </div>
+              <div class="feat">
+                <span class="dot">◆</span
+                ><span
                   ><b>Headless mode.</b> <code>reversee --headless --allow-mcp-control</code> runs
                   with no UI for agents and CI.</span
                 >
@@ -757,7 +805,7 @@
                     class="btn btn-ghost"
                     href="./mcp.html"
                     style="background: transparent; color: #fff; border-color: #232a44"
-                    >Browse all 24 MCP tools →</a
+                    >Browse all 29 MCP tools →</a
                   >
                 </div>
               </div>

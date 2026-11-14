@@ -19,9 +19,16 @@ the desktop UI, and agents through the Model Context Protocol.
 - **Streaming and WebSockets** — responses are streamed, so Server-Sent Events and
   large downloads behave as they would without the proxy. WebSocket upgrades are
   tunnelled and their messages (including permessage-deflate) listed per connection.
-- **Routes and mocks** — _Rules_ in the settings bar. A route sends requests whose
-  Host or path matches a regex to a different upstream; a mock answers them with a
-  canned status / headers / body (optionally delayed) without any upstream.
+- **Routes and mocks** — _Routes & Mocks_ in the settings bar (Cmd/Ctrl+Shift+M). A
+  mock answers matching requests with a status / headers / body you write (optionally
+  delayed) without contacting any upstream; a route sends requests whose path or Host
+  matches to a different upstream. Matches are plain choices (_is exactly_, _starts
+  with_, _contains_) or a regex. Rules can be named, reordered (first match wins, mocks
+  before routes), duplicated and switched off, and each shows how many captured
+  requests it matches. Right-click a captured request for _Mock This Response…_ or
+  _Route Requests Like This…_. Saving applies to the running proxy at once; no restart.
+- **Plain HTTP on an HTTPS listener** — a client that sends `http://` to an `https`
+  listen port gets a 400 explaining to use `https://`, instead of a dropped connection.
 - **HAR** — export the listed requests to a HAR 1.2 file, or import one, from the
   toolbar or the File menu.
 - **Preferences** — theme (system / light / dark), history size, upstream response
@@ -94,6 +101,11 @@ Agents drive the running app through the `reversee-mcp` stdio bridge. Setup is i
 | `decode_jwt`           | Decode a JWT's header and claims (inspection only).                                                  | no        |
 | `list_breakpoints`     | The configured breakpoint rules.                                                                     | no        |
 | `set_breakpoints`      | Replace the breakpoint rules (request or response phase).                                            | **yes**   |
+| `list_rules`           | Mock and route rules in match order, with plain-language summaries.                                  | no        |
+| `add_mock`             | Answer matching requests with a canned response; applies at once.                                    | **yes**   |
+| `add_route`            | Send matching requests to a different upstream; applies at once.                                     | **yes**   |
+| `update_rule`          | Enable or disable one mock or route by id.                                                           | **yes**   |
+| `remove_rule`          | Delete one mock or route by id, or all of them.                                                      | **yes**   |
 | `list_held_requests`   | Requests / responses currently held at a breakpoint.                                                 | no        |
 | `resume_held_request`  | Resume a held request or response, optionally edited.                                                | **yes**   |
 | `export_har`           | Write captured traffic (optionally filtered) to a HAR 1.2 file.                                      | **yes**   |
@@ -104,7 +116,7 @@ Agents drive the running app through the `reversee-mcp` stdio bridge. Setup is i
 | `validate_setup`       | Setup checks: destination, ports, root cert, proxy process.                                          | no        |
 | `export_diagnostics`   | Versions, platform, settings, state, log location — for bug reports.                                 | no        |
 
-24 tools; the 12 marked mutating are gated.
+29 tools; the 16 marked mutating are gated.
 
 ### Headless mode
 

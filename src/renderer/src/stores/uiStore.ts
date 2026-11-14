@@ -1,4 +1,9 @@
 import { create } from 'zustand';
+import type { MockRule, RouteRule } from '../../../shared/types';
+
+/** A new, unsaved rule the Routes and mocks screen opens with. */
+export type RuleSeed =
+  { kind: 'mock'; rule: Omit<MockRule, 'id'> } | { kind: 'route'; rule: Omit<RouteRule, 'id'> };
 
 export interface Notice {
   kind: 'info' | 'error';
@@ -13,7 +18,9 @@ interface UiStore {
   preferencesOpen: boolean;
   setPreferencesOpen(open: boolean): void;
   rulesOpen: boolean;
-  setRulesOpen(open: boolean): void;
+  rulesSeed: RuleSeed | null;
+  /** Opens the screen; with a seed, a prefilled new rule is waiting to be saved. */
+  setRulesOpen(open: boolean, seed?: RuleSeed): void;
   /** trafficId of the request open in the "Edit and Replay" dialog, if any. */
   replayEditorId: number | null;
   setReplayEditorId(id: number | null): void;
@@ -39,7 +46,8 @@ export const useUiStore = create<UiStore>((set, get) => ({
   preferencesOpen: false,
   setPreferencesOpen: (preferencesOpen) => set({ preferencesOpen }),
   rulesOpen: false,
-  setRulesOpen: (rulesOpen) => set({ rulesOpen }),
+  rulesSeed: null,
+  setRulesOpen: (rulesOpen, seed) => set({ rulesOpen, rulesSeed: (rulesOpen && seed) || null }),
   replayEditorId: null,
   setReplayEditorId: (replayEditorId) => set({ replayEditorId }),
   filterFocusRequest: 0,

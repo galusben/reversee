@@ -114,10 +114,11 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
       'routes (array of {id, enabled, hostPattern?, pathPattern?, destProtocol, dest, destPort}: regex rules ' +
       'that send matching requests to a different upstream; first match wins), and ' +
       'mocks (array of {id, enabled, method?, pathPattern, statusCode, headers, body, delayMs?}: canned responses ' +
-      'served without contacting the upstream). routes and mocks replace the whole list; invalid rules are dropped. ' +
+      'served without contacting the upstream). routes and mocks replace the whole list and invalid rules are dropped; ' +
+      'prefer add_mock / add_route / remove_rule, which take plain paths and apply at once. ' +
       'enableGrpc runs an HTTP/2 listener so native gRPC is proxied and decoded (against saved proto specs); ' +
       'HTTP/1.1 clients are still served on the same port. ' +
-      'Proxy-behavior keys take effect the next time the proxy starts. ' +
+      'Proxy-behavior keys take effect the next time the proxy starts, except routes and mocks, which apply at once. ' +
       'Requires "Allow MCP to Control the Proxy" enabled in the app. Returns the resulting config.',
     inputSchema: {
       type: 'object',
@@ -318,6 +319,126 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
     description:
       'List the configured breakpoint rules (URL regex + HTTP methods + phase: request or response).',
     inputSchema: noInput,
+  },
+  {
+    name: 'list_rules',
+    description:
+      'List the route and mock rules in match order, each with its id and a plain-language summary. ' +
+      'A mock answers matching requests itself (the upstream is never contacted); a route sends matching ' +
+      'requests to a different upstream than the default destination. First enabled match wins, mocks before routes.',
+    inputSchema: noInput,
+  },
+  {
+    name: 'add_mock',
+    description:
+      'Answer matching requests with a canned response, without contacting the upstream. Use it to fake an ' +
+      'endpoint, force an error status, or add latency. Takes effect immediately, also while the proxy runs. ' +
+      'Example: {"path": "/api/flags", "body": {"beta": true}} returns that JSON with status 200 for /api/flags. ' +
+      'Remove it with remove_rule when done. Requires control to be enabled in the app.',
+    mutating: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Request path to match, e.g. "/api/flags"' },
+        pathMatch: {
+          type: 'string',
+          enum: ['exact', 'prefix', 'contains', 'regex'],
+          description:
+            'How path is compared with the request URL (path + query). "exact" (default) ignores any query string; ' +
+            '"prefix" = starts with; "regex" = path is a regular expression.',
+        },
+        method: { type: 'string', description: 'HTTP method to match (default: any)' },
+        status: { type: 'integer', description: 'Response status code (default 200)' },
+        body: {
+          description:
+            'Response body. A string is sent as is; an object or array is sent as JSON with content-type application/json.',
+        },
+        headers: {
+          type: 'object',
+          additionalProperties: { type: 'string' },
+          description: 'Response headers',
+        },
+        delayMs: { type: 'integer', description: 'Wait this long before answering (0-600000)' },
+        name: { type: 'string', description: 'Label shown in the app' },
+        priority: {
+          type: 'string',
+          enum: ['first', 'last'],
+          description: 'Where to insert it; the first matching mock wins (default "first")',
+        },
+      },
+      required: ['path'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'add_route',
+    description:
+      'Send matching requests to a different upstream than the default destination, e.g. one path to a local ' +
+      'service while the rest goes to staging. The request path is forwarded unchanged. Give path and/or host. ' +
+      'Takes effect immediately, also while the proxy runs. ' +
+      'Example: {"path": "/api/v2", "target": "http://localhost:3001"}. Requires control to be enabled in the app.',
+    mutating: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: {
+          type: 'string',
+          description:
+            'Upstream to send to: scheme, host and optional port, e.g. "http://localhost:3001"',
+        },
+        path: { type: 'string', description: 'Request path to match, e.g. "/api/v2"' },
+        pathMatch: {
+          type: 'string',
+          enum: ['prefix', 'exact', 'contains', 'regex'],
+          description: 'How path is compared with the request URL (default "prefix" = starts with)',
+        },
+        host: { type: 'string', description: 'Request Host header to match (without port)' },
+        hostMatch: {
+          type: 'string',
+          enum: ['exact', 'regex'],
+          description: 'How host is compared (default "exact", case-insensitive)',
+        },
+        name: { type: 'string', description: 'Label shown in the app' },
+        priority: {
+          type: 'string',
+          enum: ['first', 'last'],
+          description: 'Where to insert it; the first matching route wins (default "first")',
+        },
+      },
+      required: ['target'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'update_rule',
+    description:
+      'Enable or disable one route or mock by id (from list_rules) without deleting it. ' +
+      'Requires control to be enabled in the app.',
+    mutating: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Rule id from list_rules' },
+        enabled: { type: 'boolean' },
+      },
+      required: ['id', 'enabled'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'remove_rule',
+    description:
+      'Delete one route or mock by id (from list_rules), or every route and mock with {"all": true}. ' +
+      'Requires control to be enabled in the app.',
+    mutating: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Rule id from list_rules' },
+        all: { type: 'boolean', description: 'Delete all routes and mocks' },
+      },
+      additionalProperties: false,
+    },
   },
   {
     name: 'set_breakpoints',

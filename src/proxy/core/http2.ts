@@ -26,6 +26,7 @@ import { CAPTURE_LIMIT } from './capture';
 import { FrameAccumulator, decodeFrame } from './grpc-frames';
 import { compileRules, matchRoute, type CompiledRules } from './rules';
 import { createHttp1Handlers, type ProxyServer, type ProxyServerOptions } from './server';
+import { answerPlainHttpOnTls } from './tls-hint';
 import type { ResolvedMethod } from './grpc-registry';
 import type {
   GrpcView,
@@ -71,7 +72,7 @@ function viewHeaders(h: http2.IncomingHttpHeaders | http2.OutgoingHttpHeaders): 
 export function createHttp2ProxyServer(options: Http2ProxyServerOptions): ProxyServer {
   const { settings, notify } = options;
   const logger = options.logger ?? noop;
-  const rules = compileRules(settings, logger);
+  let rules = compileRules(settings, logger);
   const http1 = createHttp1Handlers(options);
   const upstreams = new UpstreamSessions(settings, logger);
   const connections = new Set<net.Socket>();
@@ -111,6 +112,7 @@ export function createHttp2ProxyServer(options: Http2ProxyServerOptions): ProxyS
     );
     secure.on('upgrade', http1.onUpgrade);
     secure.on('stream', onStream);
+    answerPlainHttpOnTls(secure);
     listener = secure;
   } else {
     const h2 = http2.createServer();
@@ -147,6 +149,10 @@ export function createHttp2ProxyServer(options: Http2ProxyServerOptions): ProxyS
           resolve(port);
         });
       });
+    },
+    setRules(next) {
+      rules = compileRules(next, logger);
+      http1.setRules(next);
     },
     close(): Promise<void> {
       return new Promise((resolve) => {

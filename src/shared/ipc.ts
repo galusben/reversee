@@ -11,6 +11,7 @@ import type {
   ProtoSpec,
   ProtoSpecCompileError,
   ProxySettings,
+  RuleSet,
   TrafficEntry,
 } from './types';
 
@@ -191,6 +192,7 @@ export type WorkerInbound =
   | { type: 'start'; settings: ProxySettings; sslOptions?: { key: string; cert: string } }
   | { type: 'stop' }
   | { type: 'set-breakpoints'; rules: BreakpointRule[] }
+  | { type: 'set-rules'; rules: RuleSet }
   | { type: 'resume-breakpoint'; id: number; params: BreakpointResume }
   | { type: 'set-proto-specs'; bundle: GrpcProtoBundle };
 

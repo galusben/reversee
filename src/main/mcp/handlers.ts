@@ -6,6 +6,14 @@ import path from 'node:path';
 import { getSettings, setSettings } from '../settings';
 import { isValidPort, regexError } from '../../shared/settings-schema';
 import { ruleId } from '../../shared/breakpoint-id';
+import {
+  buildMockRule,
+  buildRouteRule,
+  describeMock,
+  describeRoute,
+  type MockInput,
+  type RouteInput,
+} from '../../shared/rule-input';
 import { toHar } from '../../shared/har';
 import { readClientCert } from '../client-cert';
 import { filterTraffic, summarizeTraffic, type TrafficFilter } from '../../shared/traffic-query';
@@ -49,6 +57,29 @@ export interface McpHandlerContext {
   syncProtoSpecs(): ProtoSpecsResult;
   /** Store an entry and push it to the renderer (used by replay). */
   recordTraffic(entry: TrafficEntry): TrafficEntry;
+}
+
+/** Routes and mocks in match order, each with a plain-language summary. */
+function rulesView(running: boolean): Record<string, unknown> {
+  const { routes, mocks, dest, destProtocol, destPort } = getSettings();
+  return {
+    note:
+      'Per request the first enabled mock that matches answers it; otherwise the first enabled ' +
+      'route that matches picks the upstream; otherwise the default destination is used. ' +
+      'Rules apply to HTTP/1.1 requests (not HTTP/2 gRPC streams).',
+    proxyRunning: running,
+    defaultDestination: dest ? `${destProtocol}://${dest}:${destPort}` : null,
+    mocks: mocks.map((m) => ({ ...m, summary: describeMock(m) })),
+    routes: routes.map((r) => ({ ...r, summary: describeRoute(r) })),
+  };
+}
+
+function appliedNote(ctx: McpHandlerContext): { applied: string } {
+  return {
+    applied: ctx.proxyHost.isRunning
+      ? 'active now on the running proxy'
+      : 'saved; takes effect when the proxy starts (start_proxy)',
+  };
 }
 
 /** Decoded JSON when available, else the decode error — for agent-facing output. */
@@ -366,6 +397,56 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
       const unique = rules.filter((r, i) => rules.findIndex((x) => x.id === r.id) === i);
       ctx.setBreakpointRules(unique);
       return unique;
+    },
+
+    list_rules: () => rulesView(ctx.proxyHost.isRunning),
+
+    add_mock: (params) => {
+      const p = (params ?? {}) as MockInput & { priority?: unknown };
+      const rule = buildMockRule(p);
+      const { mocks } = getSettings();
+      setSettings({ mocks: p.priority === 'last' ? [...mocks, rule] : [rule, ...mocks] });
+      return { added: { ...rule, summary: describeMock(rule) }, ...appliedNote(ctx) };
+    },
+
+    add_route: (params) => {
+      const p = (params ?? {}) as RouteInput & { priority?: unknown };
+      const rule = buildRouteRule(p);
+      const { routes } = getSettings();
+      setSettings({ routes: p.priority === 'last' ? [...routes, rule] : [rule, ...routes] });
+      return { added: { ...rule, summary: describeRoute(rule) }, ...appliedNote(ctx) };
+    },
+
+    update_rule: (params) => {
+      const p = (params ?? {}) as { id?: unknown; enabled?: unknown };
+      if (typeof p.id !== 'string') throw new Error('id (string) is required (see list_rules)');
+      if (typeof p.enabled !== 'boolean') throw new Error('enabled (boolean) is required');
+      const { routes, mocks } = getSettings();
+      if (![...routes, ...mocks].some((r) => r.id === p.id)) {
+        throw new Error(`no route or mock has id ${p.id} (see list_rules)`);
+      }
+      const toggle = <T extends { id: string; enabled: boolean }>(list: T[]): T[] =>
+        list.map((r) => (r.id === p.id ? { ...r, enabled: p.enabled as boolean } : r));
+      setSettings({ routes: toggle(routes), mocks: toggle(mocks) });
+      return rulesView(ctx.proxyHost.isRunning);
+    },
+
+    remove_rule: (params) => {
+      const p = (params ?? {}) as { id?: unknown; all?: unknown };
+      const { routes, mocks } = getSettings();
+      if (p.all === true) {
+        setSettings({ routes: [], mocks: [] });
+        return { removed: routes.length + mocks.length, ...rulesView(ctx.proxyHost.isRunning) };
+      }
+      if (typeof p.id !== 'string') throw new Error('id (string) is required (see list_rules)');
+      if (![...routes, ...mocks].some((r) => r.id === p.id)) {
+        throw new Error(`no route or mock has id ${p.id} (see list_rules)`);
+      }
+      setSettings({
+        routes: routes.filter((r) => r.id !== p.id),
+        mocks: mocks.filter((m) => m.id !== p.id),
+      });
+      return { removed: 1, ...rulesView(ctx.proxyHost.isRunning) };
     },
 
     list_held_requests: () => ctx.getHeldHits().map(heldView),

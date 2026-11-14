@@ -165,6 +165,9 @@ parentPort.on('message', (e) => {
       if (errors.length) send({ type: 'breakpoint-errors', errors });
       break;
     }
+    case 'set-rules':
+      server?.setRules(msg.rules);
+      break;
     case 'resume-breakpoint':
       resume(msg.id, msg.params);
       break;

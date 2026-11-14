@@ -14,6 +14,7 @@ import type {
   BreakpointRule,
   GrpcProtoBundle,
   ProxySettings,
+  RuleSet,
   TrafficEntry,
 } from '../shared/types';
 
@@ -122,6 +123,14 @@ export class ProxyHost {
   setBreakpoints(rules: BreakpointRule[]): void {
     this.breakpointRules = rules;
     if (this.proc) this.send({ type: 'set-breakpoints', rules });
+  }
+
+  /** Applies route and mock rules to the running proxy (no-op when stopped). */
+  setRules(rules: RuleSet): void {
+    if (this.lastStart) {
+      this.lastStart.settings = { ...this.lastStart.settings, ...rules };
+    }
+    if (this.proc && this.running) this.send({ type: 'set-rules', rules });
   }
 
   setProtoSpecs(bundle: GrpcProtoBundle): void {

@@ -104,12 +104,15 @@ No parameters.
 > before a 504, 0 = never), trafficCap (100-20000 requests kept), theme
 > (system|light|dark), upstreamClientCertPath/upstreamClientKeyPath (PEM files
 > for mutual TLS to the upstream), routes and mocks (see below). Proxy-behavior
-> keys take effect the next time the proxy starts. Requires "Allow MCP to Control
+> keys take effect the next time the proxy starts, except routes and mocks,
+> which apply at once. Requires "Allow MCP to Control
 > the Proxy" enabled in the app. Returns the resulting config.
 
 `routes` sends matching requests to a different upstream (first match wins);
 `mocks` answers them without contacting any upstream. Each key replaces the whole
-list, and a rule with an invalid field is dropped:
+list, and a rule with an invalid field is dropped. For single rules prefer
+[`add_mock`](#add_mock-) and [`add_route`](#add_route-), which take plain paths
+instead of regular expressions. The stored form:
 
 ```json
 {
@@ -317,6 +320,80 @@ proxy, and is recorded on the traffic entry together with any `console.log` outp
 (`get_traffic_entry` returns `interceptorErrors` and `interceptorLogs`).
 
 ---
+
+## Mocks & routes
+
+Per request, the first enabled mock that matches answers it; otherwise the first
+enabled route that matches picks the upstream; otherwise the default destination
+is used. Changes apply to the running proxy at once. Rules apply to HTTP/1.1
+requests, not to HTTP/2 gRPC streams.
+
+### `list_rules`
+
+Mock and route rules in match order. Each has its `id` and a plain-language
+`summary`, such as `any method, path is "/api/flags" -> 200`.
+
+No parameters.
+
+### `add_mock` 🔒
+
+Answer matching requests with a canned response, without contacting the upstream.
+
+| Parameter   | Type                      | Required | Description                                                                                       |
+| ----------- | ------------------------- | -------- | ------------------------------------------------------------------------------------------------- |
+| `path`      | string                    | yes      | Request path to match, e.g. `/api/flags`.                                                         |
+| `pathMatch` | string                    | no       | `exact` (default; ignores the query string), `prefix`, `contains` or `regex`.                     |
+| `method`    | string                    | no       | HTTP method (default: any).                                                                       |
+| `status`    | integer 100–599           | no       | Response status (default 200).                                                                    |
+| `body`      | string \| object \| array | no       | A string is sent as is; an object or array is sent as JSON with `content-type: application/json`. |
+| `headers`   | object                    | no       | Response headers.                                                                                 |
+| `delayMs`   | integer 0–600000          | no       | Wait before answering.                                                                            |
+| `name`      | string                    | no       | Label shown in the app.                                                                           |
+| `priority`  | `"first"` \| `"last"`     | no       | Where to insert it; the first matching mock wins (default `first`).                               |
+
+```json
+{ "path": "/api/payments", "pathMatch": "prefix", "method": "POST", "status": 503, "delayMs": 1500 }
+```
+
+Returns the stored rule (`added`) and whether it is `active now on the running
+proxy` or waits for `start_proxy`.
+
+### `add_route` 🔒
+
+Send matching requests to a different upstream. The request path is forwarded
+unchanged. Give `path` and/or `host`.
+
+| Parameter   | Type                  | Required | Description                                                          |
+| ----------- | --------------------- | -------- | -------------------------------------------------------------------- |
+| `target`    | string                | yes      | Scheme, host and optional port, e.g. `http://localhost:3001`.        |
+| `path`      | string                | no       | Request path to match, e.g. `/api/v2`.                               |
+| `pathMatch` | string                | no       | `prefix` (default), `exact`, `contains` or `regex`.                  |
+| `host`      | string                | no       | Request Host header to match, without port.                          |
+| `hostMatch` | string                | no       | `exact` (default, case-insensitive) or `regex`.                      |
+| `name`      | string                | no       | Label shown in the app.                                              |
+| `priority`  | `"first"` \| `"last"` | no       | Where to insert it; the first matching route wins (default `first`). |
+
+```json
+{ "path": "/api/v2", "target": "http://localhost:3001" }
+```
+
+### `update_rule` 🔒
+
+Enable or disable one mock or route without deleting it.
+
+| Parameter | Type    | Required | Description                |
+| --------- | ------- | -------- | -------------------------- |
+| `id`      | string  | yes      | Rule id from `list_rules`. |
+| `enabled` | boolean | yes      | New state.                 |
+
+### `remove_rule` 🔒
+
+Delete one mock or route by `id`, or all of them with `{ "all": true }`.
+
+| Parameter | Type    | Required | Description                  |
+| --------- | ------- | -------- | ---------------------------- |
+| `id`      | string  | no       | Rule id from `list_rules`.   |
+| `all`     | boolean | no       | Delete every mock and route. |
 
 ## Breakpoints & gRPC
 
