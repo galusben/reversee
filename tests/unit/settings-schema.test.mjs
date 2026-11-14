@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest';
 import {
   defaultSettings,
   isValidPort,
+  regexError,
   sanitizeSettingsPatch,
   toProxySettings,
 } from '../../src/shared/settings-schema';
@@ -115,12 +116,124 @@ describe('toProxySettings', () => {
       responseInterceptor: 'res',
       interceptResponse: true,
       enableGrpc: true,
+      upstreamTimeoutSec: 60,
+      routes: [],
+      mocks: [],
     });
+  });
+
+  it('carries routes, mocks, the timeout and a loaded client certificate', () => {
+    const route = { id: 'r', enabled: true, destProtocol: 'http', dest: 'b.test', destPort: 81 };
+    const mock = {
+      id: 'm',
+      enabled: true,
+      pathPattern: '^/x',
+      statusCode: 204,
+      headers: {},
+      body: '',
+    };
+    const proxy = toProxySettings(
+      { ...defaultSettings, routes: [route], mocks: [mock], upstreamTimeoutSec: 5 },
+      { cert: 'CERT', key: 'KEY' }
+    );
+    expect(proxy.routes).toEqual([route]);
+    expect(proxy.mocks).toEqual([mock]);
+    expect(proxy.upstreamTimeoutSec).toBe(5);
+    expect(proxy.upstreamClientCert).toEqual({ cert: 'CERT', key: 'KEY' });
+    // Paths never reach the worker — only the material main read from them.
+    expect(proxy).not.toHaveProperty('upstreamClientCertPath');
+    expect(toProxySettings(defaultSettings)).not.toHaveProperty('upstreamClientCert');
   });
 
   it('never leaks the MCP flags into the proxy worker', () => {
     const proxy = toProxySettings(defaultSettings);
     expect(proxy).not.toHaveProperty('mcpEnabled');
     expect(proxy).not.toHaveProperty('mcpAllowControl');
+  });
+});
+
+describe('new settings', () => {
+  it('accepts in-range numbers and a known theme, and drops the rest', () => {
+    expect(
+      sanitizeSettingsPatch({ upstreamTimeoutSec: 0, trafficCap: 5000, theme: 'dark' })
+    ).toEqual({ upstreamTimeoutSec: 0, trafficCap: 5000, theme: 'dark' });
+    expect(
+      sanitizeSettingsPatch({
+        upstreamTimeoutSec: -1,
+        trafficCap: 50,
+        theme: 'neon',
+        upstreamClientCertPath: 7,
+      })
+    ).toEqual({});
+    expect(sanitizeSettingsPatch({ trafficCap: 1.5, upstreamTimeoutSec: 99999 })).toEqual({});
+  });
+
+  it('keeps valid route rules and drops malformed ones', () => {
+    const good = {
+      id: 'a',
+      enabled: true,
+      pathPattern: '^/api',
+      destProtocol: 'https',
+      dest: ' api.test ',
+      destPort: 443,
+    };
+    const { routes } = sanitizeSettingsPatch({
+      routes: [
+        good,
+        { ...good, id: 'bad-regex', hostPattern: '(' },
+        { ...good, id: 'bad-port', destPort: 0 },
+        { ...good, id: 'no-dest', dest: ' ' },
+        { ...good, id: '' },
+        'nonsense',
+        { ...good, id: 'off', enabled: false, hostPattern: '' },
+      ],
+    });
+    expect(routes).toEqual([
+      { ...good, dest: 'api.test' },
+      { ...good, id: 'off', enabled: false, dest: 'api.test' },
+    ]);
+  });
+
+  it('normalizes mock rules', () => {
+    const { mocks } = sanitizeSettingsPatch({
+      mocks: [
+        {
+          id: 'm',
+          method: ' post ',
+          pathPattern: '^/x',
+          statusCode: 201,
+          headers: { 'content-type': 'text/plain', bad: 5 },
+          body: 'hi',
+          delayMs: 250,
+          extra: 'ignored',
+        },
+        { id: 'any', method: '*', pathPattern: '.', statusCode: 200 },
+        { id: 'bad-status', pathPattern: '.', statusCode: 99 },
+        { id: 'bad-regex', pathPattern: '[', statusCode: 200 },
+      ],
+    });
+    expect(mocks).toEqual([
+      {
+        id: 'm',
+        enabled: true,
+        method: 'POST',
+        pathPattern: '^/x',
+        statusCode: 201,
+        headers: { 'content-type': 'text/plain' },
+        body: 'hi',
+        delayMs: 250,
+      },
+      { id: 'any', enabled: true, pathPattern: '.', statusCode: 200, headers: {}, body: '' },
+    ]);
+  });
+
+  it('ignores a non-array rules value instead of wiping the list', () => {
+    expect(sanitizeSettingsPatch({ routes: 'x', mocks: null })).toEqual({});
+    expect(sanitizeSettingsPatch({ routes: [] })).toEqual({ routes: [] });
+  });
+
+  it('reports regex errors', () => {
+    expect(regexError('^/ok$')).toBeNull();
+    expect(regexError('(')).toMatch(/./);
   });
 });

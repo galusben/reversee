@@ -53,11 +53,13 @@ System integration, state, and the MCP control surface.
 | `index.ts`             | App lifecycle, IPC registration, proxy startup, MCP socket init, headless mode (`--headless`).                                                                           |
 | `proxy-host.ts`        | Owns the proxy `utilityProcess`: spawn, message routing, restart, teardown.                                                                                              |
 | `settings.ts`          | Persistence via electron-store; validation and change listeners.                                                                                                         |
-| `traffic-store.ts`     | Ring buffer (capped) of captured traffic entries.                                                                                                                        |
+| `traffic-store.ts`     | Ring buffer of captured traffic entries; the cap follows the `trafficCap` setting.                                                                                       |
+| `replay.ts`            | Re-sends a stored request (optionally edited) to its upstream; used by the UI and the `replay_request` tool.                                                             |
+| `client-cert.ts`       | Reads the PEM client certificate + key configured for upstream mutual TLS.                                                                                               |
 | `windows.ts`           | BrowserWindow creation and lifecycle.                                                                                                                                    |
 | `menu.ts`              | Application menu, including the MCP setup item and cache reset.                                                                                                          |
 | `updater.ts`           | electron-updater auto-update integration.                                                                                                                                |
-| `certs/certs.ts`       | Root CA generation/persistence (node-forge) for HTTPS interception.                                                                                                      |
+| `certs/certs.ts`       | Root CA + per-boot localhost leaf (node-forge), expiry status, regeneration. The root key is encrypted at rest via `settings.ts` when a keychain is available.           |
 | `cli-args.ts`          | CLI flag parsing (`--headless`, `--allow-mcp-control`).                                                                                                                  |
 | `proto/proto-store.ts` | gRPC proto-spec store: hybrid storage (metadata `index.json` + `.proto`/`.desc` files under `userData/proto/`) and `compile()` (protobufjs) producing the worker bundle. |
 
@@ -95,17 +97,21 @@ Entry: `src/renderer/src/main.tsx` → `App.tsx`.
 `core/` is plain Node with **no Electron imports** (ESLint-enforced) so it can be
 unit-tested headlessly — see [ADR 0001](adr/0001-electron-free-proxy-core.md).
 
-| File                    | Responsibility                                                                                                                                                |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `worker.ts`             | `utilityProcess` entry; speaks typed messages over `parentPort`; owns breakpoint gating and server lifecycle.                                                 |
-| `core/server.ts`        | HTTP/1.1 HTTP/HTTPS listener; buffers request bodies; calls the optional gate (breakpoints) then proxies.                                                     |
-| `core/proxy.ts`         | Upstream connect, request/response forwarding, decompression, traffic recording.                                                                              |
-| `core/http2.ts`         | HTTP/2 listener used when `enableGrpc` is set; per-stream forward with gRPC frame decode both directions and grpc-status trailer capture (unary + streaming). |
-| `core/interceptor.ts`   | VM-sandboxed JS execution for request/response mutation.                                                                                                      |
-| `core/breakpoints.ts`   | Regex compilation and URL + method matching.                                                                                                                  |
-| `core/curl.ts`          | Builds copy-pasteable curl commands from captured requests.                                                                                                   |
-| `core/grpc-frames.ts`   | gRPC length-prefixed message framing (`[1B flag][4B len][protobuf]`), incremental `FrameAccumulator`, per-message gunzip, decode-against-type.                |
-| `core/grpc-registry.ts` | Rebuilds the compiled proto bundle (from main) and resolves a gRPC `:path` to request/response message types.                                                 |
+| File                    | Responsibility                                                                                                                                                                         |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `worker.ts`             | `utilityProcess` entry; speaks typed messages over `parentPort`; owns breakpoint gating and server lifecycle.                                                                          |
+| `core/server.ts`        | HTTP/1.1 HTTP/HTTPS listener; buffers request bodies; calls the optional gate (breakpoints) then proxies; hands upgrades to the WebSocket tunnel.                                      |
+| `core/proxy.ts`         | One exchange: route / mock matching, upstream request with header timeout, **streamed** response (buffered only for a response interceptor or breakpoint), traffic recording.          |
+| `core/capture.ts`       | Bounded, incrementally decompressed copy of a streamed body for the traffic view.                                                                                                      |
+| `core/rules.ts`         | Compiles and matches route rules (alternate upstreams) and mock rules (canned responses).                                                                                              |
+| `core/websocket.ts`     | Forwards an Upgrade request and pipes the two sockets; records messages on the traffic entry.                                                                                          |
+| `core/ws-frames.ts`     | WebSocket frame parser + message assembler (fragments, permessage-deflate) working on a copy of the bytes.                                                                             |
+| `core/http2.ts`         | Listener used when `enableGrpc` is set: HTTP/2 streams forwarded over a shared upstream session with gRPC frame decode; HTTP/1.1 served on the same port via the `server.ts` handlers. |
+| `core/interceptor.ts`   | Runs user JS in a `node:vm` context with a time budget; returns errors and console output. Scope isolation only — not a security boundary.                                             |
+| `core/breakpoints.ts`   | Regex compilation and URL + method matching.                                                                                                                                           |
+| `core/curl.ts`          | Builds copy-pasteable curl commands from captured requests.                                                                                                                            |
+| `core/grpc-frames.ts`   | gRPC length-prefixed message framing (`[1B flag][4B len][protobuf]`), incremental `FrameAccumulator`, per-message gunzip, decode-against-type.                                         |
+| `core/grpc-registry.ts` | Rebuilds the compiled proto bundle (from main) and resolves a gRPC `:path` to request/response message types.                                                                          |
 
 ## gRPC decoding
 
@@ -121,8 +127,10 @@ Electron-free:
   **unmodified**, and copies frames through a `FrameAccumulator` to decode messages
   as they arrive (so streaming calls fill in incrementally), capturing the
   `grpc-status` trailer. It re-emits the `TrafficEntry` on each frame (the store
-  upserts by `trafficId`). gRPC mode is HTTP/2-only — HTTP/1.1 isn't served because
-  mixing the native stream API with the compatibility layer double-sends trailers.
+  upserts by `trafficId`). HTTP/1.1 is served on the same port through the regular
+  HTTP/1.1 handlers: over TLS, ALPN picks the protocol per connection (Node's HTTP/2
+  compatibility layer is deliberately not attached — it would send trailers twice);
+  in cleartext, the first bytes are sniffed for the HTTP/2 preface.
 - **Main** (`src/main/proto/proto-store.ts`) stores `.proto`/`.desc` specs and
   `compile()`s them (protobufjs — no `protoc`) into a serializable bundle: one
   namespace per spec plus a `/package.Service/Method` → type map. The bundle ships
@@ -137,7 +145,15 @@ Electron-free:
   `remove_proto_spec`).
 
 `protobufjs` is bundled into both `index.js` and `proxyWorker.js` (electron-vite
-bundles deps). Breakpoint gating stays on the HTTP/1.1 path for now.
+bundles deps). Interceptors, breakpoints and mocks apply to HTTP/1.1 exchanges only;
+HTTP/2 streams are passed through unmodified.
+
+## Traffic entries over time
+
+The worker reports one exchange more than once — pending, streaming progress, done —
+tagged with a `streamId`. Main (`recordTraffic` in `index.ts`) maps that id to the
+`trafficId` it assigned, so later notifies update the same entry; `pending` on the
+entry is true until the final one. A fast exchange is reported once, when it ends.
 
 ## `src/shared/` — cross-process contracts
 
@@ -147,7 +163,9 @@ bundles deps). Breakpoint gating stays on the HTTP/1.1 path for now.
   `BreakpointRule`, `Headers`, `Logger`, and the gRPC types (`GrpcView`,
   `ProtoSpec`, `GrpcProtoBundle`).
 - `settings-schema.ts` — `AppSettings` shape, defaults, and sanitization (port
-  range, protocol enum, booleans).
+  range, protocol enum, booleans, route and mock rules).
+- `har.ts` — HAR 1.2 export / import; `timings.ts` — timing phases for the waterfall
+  and HAR; `breakpoint-id.ts` — rule ids shared by the UI and MCP.
 
 ## `mcp/` — the `reversee-mcp` bridge (separate npm package)
 

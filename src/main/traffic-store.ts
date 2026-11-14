@@ -39,13 +39,25 @@ export class TrafficStore {
     return entry;
   }
 
-  /** Replaces the entry with the same trafficId in place (for streaming updates). */
-  update(entry: TrafficEntry): TrafficEntry {
+  /**
+   * Replaces the entry with the same trafficId in place (for streaming
+   * updates). Returns undefined when that entry has since been evicted or
+   * cleared — the update is then dropped rather than resurrecting the row.
+   */
+  update(entry: TrafficEntry): TrafficEntry | undefined {
+    // Updates almost always target a recent entry: search from the end.
+    const index = this.entries.findLastIndex((e) => e.trafficId === entry.trafficId);
+    if (index < 0) return undefined;
     truncateBody(entry.request);
     truncateBody(entry.response);
-    const index = this.entries.findIndex((e) => e.trafficId === entry.trafficId);
-    if (index >= 0) this.entries[index] = entry;
+    this.entries[index] = entry;
     return entry;
+  }
+
+  /** Changes how many entries are kept, evicting the oldest if it shrank. */
+  setCap(cap: number): void {
+    this.cap = cap;
+    if (this.entries.length > cap) this.entries.splice(0, this.entries.length - cap);
   }
 
   get(trafficId: number): TrafficEntry | undefined {

@@ -1,17 +1,20 @@
 import { useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-import { Boxes, KeyRound } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Boxes, KeyRound, Radio, Terminal } from 'lucide-react';
 import { useProxyStore } from '../stores/proxyStore';
 import { MonacoView, bodyToText } from './MonacoView';
 import { WithContextMenu } from './ui/ContextMenu';
 import { languageForContentType } from '../lib/content-type';
 import { findTokens, type FoundToken } from '../../../shared/decode';
+import { formatBytes, formatDuration, timingPhases, totalMs } from '../../../shared/timings';
 import type {
   GrpcMessage,
   GrpcView,
   RequestView,
   ResponseView,
   Timings,
+  TrafficEntry,
+  WebSocketView,
 } from '../../../shared/types';
 
 /** Human-readable gRPC status names for the common codes. */
@@ -92,6 +95,167 @@ function GrpcPane({ grpc }: { grpc: GrpcView }): React.JSX.Element {
           <p className="text-xs text-neutral-400">No response messages.</p>
         )}
       </section>
+    </div>
+  );
+}
+
+function WebSocketPane({ ws }: { ws: WebSocketView }): React.JSX.Element {
+  const dropped = ws.messageCount - ws.messages.length;
+  return (
+    <div className="h-full overflow-auto p-3">
+      <div className="mb-2 flex items-center gap-3 text-xs text-neutral-500">
+        <span>
+          {ws.messageCount} message{ws.messageCount === 1 ? '' : 's'}
+        </span>
+        <span className={ws.closed ? 'text-neutral-500' : 'text-emerald-700'}>
+          {ws.closed ? 'closed' : 'open'}
+        </span>
+        {dropped > 0 && <span>showing the most recent {ws.messages.length}</span>}
+      </div>
+      {ws.messages.length === 0 && <p className="text-xs text-neutral-400">No messages yet.</p>}
+      <ul className="space-y-1" aria-label="WebSocket messages">
+        {ws.messages.map((m, i) => {
+          const sent = m.from === 'client';
+          const body =
+            m.opcode === 'text'
+              ? (m.text ?? '(not decoded)')
+              : m.opcode === 'close'
+                ? `close ${m.closeCode ?? ''} ${m.text ?? ''}`.trim()
+                : m.opcode === 'binary'
+                  ? `binary, ${formatBytes(m.size)}`
+                  : m.opcode;
+          return (
+            <li
+              key={i}
+              className={`flex items-start gap-2 rounded border px-2 py-1 font-mono text-xs ${
+                sent ? 'border-blue-200 bg-blue-50' : 'border-neutral-200'
+              }`}
+            >
+              {sent ? (
+                <ArrowUpRight
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-600"
+                  aria-label="sent"
+                />
+              ) : (
+                <ArrowDownLeft
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-700"
+                  aria-label="received"
+                />
+              )}
+              <span className="min-w-0 grow whitespace-pre-wrap break-all">
+                {body}
+                {m.truncated && <span className="ml-1 text-amber-600">(truncated)</span>}
+              </span>
+              <span className="shrink-0 tabular-nums text-neutral-400">
+                {formatBytes(m.size)} · +{(m.atMs / 1000).toFixed(2)}s
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+const PHASE_COLOR: Record<string, string> = {
+  dns: 'bg-indigo-500',
+  connect: 'bg-amber-600',
+  tls: 'bg-fuchsia-500',
+  wait: 'bg-emerald-600',
+  download: 'bg-blue-600',
+};
+
+/** Where the time went: one bar per phase, positioned on a shared time axis. */
+function TimingsPane({ timings }: { timings: Timings }): React.JSX.Element {
+  const phases = timingPhases(timings);
+  const total = totalMs(timings) ?? 0;
+  const text = timingsText(timings);
+  return (
+    <WithContextMenu
+      items={[
+        { label: 'Copy To Clipboard', onSelect: () => void window.reversee.copyToClipboard(text) },
+      ]}
+    >
+      <div className="h-full overflow-auto p-3">
+        {phases.length > 0 && total > 0 && (
+          <table className="mb-4 w-full text-xs" aria-label="Timing waterfall">
+            <tbody>
+              {phases.map((p) => (
+                <tr key={p.key}>
+                  <td className="w-40 py-1 pr-3 text-neutral-600">{p.label}</td>
+                  <td className="py-1">
+                    <div className="relative h-3 rounded bg-neutral-100">
+                      <div
+                        className={`absolute top-0 h-3 rounded ${PHASE_COLOR[p.key]}`}
+                        style={{
+                          left: `${(p.startMs / total) * 100}%`,
+                          width: `${Math.max(0.5, (p.durationMs / total) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                  </td>
+                  <td className="w-24 py-1 pl-3 text-right tabular-nums text-neutral-600">
+                    {formatDuration(p.durationMs)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <pre className="font-mono text-xs leading-5">{text}</pre>
+      </div>
+    </WithContextMenu>
+  );
+}
+
+/** Errors and console output of the user interceptors that ran for this exchange. */
+function ConsolePane({ entry }: { entry: TrafficEntry }): React.JSX.Element {
+  return (
+    <div className="h-full overflow-auto p-3 font-mono text-xs leading-5">
+      {entry.interceptorErrors?.map((e, i) => (
+        <div key={`e${i}`} role="alert" className="mb-1 rounded bg-red-50 px-2 py-1 text-red-700">
+          {e.phase} interceptor error: {e.message}
+        </div>
+      ))}
+      {entry.interceptorLogs?.map((line, i) => (
+        <div key={`l${i}`} className="whitespace-pre-wrap break-all text-neutral-700">
+          {line}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** One line of context above the tabs: what happened to this exchange. */
+function Summary({ entry }: { entry: TrafficEntry }): React.JSX.Element {
+  const notes: Array<{ text: string; tone: string }> = [];
+  if (entry.pending) notes.push({ text: 'in flight', tone: 'text-blue-600' });
+  if (entry.mocked) notes.push({ text: 'answered by a mock rule', tone: 'text-amber-700' });
+  if (entry.replay) notes.push({ text: 'replayed', tone: 'text-neutral-500' });
+  if (entry.imported) notes.push({ text: 'imported from HAR', tone: 'text-neutral-500' });
+  if (entry.clientAborted) notes.push({ text: 'client disconnected', tone: 'text-amber-700' });
+  if (entry.connectorError) {
+    notes.push({ text: String(entry.connectorError), tone: 'text-red-600' });
+  }
+  const target = entry.request.target;
+  return (
+    <div
+      className="flex flex-wrap items-center gap-x-3 gap-y-0.5 border-b border-neutral-100 px-3 py-1 text-xs"
+      aria-label="Request summary"
+    >
+      <span className="font-mono font-medium text-neutral-700">
+        {entry.request.method} {entry.request.url}
+      </span>
+      {target && (
+        <span className="text-neutral-400">
+          → {target.protocol}://{target.host}:{target.port}
+        </span>
+      )}
+      {notes.map((n) => (
+        <span key={n.text} className={n.tone}>
+          {n.text}
+        </span>
+      ))}
     </div>
   );
 }
@@ -189,6 +353,9 @@ function BodyView({
           Formatted
         </button>
         <div className="grow" />
+        {view.size !== undefined && view.size > 0 && (
+          <span className="text-xs text-neutral-400">{formatBytes(view.size)}</span>
+        )}
         {view.truncated && (
           <span className="text-xs text-amber-600">body truncated at 2 MB for display</span>
         )}
@@ -236,17 +403,26 @@ export function DetailPanes(): React.JSX.Element {
   }
 
   const tokens = findTokens(entry);
+  const hasConsole = Boolean(entry.interceptorErrors?.length || entry.interceptorLogs?.length);
 
   return (
     <Tabs.Root
-      defaultValue={entry.grpc ? 'grpc' : 'response-body'}
+      defaultValue={entry.grpc ? 'grpc' : entry.ws ? 'websocket' : 'response-body'}
       className="flex h-full flex-col bg-white"
     >
+      <Summary entry={entry} />
       <Tabs.List className="flex border-b border-neutral-200 px-2" aria-label="Request details">
         {entry.grpc && (
           <Tabs.Trigger className={tabClass} value="grpc">
             <span className="flex items-center gap-1">
               <Boxes className="h-3.5 w-3.5" aria-hidden /> gRPC
+            </span>
+          </Tabs.Trigger>
+        )}
+        {entry.ws && (
+          <Tabs.Trigger className={tabClass} value="websocket">
+            <span className="flex items-center gap-1">
+              <Radio className="h-3.5 w-3.5" aria-hidden /> Messages
             </span>
           </Tabs.Trigger>
         )}
@@ -272,7 +448,26 @@ export function DetailPanes(): React.JSX.Element {
             </span>
           </Tabs.Trigger>
         )}
+        {hasConsole && (
+          <Tabs.Trigger className={tabClass} value="console">
+            <span
+              className={`flex items-center gap-1 ${entry.interceptorErrors?.length ? 'text-red-600' : ''}`}
+            >
+              <Terminal className="h-3.5 w-3.5" aria-hidden /> Interceptor
+            </span>
+          </Tabs.Trigger>
+        )}
       </Tabs.List>
+      {entry.ws && (
+        <Tabs.Content value="websocket" className="min-h-0 grow">
+          <WebSocketPane ws={entry.ws} />
+        </Tabs.Content>
+      )}
+      {hasConsole && (
+        <Tabs.Content value="console" className="min-h-0 grow">
+          <ConsolePane entry={entry} />
+        </Tabs.Content>
+      )}
       {entry.grpc && (
         <Tabs.Content value="grpc" className="min-h-0 grow">
           <GrpcPane grpc={entry.grpc} />
@@ -291,7 +486,7 @@ export function DetailPanes(): React.JSX.Element {
         <CopyablePre text={headerText(entry.request)} />
       </Tabs.Content>
       <Tabs.Content value="timings" className="min-h-0 grow">
-        <CopyablePre text={timingsText(entry.timings)} />
+        <TimingsPane timings={entry.timings} />
       </Tabs.Content>
       {tokens.length > 0 && (
         <Tabs.Content value="decoded" className="min-h-0 grow">

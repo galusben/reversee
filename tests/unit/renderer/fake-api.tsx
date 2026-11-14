@@ -19,6 +19,13 @@ const SUBSCRIPTIONS = [
   'onOpenBreakpoints',
   'onOpenConnectAi',
   'onOpenProtoSpecs',
+  'onBreakpointResumed',
+  'onBreakpointsChanged',
+  'onCertStatus',
+  'onOpenPreferences',
+  'onOpenRules',
+  'onFocusFilter',
+  'onToggleProxy',
   'onProxyState',
   'onProxyError',
   'onSettingsChanged',
@@ -29,6 +36,12 @@ export type Subscription = (typeof SUBSCRIPTIONS)[number];
 export function installFakeApi() {
   const listeners = new Map<Subscription, Set<Listener>>();
   let settings = { ...defaultSettings, dest: 'api.test' };
+  let certStatus = {
+    notAfter: '2036-01-01T00:00:00.000Z',
+    daysLeft: 3000,
+    expired: false,
+    expiringSoon: false,
+  };
 
   const api = {
     startProxy: vi.fn(() => Promise.resolve({ ok: true, port: settings.listenPort })),
@@ -49,6 +62,12 @@ export function installFakeApi() {
     getProtoSpecs: vi.fn(() => Promise.resolve({ specs: [], errors: [] })),
     importProtoSpec: vi.fn(() => Promise.resolve({ specs: [], errors: [] })),
     removeProtoSpec: vi.fn(() => Promise.resolve({ specs: [], errors: [] })),
+    replayRequest: vi.fn(() => Promise.resolve({ ok: true, trafficId: 999 })),
+    exportHar: vi.fn(() => Promise.resolve({ ok: true, path: '/tmp/out.har', count: 2 })),
+    importHar: vi.fn(() => Promise.resolve({ ok: true, count: 3 })),
+    getCertStatus: vi.fn(() => Promise.resolve(certStatus)),
+    regenerateRootCert: vi.fn(() => Promise.resolve(certStatus)),
+    pickFile: vi.fn(() => Promise.resolve('/picked/file.pem')),
     ...Object.fromEntries(
       SUBSCRIPTIONS.map((name) => [
         name,
@@ -65,6 +84,9 @@ export function installFakeApi() {
 
   return {
     api,
+    setCertStatus(patch: Record<string, unknown>) {
+      certStatus = { ...certStatus, ...patch };
+    },
     setStoredSettings(patch: Record<string, unknown>) {
       settings = { ...settings, ...patch };
     },
@@ -89,10 +111,20 @@ export function resetStores(): void {
     scrollLocked: true,
     filterText: '',
     errorsOnly: false,
+    sort: { key: 'id', dir: 'asc' },
+    certStatus: null,
   });
   useBreakpointStore.setState({ rules: [], hits: [], compileErrors: [], editorOpen: false });
   useProtoSpecStore.setState({ specs: [], compileErrors: [], editorOpen: false, importing: false });
-  useUiStore.setState({ connectAiOpen: false, summaryOpen: false });
+  useUiStore.setState({
+    connectAiOpen: false,
+    summaryOpen: false,
+    preferencesOpen: false,
+    rulesOpen: false,
+    replayEditorId: null,
+    filterFocusRequest: 0,
+    notice: null,
+  });
 }
 
 /** Browser APIs Radix primitives touch that jsdom does not implement. */

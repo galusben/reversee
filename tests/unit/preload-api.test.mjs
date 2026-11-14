@@ -48,6 +48,12 @@ const INVOKES = {
   getProtoSpecs: [IPC.protoSpecsGet, []],
   importProtoSpec: [IPC.protoSpecsImport, []],
   removeProtoSpec: [IPC.protoSpecsRemove, ['spec-id']],
+  replayRequest: [IPC.trafficReplay, [3, { method: 'POST' }]],
+  exportHar: [IPC.trafficExportHar, [[1, 2]]],
+  importHar: [IPC.trafficImportHar, []],
+  getCertStatus: [IPC.certStatusGet, []],
+  regenerateRootCert: [IPC.certRegenerate, []],
+  pickFile: [IPC.filePick, ['Choose']],
 };
 
 const SUBSCRIPTIONS = {
@@ -58,6 +64,13 @@ const SUBSCRIPTIONS = {
   onOpenBreakpoints: IPC.openBreakpointsEvent,
   onOpenConnectAi: IPC.openConnectAiEvent,
   onOpenProtoSpecs: IPC.openProtoSpecsEvent,
+  onBreakpointResumed: IPC.breakpointResumedEvent,
+  onBreakpointsChanged: IPC.breakpointsChangedEvent,
+  onCertStatus: IPC.certStatusEvent,
+  onOpenPreferences: IPC.openPreferencesEvent,
+  onOpenRules: IPC.openRulesEvent,
+  onFocusFilter: IPC.focusFilterEvent,
+  onToggleProxy: IPC.toggleProxyEvent,
   onProxyState: IPC.proxyStateEvent,
   onProxyError: IPC.proxyErrorEvent,
   onSettingsChanged: IPC.settingsChangedEvent,

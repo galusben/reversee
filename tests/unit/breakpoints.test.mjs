@@ -52,3 +52,27 @@ describe('breakpoint matching', () => {
     expect(matchBreakpoint(both, '/x', 'GET')?.id).toBe('first');
   });
 });
+
+describe('breakpoint phases', () => {
+  it('defaults to the request phase and only matches the phase asked for', async () => {
+    const { compileBreakpoints, matchBreakpoint } =
+      await import('../../src/proxy/core/breakpoints');
+    const { compiled } = compileBreakpoints([
+      { id: 'a', path: '/a', methods: ['GET'] },
+      { id: 'b', path: '/b', methods: ['GET'], phase: 'response' },
+      { id: 'c', path: '/c', methods: ['GET'], phase: 'bogus' },
+    ]);
+    expect(compiled.map((c) => c.phase)).toEqual(['request', 'response', 'request']);
+    expect(matchBreakpoint(compiled, '/a', 'GET')?.id).toBe('a');
+    expect(matchBreakpoint(compiled, '/a', 'GET', 'response')).toBeNull();
+    expect(matchBreakpoint(compiled, '/b', 'GET')).toBeNull();
+    expect(matchBreakpoint(compiled, '/b', 'GET', 'response')?.id).toBe('b');
+  });
+
+  it('gives request and response rules distinct, order-insensitive ids', async () => {
+    const { ruleId } = await import('../../src/shared/breakpoint-id');
+    expect(ruleId('/x', ['POST', 'GET'])).toBe('GET,POST /x');
+    expect(ruleId('/x', ['GET', 'POST'], 'request')).toBe('GET,POST /x');
+    expect(ruleId('/x', ['GET'], 'response')).toBe('response GET /x');
+  });
+});

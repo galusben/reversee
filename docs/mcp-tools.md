@@ -31,7 +31,7 @@ claude mcp add reversee -- npx -y reversee-mcp
 
 ## How access works
 
-- **Read-only by default.** The 11 read tools are always available. The 8
+- **Read-only by default.** The 12 read tools are always available. The 12
   **mutating** tools (marked 🔒 below) are rejected until the user enables
   _Proxy Settings → Allow MCP to Control the Proxy_ in the app, or the app is
   launched headless with `--allow-mcp-control`.
@@ -61,10 +61,19 @@ been captured.
 
 ### `validate_setup`
 
-> Run setup checks: destination configured, ports valid, root certificate present,
-> proxy process state.
+> Run setup checks: destination configured, ports valid, root certificate present
+> and not expired, upstream client certificate readable, proxy process state.
 
 No parameters. Use when something isn't proxying to find the misconfiguration.
+
+### `regenerate_root_cert` 🔒
+
+> Replace the root CA that signs the HTTPS listener certificate (use when
+> validate_setup reports it expired). Clients must trust the new root before
+> HTTPS through Reversee works again. Returns the new validity. Requires control
+> to be enabled in the app.
+
+No parameters. A running HTTPS listener is restarted onto the new certificate.
 
 ### `export_diagnostics`
 
@@ -90,8 +99,44 @@ No parameters.
 > and invalid values are ignored. Keys: listenProtocol/destProtocol (http|https),
 > listenPort/destPort (1-65535), dest (host), interceptRequest/interceptResponse
 > (bool), requestInterceptor/responseInterceptor (JS source),
-> rewriteRedirects/rewriteHost/allowSelfSignedUpstream (bool). Requires "Allow MCP
-> to Control the Proxy" enabled in the app. Returns the resulting config.
+> rewriteRedirects/rewriteHost/allowSelfSignedUpstream/enableGrpc (bool),
+> upstreamTimeoutSec (0-3600; seconds to wait for the upstream response head
+> before a 504, 0 = never), trafficCap (100-20000 requests kept), theme
+> (system|light|dark), upstreamClientCertPath/upstreamClientKeyPath (PEM files
+> for mutual TLS to the upstream), routes and mocks (see below). Proxy-behavior
+> keys take effect the next time the proxy starts. Requires "Allow MCP to Control
+> the Proxy" enabled in the app. Returns the resulting config.
+
+`routes` sends matching requests to a different upstream (first match wins);
+`mocks` answers them without contacting any upstream. Each key replaces the whole
+list, and a rule with an invalid field is dropped:
+
+```json
+{
+  "routes": [
+    {
+      "id": "v2",
+      "enabled": true,
+      "pathPattern": "^/api/v2/",
+      "destProtocol": "http",
+      "dest": "localhost",
+      "destPort": 4000
+    }
+  ],
+  "mocks": [
+    {
+      "id": "flags",
+      "enabled": true,
+      "method": "GET",
+      "pathPattern": "^/flags$",
+      "statusCode": 200,
+      "headers": { "content-type": "application/json" },
+      "body": "{\"beta\":true}",
+      "delayMs": 150
+    }
+  ]
+}
+```
 
 | Param   | Type   | Required | Notes                                                     |
 | ------- | ------ | -------- | --------------------------------------------------------- |
@@ -183,7 +228,11 @@ No parameters. Reach for this if an interceptor wedged the worker.
 | `trafficId` | integer | yes      | Id from `list_traffic` or `search_traffic`. |
 
 Returns the full request/response, plus decoded gRPC when a matching proto spec is
-loaded and decoded JWTs when the request carries a bearer token or JWT cookie.
+loaded and decoded JWTs when the request carries a bearer token or JWT cookie. A
+WebSocket connection carries `webSocket.messages` (direction, opcode, text, size);
+`interceptorErrors` / `interceptorLogs` report what the user interceptors did. In
+summaries, `pending: true` marks an exchange still in flight and `mocked: true` one
+answered by a mock rule.
 
 ### `decode_jwt`
 
@@ -225,6 +274,17 @@ loaded and decoded JWTs when the request carries a bearer token or JWT cookie.
 The replayed entry is flagged so you can tell it apart from live traffic, and it
 gets its own `trafficId`.
 
+### `export_har` 🔒
+
+> Write captured traffic to a HAR 1.2 file (for sharing, diffing, or loading into
+> browser devtools). Accepts the same filters as search_traffic to export a
+> subset. Requires control to be enabled in the app.
+
+| Param  | Type   | Required | Notes                                                  |
+| ------ | ------ | -------- | ------------------------------------------------------ |
+| `path` | string | yes      | Absolute path of the `.har` file to write.             |
+| …      |        | no       | Any `search_traffic` filter (`status`, `hasError`, …). |
+
 ### `set_interceptor` 🔒
 
 > Install (or clear/toggle) a request or response interceptor — arbitrary
@@ -252,7 +312,9 @@ gets its own `trafficId`.
 ```
 
 You write real JavaScript — there is no DSL. The code runs once per matching
-request in a sandbox; a throw is contained and does not crash the proxy.
+request with a one-second budget; a throw or a timeout is contained, does not crash the
+proxy, and is recorded on the traffic entry together with any `console.log` output
+(`get_traffic_entry` returns `interceptorErrors` and `interceptorLogs`).
 
 ---
 
@@ -260,9 +322,55 @@ request in a sandbox; a throw is contained and does not crash the proxy.
 
 ### `list_breakpoints`
 
-> List the configured breakpoint rules (URL regex + HTTP methods).
+> List the configured breakpoint rules (URL regex + HTTP methods + phase: request
+> or response).
 
 No parameters.
+
+### `set_breakpoints` 🔒
+
+> Replace the breakpoint rules. A request-phase rule holds matching requests
+> before they are forwarded; a response-phase rule holds the upstream response
+> before the client sees it. Held exchanges wait until resumed
+> (resume_held_request, or Continue in the app), so set rules only when you will
+> resume them. Pass an empty array to clear. Requires control to be enabled in
+> the app.
+
+| Param             | Type                        | Required | Notes                                       |
+| ----------------- | --------------------------- | -------- | ------------------------------------------- |
+| `rules`           | array                       | yes      | The complete rule list; `[]` clears it.     |
+| `rules[].path`    | string                      | yes      | Regex matched against the request URL.      |
+| `rules[].methods` | string[]                    | no       | HTTP methods (default: all common methods). |
+| `rules[].phase`   | `"request"` \| `"response"` | no       | What to hold (default `"request"`).         |
+
+### `list_held_requests`
+
+> List the requests/responses currently held at a breakpoint: id, phase, method,
+> URL, headers, body, and (for a held response) status code.
+
+No parameters.
+
+### `resume_held_request` 🔒
+
+> Resume a held request or response, optionally edited first. For a held request
+> you can change url, method, headers and body before it is forwarded; for a held
+> response, statusCode, headers and body before the client receives it. Requires
+> control to be enabled in the app.
+
+| Param              | Type    | Required | Notes                                                          |
+| ------------------ | ------- | -------- | -------------------------------------------------------------- |
+| `id`               | integer | yes      | Id from `list_held_requests`.                                  |
+| `edits.url`        | string  | no       | Held request only.                                             |
+| `edits.method`     | string  | no       | Held request only.                                             |
+| `edits.statusCode` | integer | no       | Held response only.                                            |
+| `edits.headers`    | object  | no       | Merged into the held headers; a `null` value deletes a header. |
+| `edits.body`       | string  | no       | Replacement body.                                              |
+
+Example — inject an outage into one response:
+
+```json
+{ "id": 4, "edits": { "statusCode": 503, "body": "{\"error\":\"injected\"}" } }
+```
 
 ### `list_proto_specs`
 

@@ -91,7 +91,7 @@ describe('BreakpointsDialog', () => {
 
     await waitFor(() =>
       expect(fake.api.setBreakpoints).toHaveBeenCalledWith([
-        { id: 'GET,POST /api/.*', path: '/api/.*', methods: ['GET', 'POST'] },
+        { id: 'GET,POST /api/.*', path: '/api/.*', methods: ['GET', 'POST'], phase: 'request' },
       ])
     );
     expect(input.value).toBe('');

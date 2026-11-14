@@ -1,12 +1,13 @@
-// Root CA + per-boot localhost certificate generation (node-forge port of the
-// legacy src/certs modules, minus the console.log of private keys). The root
-// CA persists in the settings store; the localhost leaf is regenerated and
-// signed on every boot, exactly as before.
+// Root CA + per-boot localhost certificate generation (node-forge). The root
+// CA persists in the settings store (its key encrypted at rest when a system
+// keychain is available); the localhost leaf is regenerated and signed on
+// every boot.
 import forge from 'node-forge';
 import fs from 'node:fs/promises';
 import { dialog, type BrowserWindow } from 'electron';
 import log from 'electron-log';
-import { getRootCertPem, setRootCertPem, type RootCertPem } from '../settings';
+import { readRootCert, setRootCertPem, type RootCertPem } from '../settings';
+import type { RootCertStatus } from '../../shared/ipc';
 
 const SUBJECT_ATTRS = [
   { name: 'commonName', value: 'reversee.ninja' },
@@ -17,52 +18,35 @@ const SUBJECT_ATTRS = [
   { shortName: 'OU', value: 'Reversee Web Debugger' },
 ];
 
+/** New roots are long-lived: every expiry forces the user to re-trust the CA. */
+export const ROOT_VALIDITY_YEARS = 10;
+const LEAF_VALIDITY_DAYS = 365;
+/** Warn this long before the root expires. */
+export const EXPIRY_WARNING_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** A positive 128-bit serial; a constant serial breaks clients that cache by issuer + serial. */
+function randomSerial(): string {
+  const hex = forge.util.bytesToHex(forge.random.getBytesSync(16));
+  // Clear the top bit so the DER integer is positive.
+  return (parseInt(hex[0], 16) & 0x7).toString(16) + hex.slice(1);
+}
+
 export function createRootCert(): RootCertPem {
   log.info('generating root CA key pair...');
   const keys = forge.pki.rsa.generateKeyPair(2048);
   const cert = forge.pki.createCertificate();
   cert.publicKey = keys.publicKey;
-  cert.serialNumber = '01';
-  cert.validity.notBefore = new Date();
+  cert.serialNumber = randomSerial();
+  // Backdated a day so a client with a slightly slow clock still accepts it.
+  cert.validity.notBefore = new Date(Date.now() - DAY_MS);
   cert.validity.notAfter = new Date();
-  cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 1);
+  cert.validity.notAfter.setFullYear(cert.validity.notAfter.getFullYear() + ROOT_VALIDITY_YEARS);
   cert.setSubject(SUBJECT_ATTRS);
   cert.setIssuer(SUBJECT_ATTRS);
   cert.setExtensions([
-    { name: 'basicConstraints', cA: true },
-    {
-      name: 'keyUsage',
-      keyCertSign: true,
-      digitalSignature: true,
-      nonRepudiation: true,
-      keyEncipherment: true,
-      dataEncipherment: true,
-    },
-    {
-      name: 'extKeyUsage',
-      serverAuth: true,
-      clientAuth: true,
-      codeSigning: true,
-      emailProtection: true,
-      timeStamping: true,
-    },
-    {
-      name: 'nsCertType',
-      client: true,
-      server: true,
-      email: true,
-      objsign: true,
-      sslCA: true,
-      emailCA: true,
-      objCA: true,
-    },
-    {
-      name: 'subjectAltName',
-      altNames: [
-        { type: 6, value: 'http://reversee.ninja' },
-        { type: 7, ip: '127.0.0.1' },
-      ],
-    },
+    { name: 'basicConstraints', cA: true, critical: true },
+    { name: 'keyUsage', keyCertSign: true, cRLSign: true, digitalSignature: true, critical: true },
     { name: 'subjectKeyIdentifier' },
   ]);
   cert.sign(keys.privateKey, forge.md.sha256.create());
@@ -80,49 +64,41 @@ export interface LeafCert {
   privateKey: string;
 }
 
+/** Signs a fresh end-entity certificate for the local listener. */
 export function generateAndSignCert(root: RootCertPem): LeafCert {
   const keys = forge.pki.rsa.generateKeyPair(2048);
-  const csr = forge.pki.createCertificationRequest();
-  csr.publicKey = keys.publicKey;
-  csr.setSubject([
-    { name: 'commonName', value: 'localhost' },
-    { name: 'countryName', value: 'US' },
-    { shortName: 'ST', value: 'Virginia' },
-    { name: 'localityName', value: 'Blacksburg' },
-    { name: 'organizationName', value: 'Reversee' },
-    { shortName: 'OU', value: 'Reversee Web Debugger' },
-  ]);
-  csr.sign(keys.privateKey, forge.md.sha256.create());
-
   const caCert = forge.pki.certificateFromPem(root.certificate);
   const caKey = forge.pki.privateKeyFromPem(root.privateKey);
 
   const cert = forge.pki.createCertificate();
-  cert.serialNumber = '01';
-  cert.validity.notBefore = new Date();
-  cert.validity.notAfter = new Date();
-  cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 1);
-  cert.setSubject(csr.subject.attributes);
+  cert.publicKey = keys.publicKey;
+  cert.serialNumber = randomSerial();
+  cert.validity.notBefore = new Date(Date.now() - DAY_MS);
+  // A leaf must not outlive its issuer.
+  cert.validity.notAfter = new Date(
+    Math.min(Date.now() + LEAF_VALIDITY_DAYS * DAY_MS, caCert.validity.notAfter.getTime())
+  );
+  cert.setSubject([
+    { name: 'commonName', value: 'localhost' },
+    { name: 'organizationName', value: 'Reversee' },
+    { shortName: 'OU', value: 'Reversee Web Debugger' },
+  ]);
   cert.setIssuer(caCert.subject.attributes);
   cert.setExtensions([
-    { name: 'basicConstraints', cA: true },
-    {
-      name: 'keyUsage',
-      keyCertSign: true,
-      digitalSignature: true,
-      nonRepudiation: true,
-      keyEncipherment: true,
-      dataEncipherment: true,
-    },
+    // An end-entity certificate: it must not be able to sign other certificates.
+    { name: 'basicConstraints', cA: false, critical: true },
+    { name: 'keyUsage', digitalSignature: true, keyEncipherment: true, critical: true },
+    { name: 'extKeyUsage', serverAuth: true },
     {
       name: 'subjectAltName',
       altNames: [
-        { type: 6, value: 'http://example.org/webid#me' },
         { type: 2, value: 'localhost' },
+        // Clients that connect by address verify against an IP SAN.
+        { type: 7, ip: '127.0.0.1' },
+        { type: 7, ip: '::1' },
       ],
     },
   ]);
-  cert.publicKey = csr.publicKey;
   cert.sign(caKey, forge.md.sha256.create());
   log.info('localhost certificate signed');
 
@@ -132,13 +108,50 @@ export function generateAndSignCert(root: RootCertPem): LeafCert {
   };
 }
 
-/** Loads the persisted root CA (creating it on first run) and signs a fresh localhost cert. */
-export function ensureCertificates(): { root: RootCertPem; leaf: LeafCert } {
-  let root = getRootCertPem();
-  if (!root) {
-    root = createRootCert();
-    setRootCertPem(root);
+export type { RootCertStatus };
+
+export function rootCertStatus(root: RootCertPem, now: number = Date.now()): RootCertStatus {
+  const notAfter = forge.pki.certificateFromPem(root.certificate).validity.notAfter;
+  const daysLeft = Math.floor((notAfter.getTime() - now) / DAY_MS);
+  return {
+    notAfter: notAfter.toISOString(),
+    daysLeft,
+    expired: notAfter.getTime() <= now,
+    expiringSoon: daysLeft < EXPIRY_WARNING_DAYS,
+  };
+}
+
+export interface Certificates {
+  root: RootCertPem;
+  leaf: LeafCert;
+  /** Set when `root` is a temporary stand-in for a stored root that is locked. */
+  temporaryReason?: string;
+}
+
+/**
+ * Loads the persisted root CA (creating it on first run) and signs a fresh
+ * localhost cert. An expired root is kept — replacing it is the user's call
+ * (regenerateRoot), because the new one has to be trusted again.
+ */
+export function ensureCertificates(): Certificates {
+  const read = readRootCert();
+  if (read.state === 'ok') return { root: read.pem, leaf: generateAndSignCert(read.pem) };
+  if (read.state === 'locked') {
+    // Never overwrite a root the user may have trusted just because its key
+    // is unreadable right now (locked keyring, restored profile).
+    log.warn(`stored root CA key unavailable (${read.reason}); using a temporary root`);
+    const root = createRootCert();
+    return { root, leaf: generateAndSignCert(root), temporaryReason: read.reason };
   }
+  const root = createRootCert();
+  setRootCertPem(root);
+  return { root, leaf: generateAndSignCert(root) };
+}
+
+/** Replaces the stored root CA with a new one. Clients must trust it again. */
+export function regenerateRoot(): Certificates {
+  const root = createRootCert();
+  setRootCertPem(root);
   return { root, leaf: generateAndSignCert(root) };
 }
 

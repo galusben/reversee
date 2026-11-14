@@ -107,8 +107,17 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
       'Update Reversee configuration. Accepts a partial settings object; unknown keys and invalid values are ignored. ' +
       'Keys: listenProtocol/destProtocol (http|https), listenPort/destPort (1-65535), dest (host), ' +
       'interceptRequest/interceptResponse (bool), requestInterceptor/responseInterceptor (JS source), ' +
-      'rewriteRedirects/rewriteHost/allowSelfSignedUpstream/enableGrpc (bool). ' +
-      'enableGrpc runs an HTTP/2 listener so native gRPC is proxied and decoded (against saved proto specs). ' +
+      'rewriteRedirects/rewriteHost/allowSelfSignedUpstream/enableGrpc (bool), ' +
+      'upstreamTimeoutSec (0-3600; seconds to wait for the upstream response head before a 504, 0 = never), ' +
+      'trafficCap (100-20000 requests kept), theme (system|light|dark), ' +
+      'upstreamClientCertPath/upstreamClientKeyPath (PEM files for mutual TLS to the upstream), ' +
+      'routes (array of {id, enabled, hostPattern?, pathPattern?, destProtocol, dest, destPort}: regex rules ' +
+      'that send matching requests to a different upstream; first match wins), and ' +
+      'mocks (array of {id, enabled, method?, pathPattern, statusCode, headers, body, delayMs?}: canned responses ' +
+      'served without contacting the upstream). routes and mocks replace the whole list; invalid rules are dropped. ' +
+      'enableGrpc runs an HTTP/2 listener so native gRPC is proxied and decoded (against saved proto specs); ' +
+      'HTTP/1.1 clients are still served on the same port. ' +
+      'Proxy-behavior keys take effect the next time the proxy starts. ' +
       'Requires "Allow MCP to Control the Proxy" enabled in the app. Returns the resulting config.',
     inputSchema: {
       type: 'object',
@@ -141,7 +150,9 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
   {
     name: 'list_traffic',
     description:
-      'List captured requests (newest last): method, URL, status, content type, total time. Bodies are elided; use get_traffic_entry for full details.',
+      'List captured requests (newest last): method, URL, status, content type, total time, response size. ' +
+      'An entry with pending:true is still in flight (waiting on the upstream, streaming, or an open WebSocket). ' +
+      'Bodies are elided; use get_traffic_entry for full details.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -219,7 +230,8 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
     name: 'get_traffic_entry',
     description:
       'Full details of one captured request: headers, bodies, timings, a copy-pasteable curl command, the upstream ' +
-      'target, and any decoded JWTs found in its Authorization header or cookies.',
+      'target, any decoded JWTs found in its Authorization header or cookies, decoded gRPC messages, WebSocket ' +
+      'messages (for an upgraded connection), and errors / console output of the user interceptors that ran.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -263,7 +275,8 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
     name: 'set_interceptor',
     description:
       'Install (or clear/toggle) a request or response interceptor — arbitrary JavaScript that rewrites traffic on ' +
-      'the fly, for mocking, fault injection, or header rewriting. The code runs per matching request in a sandbox. ' +
+      'the fly, for mocking, fault injection, or header rewriting. The code runs synchronously per request with a ' +
+      '1 second budget; errors and console.log output are recorded on the traffic entry (get_traffic_entry). ' +
       'Request interceptors can mutate `requestParams` (host, path, method, port, headers, body). Response ' +
       'interceptors can mutate `responseParams` (statusCode, headers, body) and read `requestParams`. ' +
       'Example (force a 500): `responseParams.statusCode = 500; responseParams.body = "{\\"error\\":\\"injected\\"}";`. ' +
@@ -302,8 +315,83 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
   },
   {
     name: 'list_breakpoints',
-    description: 'List the configured breakpoint rules (URL regex + HTTP methods).',
+    description:
+      'List the configured breakpoint rules (URL regex + HTTP methods + phase: request or response).',
     inputSchema: noInput,
+  },
+  {
+    name: 'set_breakpoints',
+    description:
+      'Replace the breakpoint rules. A request-phase rule holds matching requests before they are forwarded; a ' +
+      'response-phase rule holds the upstream response before the client sees it. Held exchanges wait until ' +
+      'resumed (resume_held_request, or Continue in the app), so set rules only when you will resume them. ' +
+      'Pass an empty array to clear. Requires control to be enabled in the app.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        rules: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              path: { type: 'string', description: 'Regex matched against the request URL' },
+              methods: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'HTTP methods to match (default: all common methods)',
+              },
+              phase: {
+                type: 'string',
+                enum: ['request', 'response'],
+                description: 'What to hold (default "request")',
+              },
+            },
+            required: ['path'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['rules'],
+      additionalProperties: false,
+    },
+    mutating: true,
+  },
+  {
+    name: 'list_held_requests',
+    description:
+      'List the requests/responses currently held at a breakpoint: id, phase, method, URL, headers, body, and ' +
+      '(for a held response) status code.',
+    inputSchema: noInput,
+  },
+  {
+    name: 'resume_held_request',
+    description:
+      'Resume a held request or response, optionally edited first. For a held request you can change url, method, ' +
+      'headers and body before it is forwarded; for a held response, statusCode, headers and body before the ' +
+      'client receives it. Requires control to be enabled in the app.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer', description: 'Id from list_held_requests' },
+        edits: {
+          type: 'object',
+          properties: {
+            url: { type: 'string', description: 'Held request only' },
+            method: { type: 'string', description: 'Held request only' },
+            statusCode: { type: 'integer', description: 'Held response only' },
+            headers: {
+              type: 'object',
+              description: 'Merged into the held headers; a null value deletes that header',
+            },
+            body: { type: 'string', description: 'Replacement body' },
+          },
+          additionalProperties: false,
+        },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+    mutating: true,
   },
   {
     name: 'list_proto_specs',
@@ -347,8 +435,43 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
   {
     name: 'validate_setup',
     description:
-      'Run setup checks: destination configured, ports valid, root certificate present, proxy process state.',
+      'Run setup checks: destination configured, ports valid, root certificate present and not expired, ' +
+      'upstream client certificate readable, proxy process state.',
     inputSchema: noInput,
+  },
+  {
+    name: 'regenerate_root_cert',
+    description:
+      'Replace the root CA that signs the HTTPS listener certificate (use when validate_setup reports it expired). ' +
+      'Clients must trust the new root before HTTPS through Reversee works again. Returns the new validity. ' +
+      'Requires control to be enabled in the app.',
+    inputSchema: noInput,
+    mutating: true,
+  },
+  {
+    name: 'export_har',
+    description:
+      'Write captured traffic to a HAR 1.2 file (for sharing, diffing, or loading into browser devtools). ' +
+      'Accepts the same filters as search_traffic to export a subset. Requires control to be enabled in the app.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Absolute path of the .har file to write' },
+        text: { type: 'string' },
+        method: { type: 'string' },
+        status: { anyOf: [{ type: 'integer' }, { type: 'string' }] },
+        urlContains: { type: 'string' },
+        urlRegex: { type: 'string' },
+        contentType: { type: 'string' },
+        header: { type: 'string' },
+        bodyContains: { type: 'string' },
+        minTotalMs: { type: 'number' },
+        hasError: { type: 'boolean' },
+      },
+      required: ['path'],
+      additionalProperties: false,
+    },
+    mutating: true,
   },
   {
     name: 'export_diagnostics',

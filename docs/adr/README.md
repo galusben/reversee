@@ -16,3 +16,4 @@ reverse it — add a new one that supersedes it.
 - [0003 — Gated MCP mutations over a local socket](0003-gated-mcp-mutations-over-local-socket.md) · accepted
 - [0004 — Tag-driven release pipeline](0004-tag-driven-release-pipeline.md) · accepted
 - [0005 — Deferred decisions](0005-deferred-decisions.md) · open
+- [0006 — The root CA key is encrypted at rest](0006-root-ca-key-encrypted-at-rest.md) · accepted

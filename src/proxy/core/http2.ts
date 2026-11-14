@@ -1,23 +1,32 @@
-// HTTP/2 reverse proxy with gRPC awareness. Used instead of the HTTP/1.1
+// HTTP/2 reverse proxy with gRPC awareness. Used instead of the plain HTTP/1.1
 // server (core/server.ts) when `enableGrpc` is set, so native gRPC — which
 // requires HTTP/2 framing and trailers — can be proxied and decoded.
 //
-// For each inbound stream it opens an upstream HTTP/2 stream to the fixed
-// destination and pipes bytes both ways UNMODIFIED (the wire is never altered),
-// while copying frames through a FrameAccumulator to decode gRPC messages and
-// capturing the grpc-status trailer. Works for unary and all streaming modes:
-// messages accumulate as DATA frames arrive and the traffic entry is re-emitted
-// (the store upserts by trafficId).
+// For each inbound stream it opens an upstream HTTP/2 stream and pipes bytes
+// both ways UNMODIFIED (the wire is never altered), while copying frames
+// through a FrameAccumulator to decode gRPC messages and capturing the
+// grpc-status trailer. Works for unary and all streaming modes: messages
+// accumulate as DATA frames arrive and the traffic entry is re-emitted (the
+// store upserts by streamId). Upstream sessions are shared per origin.
 //
-// Electron-free (node:http2 only). This is an HTTP/2-only listener: https
-// negotiates h2 via ALPN, http speaks cleartext h2c (prior knowledge). Plain
-// HTTP/1.1 is not served in gRPC mode — mixing the native 'stream' API (needed
-// for trailers) with the HTTP/1.1 compatibility layer double-sends trailers.
+// HTTP/1.1 is served on the same port, through the regular HTTP/1.1 handlers
+// (interceptors, breakpoints, mocks, WebSockets all work):
+// - https: ALPN picks h2 or http/1.1 per connection.
+// - http: the first bytes are sniffed — the HTTP/2 client preface selects h2
+//   (cleartext prior knowledge), anything else is HTTP/1.1.
+// HTTP/2 streams themselves are passed through as-is: interceptors and
+// breakpoints do not apply to them.
+//
+// Electron-free (node:http2 only).
+import http from 'node:http';
 import http2 from 'node:http2';
+import net from 'node:net';
 import { randomUUID } from 'node:crypto';
+import { CAPTURE_LIMIT } from './capture';
 import { FrameAccumulator, decodeFrame } from './grpc-frames';
+import { compileRules, matchRoute, type CompiledRules } from './rules';
+import { createHttp1Handlers, type ProxyServer, type ProxyServerOptions } from './server';
 import type { ResolvedMethod } from './grpc-registry';
-import type { ProxyServer, SslOptions } from './server';
 import type {
   GrpcView,
   Headers,
@@ -29,15 +38,10 @@ import type {
   TrafficEntry,
 } from '../../shared/types';
 
-export interface Http2ProxyServerOptions {
-  settings: ProxySettings;
-  /** streamId correlates repeated notifies for one call so main upserts in place. */
-  notify: (entry: TrafficEntry, streamId?: string) => void;
-  sslOptions?: SslOptions;
+/** The HTTP/1.1 options (gate, responseGate, …) apply to the HTTP/1.1 connections it serves. */
+export interface Http2ProxyServerOptions extends ProxyServerOptions {
   /** Resolves a gRPC `:path` to the message types that decode its frames. */
   resolveMethod?: (path: string) => ResolvedMethod | undefined;
-  logger?: Logger;
-  onServerError?: (err: NodeJS.ErrnoException) => void;
 }
 
 const noop: Logger = { debug() {}, info() {}, warn() {}, error() {} };
@@ -67,47 +71,77 @@ function viewHeaders(h: http2.IncomingHttpHeaders | http2.OutgoingHttpHeaders): 
 export function createHttp2ProxyServer(options: Http2ProxyServerOptions): ProxyServer {
   const { settings, notify } = options;
   const logger = options.logger ?? noop;
-  const rejectUnauthorized = settings.allowSelfSignedUpstream === false;
-  const upstreamOrigin = `${settings.destProtocol === 'https' ? 'https' : 'http'}://${settings.dest}:${settings.destPort}`;
+  const rules = compileRules(settings, logger);
+  const http1 = createHttp1Handlers(options);
+  const upstreams = new UpstreamSessions(settings, logger);
+  const connections = new Set<net.Socket>();
 
-  const server =
-    settings.listenProtocol === 'https'
-      ? http2.createSecureServer({
-          key: options.sslOptions?.key,
-          cert: options.sslOptions?.cert,
-        })
-      : http2.createServer();
-
-  server.on('error', (err: NodeJS.ErrnoException) => {
+  const onStream = (
+    clientStream: http2.ServerHttp2Stream,
+    headers: http2.IncomingHttpHeaders
+  ): void => {
+    forwardStream(clientStream, headers, {
+      settings,
+      notify,
+      logger,
+      rules,
+      upstreams,
+      resolveMethod: options.resolveMethod,
+    });
+  };
+  const onError = (err: NodeJS.ErrnoException): void => {
     logger.error('http2 proxy server error', err);
     options.onServerError?.(err);
-  });
+  };
 
-  // HTTP/2 streams (the gRPC path).
-  server.on(
-    'stream',
-    (clientStream: http2.ServerHttp2Stream, headers: http2.IncomingHttpHeaders) => {
-      forwardStream(clientStream, headers, {
-        settings,
-        notify,
-        logger,
-        rejectUnauthorized,
-        upstreamOrigin,
-        resolveMethod: options.resolveMethod,
-      });
-    }
-  );
+  let listener: net.Server;
+  if (settings.listenProtocol === 'https') {
+    const secure = http2.createSecureServer({
+      key: options.sslOptions?.key,
+      cert: options.sslOptions?.cert,
+      allowHTTP1: true,
+    });
+    // Node wires its HTTP/2 compatibility layer the moment a 'request'
+    // listener is added, which would then ALSO handle every h2 stream (and
+    // send trailers a second time). Dropping that hook keeps 'request' for
+    // what we want it for: the HTTP/1.1 connections ALPN hands us.
+    secure.removeAllListeners('newListener');
+    secure.on('request', (req, res) =>
+      http1.onRequest(req as unknown as http.IncomingMessage, res as unknown as http.ServerResponse)
+    );
+    secure.on('upgrade', http1.onUpgrade);
+    secure.on('stream', onStream);
+    listener = secure;
+  } else {
+    const h2 = http2.createServer();
+    h2.on('stream', onStream);
+    h2.on('error', onError);
+    const h1 = http.createServer(http1.onRequest);
+    h1.on('upgrade', http1.onUpgrade);
+    h1.on('error', onError);
+    // Neither inner server listens; the front socket server feeds them.
+    listener = net.createServer((socket) => {
+      socket.on('error', (err) => logger.debug('client socket error', err));
+      sniffProtocol(socket, (isHttp2) => (isHttp2 ? h2 : h1).emit('connection', socket));
+    });
+  }
+
+  listener.on('connection', (socket: net.Socket) => {
+    connections.add(socket);
+    socket.on('close', () => connections.delete(socket));
+  });
+  listener.on('error', onError);
 
   return {
     get listening(): boolean {
-      return server.listening;
+      return listener.listening;
     },
     listen(): Promise<number> {
       return new Promise((resolve, reject) => {
-        server.once('error', reject);
-        server.listen(settings.listenPort, () => {
-          server.removeListener('error', reject);
-          const address = server.address();
+        listener.once('error', reject);
+        listener.listen(settings.listenPort, () => {
+          listener.removeListener('error', reject);
+          const address = listener.address();
           const port = typeof address === 'object' && address ? address.port : settings.listenPort;
           logger.info(`http2 proxy listening on ${settings.listenProtocol}://localhost:${port}`);
           resolve(port);
@@ -116,18 +150,88 @@ export function createHttp2ProxyServer(options: Http2ProxyServerOptions): ProxyS
     },
     close(): Promise<void> {
       return new Promise((resolve) => {
-        server.close(() => resolve());
+        // Open streams and idle upstream sessions would otherwise keep
+        // close() pending forever, and Stop would never complete.
+        http1.closeTunnels();
+        upstreams.closeAll();
+        listener.close(() => resolve());
+        for (const socket of connections) socket.destroy();
+        connections.clear();
       });
     },
   };
+}
+
+const H2_PREFACE = Buffer.from('PRI * HTTP/2.0');
+
+/**
+ * Decides whether a cleartext connection speaks HTTP/2 (prior knowledge) by
+ * peeking at its first bytes, then puts them back so the chosen server sees
+ * the stream from the start.
+ */
+function sniffProtocol(socket: net.Socket, done: (isHttp2: boolean) => void): void {
+  const tryRead = (): void => {
+    const chunk = socket.read() as Buffer | null;
+    if (chunk === null) {
+      socket.once('readable', tryRead);
+      return;
+    }
+    // A preface split across packets is vanishingly rare; treat a short
+    // first read that matches so far as HTTP/2 only when it is a full match.
+    const isHttp2 =
+      chunk.length >= H2_PREFACE.length && chunk.subarray(0, H2_PREFACE.length).equals(H2_PREFACE);
+    socket.unshift(chunk);
+    done(isHttp2);
+  };
+  tryRead();
+}
+
+/** One shared upstream HTTP/2 session per origin, recreated when it dies. */
+class UpstreamSessions {
+  private sessions = new Map<string, http2.ClientHttp2Session>();
+
+  constructor(
+    private settings: ProxySettings,
+    private logger: Logger
+  ) {}
+
+  get(origin: string): http2.ClientHttp2Session {
+    const existing = this.sessions.get(origin);
+    if (existing && !existing.closed && !existing.destroyed) return existing;
+
+    const clientCert = origin.startsWith('https:') ? this.settings.upstreamClientCert : undefined;
+    const session = http2.connect(origin, {
+      rejectUnauthorized: this.settings.allowSelfSignedUpstream === false,
+      ...(clientCert ? { cert: clientCert.cert, key: clientCert.key } : {}),
+    });
+    // Every in-flight call listens for the session failing.
+    session.setMaxListeners(0);
+    const forget = (): void => {
+      if (this.sessions.get(origin) === session) this.sessions.delete(origin);
+    };
+    session.on('error', (err) => {
+      this.logger.info('grpc upstream session error', err);
+      forget();
+    });
+    session.on('close', forget);
+    // The upstream is going away: finish what is in flight, start new calls elsewhere.
+    session.on('goaway', forget);
+    this.sessions.set(origin, session);
+    return session;
+  }
+
+  closeAll(): void {
+    for (const session of this.sessions.values()) session.destroy();
+    this.sessions.clear();
+  }
 }
 
 interface ForwardContext {
   settings: ProxySettings;
   notify: (entry: TrafficEntry, streamId?: string) => void;
   logger: Logger;
-  rejectUnauthorized: boolean;
-  upstreamOrigin: string;
+  rules: CompiledRules;
+  upstreams: UpstreamSessions;
   resolveMethod?: (path: string) => ResolvedMethod | undefined;
 }
 
@@ -150,12 +254,20 @@ function forwardStream(
   const isGrpc = contentType.startsWith('application/grpc');
   const resolved = isGrpc ? resolveMethod?.(path) : undefined;
 
+  const route = matchRoute(ctx.rules, String(headers[':authority'] ?? ''), path);
+  const target = {
+    protocol: route?.destProtocol ?? settings.destProtocol,
+    host: route?.dest ?? settings.dest,
+    port: route?.destPort ?? settings.destPort,
+  };
+  const upstreamOrigin = `${target.protocol === 'https' ? 'https' : 'http'}://${target.host}:${target.port}`;
+
   const requestView: RequestView = {
     url: path,
     method,
     headers: viewHeaders(headers),
     body: Buffer.alloc(0),
-    target: { protocol: settings.destProtocol, host: settings.dest, port: settings.destPort },
+    target,
   };
   const responseView: ResponseView = { headers: {}, body: Buffer.alloc(0) };
   const grpc: GrpcView | undefined = isGrpc
@@ -167,18 +279,28 @@ function forwardStream(
     response: responseView,
     timings,
     grpc,
+    pending: true,
   };
   notify(entry); // surface the row immediately; re-emitted as frames/trailers arrive
 
-  const session = http2.connect(ctx.upstreamOrigin, { rejectUnauthorized: ctx.rejectUnauthorized });
-  session.on('error', (err) => {
-    logger.info('grpc upstream error', err);
+  let finalized = false;
+  const finalize = (): void => {
+    if (finalized) return;
+    finalized = true;
+    timings.total ??= Number(process.hrtime.bigint() - startAt);
+    delete entry.pending;
+    notify(entry);
+  };
+
+  const session = ctx.upstreams.get(upstreamOrigin);
+  const onSessionError = (err: Error): void => {
+    if (finalized) return;
     entry.connectorError = err;
     responseView.statusCode = 502;
-    notify(entry);
     if (!clientStream.closed) clientStream.close(http2.constants.NGHTTP2_INTERNAL_ERROR);
-    session.close();
-  });
+    finalize();
+  };
+  session.on('error', onSessionError);
 
   // Build the upstream request headers: keep gRPC/content headers, drop the
   // inbound pseudo-headers and hop-by-hop, and let http2 set :authority/:scheme.
@@ -187,14 +309,29 @@ function forwardStream(
     if (key.startsWith(':') || HOP_BY_HOP.has(key)) continue;
     outHeaders[key] = headers[key];
   }
-  const upstream = session.request(outHeaders);
+  let upstream: http2.ClientHttp2Stream;
+  try {
+    upstream = session.request(outHeaders);
+  } catch (err) {
+    // e.g. a connection-specific header HTTP/2 forbids, or a session that
+    // died this instant: fail this stream, not the worker.
+    session.removeListener('error', onSessionError);
+    onSessionError(err as Error);
+    return;
+  }
+  upstream.on('close', () => {
+    session.removeListener('error', onSessionError);
+    finalize();
+  });
 
   // --- request direction: client -> upstream (raw passthrough + decode copy) ---
   const reqAcc = new FrameAccumulator();
   const reqRaw: Buffer[] = [];
+  let reqBytes = 0;
   clientStream.on('data', (chunk: Buffer) => {
     upstream.write(chunk);
-    reqRaw.push(chunk);
+    reqBytes += chunk.length;
+    if (reqBytes <= CAPTURE_LIMIT) reqRaw.push(chunk);
     if (grpc) {
       for (const frame of reqAcc.push(chunk)) {
         grpc.requestMessages.push(decodeFrame(frame, resolved?.requestType));
@@ -205,15 +342,22 @@ function forwardStream(
   clientStream.on('end', () => {
     upstream.end();
     requestView.body = Buffer.concat(reqRaw);
+    requestView.size = reqBytes;
+    if (reqBytes > CAPTURE_LIMIT) requestView.truncated = true;
   });
   clientStream.on('error', (err) => {
     logger.info('grpc client stream error', err);
     if (!upstream.closed) upstream.close(http2.constants.NGHTTP2_INTERNAL_ERROR);
   });
+  // The client cancelled (deadline, RST_STREAM): stop the upstream call too.
+  clientStream.on('close', () => {
+    if (!upstream.closed) upstream.close(http2.constants.NGHTTP2_CANCEL);
+  });
 
   // --- response direction: upstream -> client ---
   const respAcc = new FrameAccumulator();
   const respRaw: Buffer[] = [];
+  let respBytes = 0;
   let trailers: Headers = {};
 
   upstream.on('response', (respHeaders) => {
@@ -240,7 +384,8 @@ function forwardStream(
 
   upstream.on('data', (chunk: Buffer) => {
     if (!clientStream.closed) clientStream.write(chunk);
-    respRaw.push(chunk);
+    respBytes += chunk.length;
+    if (respBytes <= CAPTURE_LIMIT) respRaw.push(chunk);
     if (grpc) {
       for (const frame of respAcc.push(chunk)) {
         grpc.responseMessages.push(decodeFrame(frame, resolved?.responseType));
@@ -258,14 +403,16 @@ function forwardStream(
   upstream.on('end', () => {
     timings.total = Number(process.hrtime.bigint() - startAt);
     responseView.body = Buffer.concat(respRaw);
+    responseView.size = respBytes;
+    if (respBytes > CAPTURE_LIMIT) responseView.truncated = true;
     if (!clientStream.closed) clientStream.end();
-    notify(entry);
+    finalize();
   });
   upstream.on('error', (err) => {
     logger.info('grpc upstream stream error', err);
-    entry.connectorError = err;
-    notify(entry);
+    entry.connectorError ??= err;
     if (!clientStream.closed) clientStream.close(http2.constants.NGHTTP2_INTERNAL_ERROR);
+    finalize();
   });
 }
 

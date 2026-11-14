@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, OctagonPause, Play, Sparkles, Square } from 'lucide-react';
+import { ArrowRight, OctagonPause, Play, Settings, Shuffle, Sparkles, Square } from 'lucide-react';
 import { useProxyStore } from '../stores/proxyStore';
 import { useBreakpointStore } from '../stores/breakpointStore';
 import { useUiStore } from '../stores/uiStore';
@@ -80,12 +80,17 @@ export function SettingsBar(): React.JSX.Element | null {
   const openBreakpoints = useBreakpointStore((s) => s.setEditorOpen);
   const ruleCount = useBreakpointStore((s) => s.rules.length);
   const openConnectAi = useUiStore((s) => s.setConnectAiOpen);
+  const openRules = useUiStore((s) => s.setRulesOpen);
+  const openPreferences = useUiStore((s) => s.setPreferencesOpen);
 
   const [invalidPorts, setInvalidPorts] = useState({ listen: false, dest: false });
 
   if (!settings) return null;
 
   const set = (patch: Partial<AppSettings>): void => void updateSettings(patch);
+  const activeRules =
+    settings.routes.filter((r) => r.enabled).length +
+    settings.mocks.filter((m) => m.enabled).length;
   const startDisabled =
     !settings.dest ||
     invalidPorts.listen ||
@@ -95,7 +100,7 @@ export function SettingsBar(): React.JSX.Element | null {
 
   return (
     <div className="flex items-center gap-2 border-b border-neutral-200 bg-white px-3 py-2">
-      <span className="text-sm font-medium text-neutral-600">Listen</span>
+      <span className="shrink-0 text-sm font-medium text-neutral-600">Listen</span>
       <ProtocolSelect
         label="Listen protocol"
         value={settings.listenProtocol}
@@ -110,7 +115,7 @@ export function SettingsBar(): React.JSX.Element | null {
         onValidity={(valid) => setInvalidPorts((p) => ({ ...p, listen: !valid }))}
       />
       <ArrowRight className="h-4 w-4 text-neutral-400" aria-hidden />
-      <span className="text-sm font-medium text-neutral-600">Destination</span>
+      <span className="shrink-0 text-sm font-medium text-neutral-600">Destination</span>
       <ProtocolSelect
         label="Destination protocol"
         value={settings.destProtocol}
@@ -121,7 +126,7 @@ export function SettingsBar(): React.JSX.Element | null {
         type="text"
         aria-label="Destination host"
         placeholder="host, e.g. example.com"
-        className="w-56 rounded-md border border-neutral-300 px-2 py-1 text-sm disabled:bg-neutral-100 disabled:text-neutral-400"
+        className="w-44 min-w-24 shrink rounded-md border border-neutral-300 px-2 py-1 text-sm disabled:bg-neutral-100 disabled:text-neutral-400"
         value={settings.dest}
         disabled={running}
         onChange={(e) => set({ dest: e.target.value.trim() })}
@@ -134,7 +139,7 @@ export function SettingsBar(): React.JSX.Element | null {
         onValidity={(valid) => setInvalidPorts((p) => ({ ...p, dest: !valid }))}
       />
       <label
-        className="flex items-center gap-1.5 text-sm text-neutral-600"
+        className="flex shrink-0 items-center gap-1.5 text-sm text-neutral-600"
         title="Run an HTTP/2 listener to proxy and decode gRPC. Import .proto/.desc under the gRPC menu."
       >
         <input
@@ -150,25 +155,43 @@ export function SettingsBar(): React.JSX.Element | null {
         type="button"
         onClick={() => openConnectAi(true)}
         title="Connect an AI agent (MCP)"
-        className="flex items-center gap-1.5 rounded-md bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-2.5 py-1.5 text-sm font-medium text-white shadow-sm transition-opacity hover:opacity-90"
+        className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-2.5 py-1.5 text-sm font-medium text-white shadow-sm transition-opacity hover:opacity-90"
       >
         <Sparkles className="h-3.5 w-3.5" aria-hidden />
         Connect AI
       </button>
       <button
         type="button"
+        onClick={() => openRules(true)}
+        title="Routes and mocks"
+        className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-neutral-300 px-2.5 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50"
+      >
+        <Shuffle className="h-3.5 w-3.5" aria-hidden />
+        Rules{activeRules > 0 ? ` (${activeRules})` : ''}
+      </button>
+      <button
+        type="button"
         onClick={() => openBreakpoints(true)}
         title="Edit breakpoints (Cmd/Ctrl+B)"
-        className="flex items-center gap-1.5 rounded-md border border-neutral-300 px-2.5 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50"
+        className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-neutral-300 px-2.5 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50"
       >
         <OctagonPause className="h-3.5 w-3.5" aria-hidden />
         Breakpoints{ruleCount > 0 ? ` (${ruleCount})` : ''}
+      </button>
+      <button
+        type="button"
+        onClick={() => openPreferences(true)}
+        title="Preferences"
+        aria-label="Preferences"
+        className="shrink-0 rounded-md border border-neutral-300 p-2 text-neutral-600 hover:bg-neutral-50"
+      >
+        <Settings className="h-3.5 w-3.5" aria-hidden />
       </button>
       {running ? (
         <button
           type="button"
           onClick={() => void stop()}
-          className="flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+          className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
         >
           <Square className="h-3.5 w-3.5" aria-hidden /> Stop
         </button>
@@ -177,7 +200,7 @@ export function SettingsBar(): React.JSX.Element | null {
           type="button"
           onClick={() => void start()}
           disabled={startDisabled}
-          className="flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-neutral-300"
+          className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-neutral-300"
         >
           <Play className="h-3.5 w-3.5" aria-hidden /> Start
         </button>

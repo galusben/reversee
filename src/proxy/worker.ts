@@ -7,6 +7,7 @@ import { createHttp2ProxyServer } from './core/http2';
 import { compileBreakpoints, matchBreakpoint, type CompiledBreakpoint } from './core/breakpoints';
 import { GrpcRegistry } from './core/grpc-registry';
 import type { RequestGate } from './core/server';
+import type { ResponseEdit, ResponseGate } from './core/proxy';
 import type { WorkerInbound, WorkerOutbound, BreakpointResume } from '../shared/ipc';
 import type { Logger, RequestParams, TrafficEntry } from '../shared/types';
 
@@ -34,22 +35,25 @@ function send(message: WorkerOutbound): void {
 
 let server: ProxyServer | null = null;
 let breakpoints: CompiledBreakpoint[] = [];
-// Holds the compiled proto specs used to decode gRPC traffic (consumed by the
-// HTTP/2 forwarder in M2).
+// Holds the compiled proto specs used to decode gRPC traffic.
 let grpcRegistry: GrpcRegistry | null = null;
 let nextHitId = 0;
-const halted = new Map<number, (params: RequestParams) => void>();
+// Held exchanges by hit id. Requests resolve with the params to forward,
+// responses with the edit to apply before the client sees them.
+const haltedRequests = new Map<number, (params: RequestParams) => void>();
+const haltedResponses = new Map<number, (edit: ResponseEdit) => void>();
 
 const gate: RequestGate = (request, body) => {
-  const match = matchBreakpoint(breakpoints, request.url ?? '', request.method ?? '');
+  const match = matchBreakpoint(breakpoints, request.url ?? '', request.method ?? '', 'request');
   if (!match) return null;
   const id = nextHitId++;
   return new Promise<RequestParams>((resolve) => {
-    halted.set(id, resolve);
+    haltedRequests.set(id, resolve);
     send({
       type: 'breakpoint-hit',
       hit: {
         id,
+        phase: 'request',
         url: request.url ?? '',
         method: request.method ?? '',
         headers: { ...request.headers },
@@ -59,10 +63,39 @@ const gate: RequestGate = (request, body) => {
   });
 };
 
+const responseGate: ResponseGate = {
+  matches: ({ url, method }) => matchBreakpoint(breakpoints, url, method, 'response') !== null,
+  hold: ({ url, method }, response) => {
+    const id = nextHitId++;
+    return new Promise<ResponseEdit>((resolve) => {
+      haltedResponses.set(id, resolve);
+      send({
+        type: 'breakpoint-hit',
+        hit: {
+          id,
+          phase: 'response',
+          url,
+          method,
+          statusCode: response.statusCode,
+          headers: { ...response.headers },
+          body: response.body,
+        },
+      });
+    });
+  },
+};
+
+/** Closing the server drops every held connection, so their hits are void. */
+function dropHeld(): void {
+  haltedRequests.clear();
+  haltedResponses.clear();
+}
+
 async function start(msg: Extract<WorkerInbound, { type: 'start' }>): Promise<void> {
   if (server) {
     await server.close();
     server = null;
+    dropHeld();
   }
   const onServerError = (err: NodeJS.ErrnoException): void =>
     send({ type: 'server-error', error: { code: err.code, message: err.message } });
@@ -70,25 +103,20 @@ async function start(msg: Extract<WorkerInbound, { type: 'start' }>): Promise<vo
     send({ type: 'traffic', entry, streamId });
 
   // gRPC needs HTTP/2 + trailers, which the HTTP/1.1 server can't do. When
-  // enabled we run the HTTP/2 server and inject the proto registry so captured
-  // gRPC frames decode. (Breakpoints stay on the HTTP/1.1 path for now.)
+  // enabled we run the HTTP/2 server (which still serves HTTP/1.1 clients on
+  // the same port) and inject the proto registry so captured gRPC frames decode.
+  const common = {
+    settings: msg.settings,
+    sslOptions: msg.sslOptions,
+    notify,
+    gate,
+    responseGate,
+    logger,
+    onServerError,
+  };
   const next = msg.settings.enableGrpc
-    ? createHttp2ProxyServer({
-        settings: msg.settings,
-        sslOptions: msg.sslOptions,
-        notify,
-        logger,
-        onServerError,
-        resolveMethod: (path) => grpcRegistry?.resolve(path),
-      })
-    : createProxyServer({
-        settings: msg.settings,
-        sslOptions: msg.sslOptions,
-        notify,
-        gate,
-        logger,
-        onServerError,
-      });
+    ? createHttp2ProxyServer({ ...common, resolveMethod: (path) => grpcRegistry?.resolve(path) })
+    : createProxyServer(common);
   const port = await next.listen();
   server = next;
   send({ type: 'started', port });
@@ -98,20 +126,25 @@ async function stop(): Promise<void> {
   if (server) {
     await server.close();
     server = null;
+    dropHeld();
   }
   send({ type: 'stopped' });
 }
 
 function resume(id: number, params: BreakpointResume): void {
-  const release = halted.get(id);
-  if (!release) return;
-  halted.delete(id);
-  release({
-    path: params.url,
-    method: params.method,
-    headers: params.headers,
-    body: typeof params.body === 'string' ? Buffer.from(params.body) : params.body,
-  });
+  const body = typeof params.body === 'string' ? Buffer.from(params.body) : params.body;
+
+  const releaseRequest = haltedRequests.get(id);
+  if (releaseRequest) {
+    haltedRequests.delete(id);
+    releaseRequest({ path: params.url, method: params.method, headers: params.headers, body });
+    return;
+  }
+  const releaseResponse = haltedResponses.get(id);
+  if (releaseResponse) {
+    haltedResponses.delete(id);
+    releaseResponse({ statusCode: params.statusCode, headers: params.headers, body });
+  }
 }
 
 parentPort.on('message', (e) => {

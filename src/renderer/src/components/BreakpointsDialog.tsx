@@ -2,6 +2,7 @@ import { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Trash2, X } from 'lucide-react';
 import { useBreakpointStore } from '../stores/breakpointStore';
+import type { BreakpointPhase } from '../../../shared/types';
 
 const METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
 
@@ -15,6 +16,7 @@ export function BreakpointsDialog(): React.JSX.Element {
 
   const [path, setPath] = useState('');
   const [methods, setMethods] = useState<string[]>(['GET']);
+  const [phase, setPhase] = useState<BreakpointPhase>('request');
 
   const toggleMethod = (m: string): void => {
     setMethods((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]));
@@ -22,7 +24,7 @@ export function BreakpointsDialog(): React.JSX.Element {
 
   const add = (): void => {
     if (!path || methods.length === 0) return;
-    void addRule(path, methods);
+    void addRule(path, methods, phase);
     setPath('');
   };
 
@@ -40,8 +42,8 @@ export function BreakpointsDialog(): React.JSX.Element {
             </Dialog.Close>
           </div>
           <Dialog.Description className="mb-3 text-sm text-neutral-500">
-            Hold matching requests for editing before they are forwarded. Path is a regular
-            expression matched against the request URL.
+            Hold matching requests for editing before they are forwarded, or their responses before
+            the client receives them. Path is a regular expression matched against the request URL.
           </Dialog.Description>
 
           <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -57,6 +59,15 @@ export function BreakpointsDialog(): React.JSX.Element {
             ))}
           </div>
           <div className="mb-4 flex gap-2">
+            <select
+              aria-label="Hold"
+              className="rounded-md border border-neutral-300 px-1 py-1 text-sm"
+              value={phase}
+              onChange={(e) => setPhase(e.target.value as BreakpointPhase)}
+            >
+              <option value="request">Request</option>
+              <option value="response">Response</option>
+            </select>
             <input
               type="text"
               aria-label="URL path regex"
@@ -93,6 +104,7 @@ export function BreakpointsDialog(): React.JSX.Element {
             <thead className="text-left text-xs uppercase text-neutral-500">
               <tr>
                 <th className="py-1">Path</th>
+                <th className="py-1">Hold</th>
                 <th className="py-1">Methods</th>
                 <th className="w-10" />
               </tr>
@@ -101,6 +113,7 @@ export function BreakpointsDialog(): React.JSX.Element {
               {rules.map((rule) => (
                 <tr key={rule.id} className="border-t border-neutral-100">
                   <td className="py-1.5 font-mono text-xs">{rule.path}</td>
+                  <td className="py-1.5 text-xs">{rule.phase ?? 'request'}</td>
                   <td className="py-1.5 text-xs">{rule.methods.join(', ')}</td>
                   <td className="py-1.5">
                     <button

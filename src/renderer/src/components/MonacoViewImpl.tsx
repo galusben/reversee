@@ -1,5 +1,6 @@
 import Editor, { type OnMount } from '@monaco-editor/react';
 import '../lib/monaco-setup';
+import { useDarkMode } from '../lib/theme';
 
 type Editor = Parameters<OnMount>[0];
 
@@ -46,6 +47,7 @@ export default function MonacoViewImpl({
   readOnly?: boolean;
   onChange?: (value: string) => void;
 }): React.JSX.Element {
+  const dark = useDarkMode();
   const onMount: OnMount = (editor) => {
     if (format && readOnly) void formatOnce(editor);
   };
@@ -54,6 +56,7 @@ export default function MonacoViewImpl({
     <Editor
       value={value}
       language={language}
+      theme={dark ? 'vs-dark' : 'light'}
       onMount={onMount}
       onChange={onChange ? (v) => onChange(v ?? '') : undefined}
       options={{

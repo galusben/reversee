@@ -28,6 +28,7 @@ const { defaultSettings } = await import('../../src/shared/settings-schema');
 
 beforeEach(() => {
   backing.clear();
+  settings.setSecretCodec(null);
 });
 
 describe('getSettings / setSettings', () => {
@@ -120,5 +121,93 @@ describe('root CA storage', () => {
     settings.setRootCertPem(pem);
     expect(backing.get('root.cert.pem')).toEqual(pem);
     expect(settings.getRootCertPem()).toEqual(pem);
+  });
+});
+
+// The root CA key is encrypted at rest when a system keychain is available.
+describe('root CA key storage', () => {
+  const pem = { privateKey: 'PRIVATE', publicKey: 'PUBLIC', certificate: 'CERT' };
+  const codec = {
+    encrypt: (plain) => `enc(${plain})`,
+    decrypt: (enc) => {
+      const m = /^enc\((.*)\)$/.exec(enc);
+      if (!m) throw new Error('cannot decrypt');
+      return m[1];
+    },
+  };
+
+  it('keeps the legacy plaintext layout when no codec is installed', () => {
+    settings.setRootCertPem(pem);
+    expect(backing.get('root.cert.pem')).toEqual(pem);
+    expect(settings.readRootCert()).toEqual({ state: 'ok', pem });
+  });
+
+  it('stores the key encrypted, never in plaintext, once a codec is installed', () => {
+    settings.setSecretCodec(codec);
+    settings.setRootCertPem(pem);
+    const stored = backing.get('root.cert.pem');
+    expect(stored).toEqual({
+      certificate: 'CERT',
+      publicKey: 'PUBLIC',
+      privateKeyEnc: 'enc(PRIVATE)',
+    });
+    expect(JSON.stringify(stored)).not.toContain('"privateKey"');
+    expect(settings.getRootCertPem()).toEqual(pem);
+  });
+
+  it('migrates an existing plaintext key on first read, keeping the same certificate', () => {
+    backing.set('root.cert.pem', pem);
+    settings.setSecretCodec(codec);
+    expect(settings.readRootCert()).toEqual({ state: 'ok', pem });
+    expect(backing.get('root.cert.pem')).toEqual({
+      certificate: 'CERT',
+      publicKey: 'PUBLIC',
+      privateKeyEnc: 'enc(PRIVATE)',
+    });
+    // And it still reads back after the migration.
+    expect(settings.getRootCertPem()).toEqual(pem);
+  });
+
+  it('keeps the plaintext key if encrypting it fails', () => {
+    backing.set('root.cert.pem', pem);
+    settings.setSecretCodec({
+      ...codec,
+      encrypt: () => {
+        throw new Error('keychain denied');
+      },
+    });
+    expect(settings.readRootCert()).toEqual({ state: 'ok', pem });
+    expect(backing.get('root.cert.pem')).toEqual(pem);
+  });
+
+  it('reports an encrypted key as locked, without discarding it, when it cannot be decrypted', () => {
+    backing.set('root.cert.pem', {
+      certificate: 'CERT',
+      publicKey: 'PUBLIC',
+      privateKeyEnc: 'garbage',
+    });
+    settings.setSecretCodec(codec);
+    expect(settings.readRootCert()).toEqual({
+      state: 'locked',
+      certificate: 'CERT',
+      reason: 'cannot decrypt',
+    });
+    expect(settings.getRootCertPem()).toBeUndefined();
+    expect(backing.get('root.cert.pem').privateKeyEnc).toBe('garbage');
+  });
+
+  it('reports an encrypted key as locked when no keychain is available at all', () => {
+    backing.set('root.cert.pem', {
+      certificate: 'CERT',
+      publicKey: 'PUBLIC',
+      privateKeyEnc: 'enc(X)',
+    });
+    expect(settings.readRootCert()).toMatchObject({ state: 'locked', certificate: 'CERT' });
+  });
+
+  it('reports missing when nothing usable is stored', () => {
+    expect(settings.readRootCert()).toEqual({ state: 'missing' });
+    backing.set('root.cert.pem', { certificate: 'CERT' });
+    expect(settings.readRootCert()).toEqual({ state: 'missing' });
   });
 });
