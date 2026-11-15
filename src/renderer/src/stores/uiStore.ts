@@ -21,6 +21,8 @@ interface UiStore {
   rulesSeed: RuleSeed | null;
   /** Opens the screen; with a seed, a prefilled new rule is waiting to be saved. */
   setRulesOpen(open: boolean, seed?: RuleSeed): void;
+  scriptsOpen: boolean;
+  setScriptsOpen(open: boolean): void;
   /** trafficId of the request open in the "Edit and Replay" dialog, if any. */
   replayEditorId: number | null;
   setReplayEditorId(id: number | null): void;
@@ -48,6 +50,8 @@ export const useUiStore = create<UiStore>((set, get) => ({
   rulesOpen: false,
   rulesSeed: null,
   setRulesOpen: (rulesOpen, seed) => set({ rulesOpen, rulesSeed: (rulesOpen && seed) || null }),
+  scriptsOpen: false,
+  setScriptsOpen: (scriptsOpen) => set({ scriptsOpen }),
   replayEditorId: null,
   setReplayEditorId: (replayEditorId) => set({ replayEditorId }),
   filterFocusRequest: 0,

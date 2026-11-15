@@ -6,7 +6,7 @@
 
 - Acts as a reverse proxy: point a client at Reversee's listen address and it forwards to a destination, recording every request and response.
 - Inspect traffic: method, path, status, content type, headers, request/response bodies (gzip/brotli decoded, syntax-highlighted), per-request timings, and a copy-as-curl command.
-- Interceptors: rewrite requests (`requestParams`: host, path, method, port, headers, body) or responses (`responseParams`: statusCode, headers, body) with JavaScript, live.
+- Interceptors: rewrite requests (`requestParams`: host, path, method, port, headers, body) or responses (`responseParams`: statusCode, headers, body) with JavaScript, live. The Scripts screen offers examples and a dry run on a captured request.
 - Breakpoints: hold requests matching a URL regex + HTTP methods, edit the URL/headers/body, then resume.
 - gRPC: enable an HTTP/2 listener (h2 via ALPN on https, cleartext h2c on http) to proxy native gRPC; import `.proto` or compiled `.desc` protobuf definitions and Reversee decodes every message — unary and server/client/bidi streaming — into JSON, matched by method (`/package.Service/Method`), and captures the grpc-status trailer.
 - Redirect and Host-header rewriting; a locally generated root CA for trusting HTTPS interception.
@@ -31,7 +31,8 @@ MCP tools:
 - `summarize_session`: aggregate view — counts by status class and method, content types, top hosts, the error requests, and the slowest requests.
 - `get_traffic_entry`: one request in full — headers, bodies, timings, curl command, upstream target, and any JWTs decoded from its Authorization header or cookies.
 - `replay_request`: re-send a captured request to its upstream with optional edits (method/url/headers/body) — agent hypothesis testing; records a new entry (gated).
-- `set_interceptor`: install/toggle a request or response interceptor (arbitrary JavaScript that rewrites traffic) for mocking and fault injection (gated).
+- `set_interceptor`: install/toggle a request or response interceptor (arbitrary JavaScript that rewrites traffic) for mocking and fault injection; applies to the running proxy at once (gated).
+- `try_interceptor`: dry-run interceptor JavaScript on a captured exchange and get back what it changed, any error, and console output; nothing is sent or saved (gated).
 - `decode_jwt`: decode a JWT's header and claims (inspection only; signature not verified).
 - `list_breakpoints`: configured breakpoint rules.
 - `list_proto_specs`: saved protobuf specs used to decode gRPC, plus compile errors.

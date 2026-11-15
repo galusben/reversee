@@ -6,6 +6,7 @@ import { createProxyServer, type ProxyServer } from './core/server';
 import { createHttp2ProxyServer } from './core/http2';
 import { compileBreakpoints, matchBreakpoint, type CompiledBreakpoint } from './core/breakpoints';
 import { GrpcRegistry } from './core/grpc-registry';
+import { tryScript } from './core/try-script';
 import type { RequestGate } from './core/server';
 import type { ResponseEdit, ResponseGate } from './core/proxy';
 import type { WorkerInbound, WorkerOutbound, BreakpointResume } from '../shared/ipc';
@@ -167,6 +168,12 @@ parentPort.on('message', (e) => {
     }
     case 'set-rules':
       server?.setRules(msg.rules);
+      break;
+    case 'set-scripts':
+      server?.setScripts(msg.scripts);
+      break;
+    case 'try-script':
+      send({ type: 'script-result', id: msg.id, result: tryScript(msg.input) });
       break;
     case 'resume-breakpoint':
       resume(msg.id, msg.params);

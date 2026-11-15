@@ -1,12 +1,11 @@
 // @vitest-environment jsdom
 // Traffic table interactions (selection, filter, errors-only, row context
-// menu), the held-request editor, and the interceptor editors.
+// menu), and the held-request editor.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, cleanup, fireEvent, waitFor, within, act } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react';
 import { installFakeApi, installDomShims, resetStores, trafficEntry } from './fake-api';
 import { TrafficTable } from '../../../src/renderer/src/components/TrafficTable';
 import { BreakpointQueue } from '../../../src/renderer/src/components/BreakpointQueue';
-import { InterceptorPanel } from '../../../src/renderer/src/components/InterceptorPanel';
 import { useProxyStore } from '../../../src/renderer/src/stores/proxyStore';
 import { useBreakpointStore } from '../../../src/renderer/src/stores/breakpointStore';
 import { useUiStore } from '../../../src/renderer/src/stores/uiStore';
@@ -174,47 +173,5 @@ describe('BreakpointQueue', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     await waitFor(() => expect(fake.api.resumeBreakpoint).toHaveBeenCalled());
     expect(fake.api.resumeBreakpoint.mock.calls[0][1].headers).toEqual({ 'x-multi': 'a, b' });
-  });
-});
-
-describe('InterceptorPanel', () => {
-  beforeEach(async () => {
-    await useProxyStore.getState().init();
-  });
-
-  it('enables interception per kind', async () => {
-    render(<InterceptorPanel />);
-    fireEvent.click(screen.getByLabelText('Intercept Response'));
-    await waitFor(() =>
-      expect(fake.api.setSettings).toHaveBeenCalledWith({ interceptResponse: true })
-    );
-  });
-
-  it('opens an editable editor and debounces code saves', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    render(<InterceptorPanel />);
-    const [requestToggle] = screen.getAllByRole('button', { name: /show editor/ });
-    fireEvent.click(requestToggle);
-    expect(requestToggle.getAttribute('aria-expanded')).toBe('true');
-
-    const editor = await screen.findByTestId('monaco');
-    expect(editor.getAttribute('data-language')).toBe('javascript');
-    fireEvent.change(editor, { target: { value: 'a' } });
-    fireEvent.change(editor, { target: { value: 'ab' } });
-    expect(fake.api.setSettings).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(450));
-    await waitFor(() => expect(fake.api.setSettings).toHaveBeenCalledOnce());
-    expect(fake.api.setSettings).toHaveBeenCalledWith({ requestInterceptor: 'ab' });
-  });
-
-  it('locks the toggles and makes the editor read-only while running', async () => {
-    fake.setStoredSettings({ interceptRequest: true });
-    await useProxyStore.getState().init();
-    useProxyStore.setState({ running: true });
-    render(<InterceptorPanel />);
-    expect((screen.getByLabelText('Intercept Request') as HTMLInputElement).disabled).toBe(true);
-    expect(screen.getByText('read-only while the proxy runs')).toBeTruthy();
-    fireEvent.click(screen.getAllByRole('button', { name: /show editor/ })[0]);
-    expect((await screen.findByTestId('monaco')).tagName).toBe('PRE');
   });
 });

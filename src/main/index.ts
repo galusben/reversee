@@ -44,6 +44,7 @@ import {
 } from './certs/certs';
 import { readClientCert } from './client-cert';
 import { replayEntry } from './replay';
+import { runScriptTrial } from './script-trial';
 import { ProxyHost } from './proxy-host';
 import { TrafficStore } from './traffic-store';
 import { createMainWindow } from './windows';
@@ -354,6 +355,9 @@ function registerIpc(): void {
     resumeHeld(id, params);
   });
 
+  ipcMain.handle(IPC.scriptTry, (_event, kind: unknown, code: unknown, trafficId: unknown) =>
+    runScriptTrial(proxyHost, trafficStore, kind, code, trafficId)
+  );
   ipcMain.handle(IPC.certStatusGet, () => certStatus());
   ipcMain.handle(IPC.certRegenerate, () => regenerateRootCertInteractive());
   ipcMain.handle(IPC.filePick, async (_event, title: unknown): Promise<string | null> => {
@@ -408,6 +412,13 @@ function applyAppSettings(): void {
   nativeTheme.themeSource = settings.theme;
   // Routes and mocks apply to the running proxy at once; no restart needed.
   proxyHost.setRules({ routes: settings.routes, mocks: settings.mocks });
+  // So do the interceptor scripts.
+  proxyHost.setScripts({
+    interceptRequest: settings.interceptRequest,
+    requestInterceptor: settings.requestInterceptor,
+    interceptResponse: settings.interceptResponse,
+    responseInterceptor: settings.responseInterceptor,
+  });
 }
 
 /**

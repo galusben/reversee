@@ -154,6 +154,8 @@ export function createHttp2ProxyServer(options: Http2ProxyServerOptions): ProxyS
       rules = compileRules(next, logger);
       http1.setRules(next);
     },
+    // Scripts only run on the HTTP/1.1 path; HTTP/2 streams pass through as-is.
+    setScripts: http1.setScripts,
     close(): Promise<void> {
       return new Promise((resolve) => {
         // Open streams and idle upstream sessions would otherwise keep

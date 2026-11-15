@@ -34,12 +34,17 @@ the desktop UI, and agents through the Model Context Protocol.
 - **Preferences** — theme (system / light / dark), history size, upstream response
   timeout, upstream certificate verification, a client certificate for mutual TLS,
   and the root certificate's validity.
-- **Interceptors** — toggle request/response interception and edit JavaScript in a
-  Monaco editor to mutate `requestParams` (host, path, method, port, headers, body)
-  or `responseParams` (statusCode, headers, body) live. User-code errors and
-  `console.log` output are shown on the request (and the last failure next to the
-  toggle); a script that runs longer than a second is stopped. Neither crashes the
-  proxy.
+- **Scripts (interceptors)** — the **Scripts** toolbar button (Proxy → Scripts…,
+  Cmd/Ctrl+Shift+J) opens one screen for the request script and the response
+  script: JavaScript that mutates `requestParams` (host, path, method, port,
+  headers, body) or `responseParams` (statusCode, headers, body). Each has an
+  on/off switch, a Monaco editor, a list of what it can change and one-click
+  examples. **Try it** dry-runs the draft on a captured request in the proxy
+  worker and lists what changed, the error if it threw, and its `console.log`
+  output; nothing is sent. Saving applies the scripts to the running proxy at
+  once. Each run has a one-second budget. User-code errors and console output
+  are recorded on the traffic entry (the request's Interceptor tab), and the
+  toolbar button turns red when a script failed on the latest request.
 - **Breakpoints** — hold requests, or responses, matching a URL regex + HTTP methods;
   held exchanges land in a FIFO queue where you edit URL/headers/body (or status)
   and resume.
@@ -97,7 +102,8 @@ Agents drive the running app through the `reversee-mcp` stdio bridge. Setup is i
 | `summarize_session`    | Aggregate view: status classes, methods, content types, top hosts, errors, slowest.                  | no        |
 | `get_traffic_entry`    | One request in full: headers, bodies, timings, curl, upstream target, decoded JWTs, decoded gRPC.    | no        |
 | `replay_request`       | Re-send a captured request with optional edits (method/url/headers/body).                            | **yes**   |
-| `set_interceptor`      | Install request/response interceptor JS for mocking / fault injection.                               | **yes**   |
+| `set_interceptor`      | Install request/response interceptor JS for mocking / fault injection; applies live.                 | **yes**   |
+| `try_interceptor`      | Dry-run script code on a captured exchange: what it changes, errors, console output.                 | **yes**   |
 | `decode_jwt`           | Decode a JWT's header and claims (inspection only).                                                  | no        |
 | `list_breakpoints`     | The configured breakpoint rules.                                                                     | no        |
 | `set_breakpoints`      | Replace the breakpoint rules (request or response phase).                                            | **yes**   |
@@ -116,7 +122,7 @@ Agents drive the running app through the `reversee-mcp` stdio bridge. Setup is i
 | `validate_setup`       | Setup checks: destination, ports, root cert, proxy process.                                          | no        |
 | `export_diagnostics`   | Versions, platform, settings, state, log location — for bug reports.                                 | no        |
 
-29 tools; the 16 marked mutating are gated.
+30 tools; the 17 marked mutating are gated.
 
 ### Headless mode
 

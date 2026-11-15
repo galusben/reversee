@@ -41,6 +41,7 @@ describe('MCP tool catalog', () => {
         'start_proxy',
         'stop_proxy',
         'summarize_session',
+        'try_interceptor',
         'update_config',
         'update_rule',
         'validate_setup',
@@ -77,6 +78,7 @@ describe('MCP tool catalog', () => {
         'set_interceptor',
         'start_proxy',
         'stop_proxy',
+        'try_interceptor',
         'update_config',
         'update_rule',
       ].sort()

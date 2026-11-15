@@ -588,10 +588,11 @@
                   <path d="m8 6-6 6 6 6M16 6l6 6-6 6" />
                 </svg>
               </div>
-              <h3>Interceptors</h3>
+              <h3>Scripts</h3>
               <p>
-                Rewrite requests or responses with a few lines of JavaScript — change headers,
-                bodies, anything.
+                Rewrite requests or responses with a few lines of JavaScript: change headers, paths,
+                bodies. Try a script on a captured request first, then apply it to the running
+                proxy.
               </p>
             </div>
             <div class="card">
@@ -714,6 +715,25 @@
         </div>
       </section>
 
+      <section id="scripts">
+        <div class="wrap">
+          <h2 class="section-title">Rewrite traffic with a few lines of code</h2>
+          <p class="section-sub">
+            When a fixed reply is not enough, write a script. Add a header to every API call, point
+            <code>/v1/</code> at <code>/v2/</code>, flip a field in a JSON response. Start from a
+            one-click example, press <b>Try it</b> to see exactly what the script changes on a
+            request you already captured, and save: the running proxy uses it on the next request,
+            no restart.
+          </p>
+          <div class="shot">
+            <img
+              src="./screenshots/scripts.png"
+              alt="Reversee's Scripts screen: a request script that adds an x-debug header to API calls, a list of what a script can change, one-click examples, and a Try it result showing the header that was added to a captured request."
+            />
+          </div>
+        </div>
+      </section>
+
       <section id="grpc" class="section-soft">
         <div class="wrap">
           <h2 class="section-title">Debug gRPC, decoded</h2>
@@ -805,7 +825,7 @@
                     class="btn btn-ghost"
                     href="./mcp.html"
                     style="background: transparent; color: #fff; border-color: #232a44"
-                    >Browse all 29 MCP tools →</a
+                    >Browse all 30 MCP tools →</a
                   >
                 </div>
               </div>

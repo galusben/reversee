@@ -14,6 +14,7 @@ import type {
   ProxySettings,
   RequestParams,
   RuleSet,
+  ScriptSet,
   TrafficEntry,
 } from '../../shared/types';
 
@@ -54,6 +55,8 @@ export interface ProxyServer {
   readonly listening: boolean;
   /** Swaps the route and mock rules without restarting the listener. */
   setRules(rules: RuleSet): void;
+  /** Swaps the interceptor scripts; requests already in flight keep the old ones. */
+  setScripts(scripts: ScriptSet): void;
 }
 
 const noop: Logger = { debug() {}, info() {}, warn() {}, error() {} };
@@ -65,6 +68,8 @@ export interface Http1Handlers {
   /** Destroys every open WebSocket tunnel (they outlive closeAllConnections). */
   closeTunnels(): void;
   setRules(rules: RuleSet): void;
+  /** Swaps the interceptor scripts; requests already in flight keep the old ones. */
+  setScripts(scripts: ScriptSet): void;
 }
 
 export function createHttp1Handlers(options: ProxyServerOptions): Http1Handlers {
@@ -104,6 +109,10 @@ export function createHttp1Handlers(options: ProxyServerOptions): Http1Handlers 
     setRules(rules) {
       // Requests already in flight keep the rule they matched.
       ctx.rules = compileRules(rules, logger);
+    },
+    setScripts(scripts) {
+      // A new object, so a request that already read ctx.settings is unaffected.
+      ctx.settings = { ...ctx.settings, ...scripts };
     },
   };
 }
@@ -145,6 +154,7 @@ export function createProxyServer(options: ProxyServerOptions): ProxyServer {
       });
     },
     setRules: handlers.setRules,
+    setScripts: handlers.setScripts,
     close(): Promise<void> {
       return new Promise((resolve) => {
         handlers.closeTunnels();

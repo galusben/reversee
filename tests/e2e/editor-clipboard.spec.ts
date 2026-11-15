@@ -124,16 +124,14 @@ test('the clipboard IPC ignores non-string payloads', async () => {
 test('interceptor code edited in Monaco is saved to settings', async () => {
   launched = await launchApp();
   const { page } = launched;
-  await page
-    .getByRole('button', { name: /show editor/ })
-    .first()
-    .click();
-  const editor = page.locator('.monaco-editor').first();
+  await page.getByRole('button', { name: /^Scripts/ }).click();
+  const editor = page.getByRole('dialog').locator('.monaco-editor').first();
   await expect(editor).toBeVisible({ timeout: 15_000 });
 
   await editor.click();
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');
   await page.keyboard.type("requestParams.headers['x-e2e'] = 'typed';");
+  await page.getByRole('button', { name: 'Save' }).click();
 
   await expect
     .poll(() =>

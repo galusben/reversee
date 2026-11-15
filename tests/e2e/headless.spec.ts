@@ -311,6 +311,66 @@ test('headless: rule tools apply to the running proxy without a restart', async 
   }
 });
 
+test('headless: an agent tries a script, installs it live, and switches it off', async () => {
+  upstream = await startUpstream((req, res) => res.end(`upstream ${req.headers['x-tag'] ?? '-'}`));
+  const client = await launchHeadless(['--allow-mcp-control']);
+  const listenPort = await freePort();
+  await client.call('update_config', {
+    dest: '127.0.0.1',
+    destProtocol: 'http',
+    destPort: upstream.port,
+    listenProtocol: 'http',
+    listenPort,
+  });
+  await client.call('start_proxy');
+  expect((await fetchViaProxy(listenPort, '/a')).body).toBe('upstream -');
+  const [captured] = (
+    (await client.call('list_traffic')) as { entries: Array<{ trafficId: number }> }
+  ).entries;
+
+  // Dry run in the real worker: nothing is sent and nothing is installed.
+  const sent = upstream.requests.length;
+  const trial = (await client.call('try_interceptor', {
+    kind: 'request',
+    trafficId: captured!.trafficId,
+    code: "requestParams.headers['x-tag'] = 'tagged'; console.log(requestParams.path)",
+  })) as { changes: string[]; logs: string[]; error?: string };
+  expect(trial.changes).toEqual(['header x-tag added: tagged']);
+  expect(trial.logs).toEqual(['/a']);
+  expect(trial.error).toBeUndefined();
+  expect(upstream.requests).toHaveLength(sent);
+  expect((await fetchViaProxy(listenPort, '/a')).body).toBe('upstream -');
+
+  const broken = (await client.call('try_interceptor', {
+    kind: 'response',
+    trafficId: captured!.trafficId,
+    code: 'while (true) {}',
+  })) as { error?: string };
+  expect(broken.error).toMatch(/timed out after 1000 ms/);
+
+  const installed = (await client.call('set_interceptor', {
+    kind: 'request',
+    code: "requestParams.headers['x-tag'] = 'tagged'",
+    enabled: true,
+  })) as { applied: string };
+  expect(installed.applied).toBe('active now on the running proxy');
+  await expect
+    .poll(async () => (await fetchViaProxy(listenPort, '/a')).body)
+    .toBe('upstream tagged');
+
+  await client.call('set_interceptor', { kind: 'request', enabled: false });
+  await expect.poll(async () => (await fetchViaProxy(listenPort, '/a')).body).toBe('upstream -');
+  expect(((await client.call('get_status')) as { running: boolean }).running).toBe(true);
+});
+
+test('headless: trying a script is gated behind control', async () => {
+  const client = await launchHeadless([]);
+  const error = await client
+    .call('try_interceptor', { kind: 'request', trafficId: 0, code: '' })
+    .catch((e) => e);
+  expect(error).toBeInstanceOf(ControlCallError);
+});
+
 test('headless: the rule tools are gated behind control', async () => {
   const client = await launchHeadless([]);
   expect(((await client.call('list_rules')) as { mocks: unknown[] }).mocks).toEqual([]);

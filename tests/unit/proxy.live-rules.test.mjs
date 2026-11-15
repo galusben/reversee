@@ -138,3 +138,81 @@ describe('plain HTTP sent to an HTTPS listener', () => {
     expect(reply).not.toContain('HTTP/1.1');
   });
 });
+
+describe('live script updates', () => {
+  it('swaps interceptor scripts without restarting the listener', async () => {
+    const upstream = await startUpstream((req, res) =>
+      res.end(`saw ${req.headers['x-tag'] ?? '-'}`)
+    );
+    const proxy = await startProxyServer(makeSettings(upstream.port));
+    open.push(upstream.server, proxy.server);
+    const get = () => request({ port: proxy.port, path: '/' });
+
+    expect((await get()).body.toString()).toBe('saw -');
+
+    proxy.server.setScripts({
+      interceptRequest: true,
+      requestInterceptor: "requestParams.headers['x-tag'] = 'one'",
+      interceptResponse: true,
+      responseInterceptor: "responseParams.body = responseParams.body.toString() + '!'",
+    });
+    expect((await get()).body.toString()).toBe('saw one!');
+    // The untouched request is kept, so the script can be tried on it again.
+    const last = proxy.traffic.at(-1).request;
+    expect(last.headers['x-tag']).toBe('one');
+    expect(last.beforeScript).toMatchObject({ url: '/', method: 'GET' });
+    expect(last.beforeScript.headers).not.toHaveProperty('x-tag');
+
+    proxy.server.setScripts({
+      interceptRequest: true,
+      requestInterceptor: "requestParams.headers['x-tag'] = 'two'",
+      interceptResponse: false,
+      responseInterceptor: '',
+    });
+    expect((await get()).body.toString()).toBe('saw two');
+
+    proxy.server.setScripts({ interceptRequest: false, interceptResponse: false });
+    expect((await get()).body.toString()).toBe('saw -');
+    expect(proxy.server.listening).toBe(true);
+  });
+
+  it('a response in flight keeps the script it started with', async () => {
+    let release;
+    const upstream = await startUpstream((_req, res) => {
+      release = () => res.end('body');
+    });
+    const proxy = await startProxyServer(
+      makeSettings(upstream.port, {
+        interceptResponse: true,
+        responseInterceptor: "responseParams.body = 'old script'",
+      })
+    );
+    open.push(upstream.server, proxy.server);
+
+    const pending = request({ port: proxy.port, path: '/' });
+    await expect.poll(() => typeof release).toBe('function');
+    proxy.server.setScripts({
+      interceptResponse: true,
+      responseInterceptor: "responseParams.body = 'new script'",
+    });
+    release();
+    expect((await pending).body.toString()).toBe('old script');
+  });
+
+  it('reaches the HTTP/1.1 path of the gRPC-mode listener too', async () => {
+    const upstream = await startUpstream((req, res) =>
+      res.end(`saw ${req.headers['x-tag'] ?? '-'}`)
+    );
+    const server = createHttp2ProxyServer({
+      settings: makeSettings(upstream.port, { enableGrpc: true }),
+      notify: () => {},
+    });
+    const port = await server.listen();
+    open.push(upstream.server, server);
+    server.setScripts({
+      interceptRequest: true,
+      requestInterceptor: "requestParams.headers['x-tag'] = 'h2'",
+    });
+    expect((await request({ port, path: '/' })).body.toString()).toBe('saw h2');
+  });
+});

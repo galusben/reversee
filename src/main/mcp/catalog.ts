@@ -281,7 +281,8 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
       'Request interceptors can mutate `requestParams` (host, path, method, port, headers, body). Response ' +
       'interceptors can mutate `responseParams` (statusCode, headers, body) and read `requestParams`. ' +
       'Example (force a 500): `responseParams.statusCode = 500; responseParams.body = "{\\"error\\":\\"injected\\"}";`. ' +
-      'Requires control to be enabled in the app.',
+      'Changes apply to the running proxy at once, no restart needed. Use try_interceptor first to check the ' +
+      'code against a captured request. Requires control to be enabled in the app.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -293,6 +294,32 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
         enabled: { type: 'boolean', description: 'Turn this interceptor on or off.' },
       },
       required: ['kind'],
+      additionalProperties: false,
+    },
+    mutating: true,
+  },
+  {
+    name: 'try_interceptor',
+    description:
+      'Dry-run interceptor JavaScript against a captured exchange without sending or saving anything. Returns ' +
+      'the exchange after the script ran (`after`), a plain list of `changes`, any `error` the script threw, ' +
+      'and its console output (`logs`). Use it to check a script before installing it with set_interceptor. ' +
+      'Bodies are the captured text, so a compressed response appears decoded here. ' +
+      'Requires control to be enabled in the app (it runs code).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        kind: { type: 'string', enum: ['request', 'response'] },
+        trafficId: {
+          type: 'number',
+          description: 'Captured exchange to run against (list_traffic).',
+        },
+        code: {
+          type: 'string',
+          description: 'JavaScript to try. Omit to try the saved interceptor of that kind.',
+        },
+      },
+      required: ['kind', 'trafficId'],
       additionalProperties: false,
     },
     mutating: true,

@@ -35,6 +35,7 @@ const EXPECTED_API = [
   'onOpenPreferences',
   'onOpenProtoSpecs',
   'onOpenRules',
+  'onOpenScripts',
   'onProxyError',
   'onProxyState',
   'onSettingsChanged',
@@ -50,6 +51,7 @@ const EXPECTED_API = [
   'setSettings',
   'startProxy',
   'stopProxy',
+  'tryScript',
 ];
 
 test('main window runs sandboxed with context isolation and no node integration', async () => {

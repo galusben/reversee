@@ -125,6 +125,12 @@ export function createMenu(win: BrowserWindow, hooks: MenuHooks): void {
           accelerator: 'CmdOrCtrl+Shift+M',
           click: () => win.webContents.send(IPC.openRulesEvent),
         },
+        {
+          label: 'Scripts…',
+          id: 'scripts',
+          accelerator: 'CmdOrCtrl+Shift+J',
+          click: () => win.webContents.send(IPC.openScriptsEvent),
+        },
       ],
     },
     {

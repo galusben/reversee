@@ -11,7 +11,7 @@ Reversee sits between your client and a destination server. Point your client at
 - **HTTP and HTTPS** on both sides — listen on either protocol, forward to either protocol. HTTPS listening uses a locally generated root CA you can trust once (macOS: _Proxy Settings → Manage Root Cert_).
 - **Traffic inspection** — a sortable table (method, path, status, content type, size, duration) with headers, request/response bodies (plain and formatted), and a per-request timing waterfall (DNS, TCP, TLS, first byte, download). Requests show up while they are still in flight.
 - **Streaming and WebSockets** — responses are streamed through, so Server-Sent Events and large downloads work as they would without the proxy. WebSocket connections are tunnelled and their messages listed.
-- **Interceptors** — JavaScript snippets that rewrite requests (`requestParams`: host, path, method, port, headers, body) or responses (`responseParams`: statusCode, headers, body) on the fly. Errors and `console.log` output are shown on the request.
+- **Scripts (interceptors)** — JavaScript snippets that rewrite requests (`requestParams`: host, path, method, port, headers, body) or responses (`responseParams`: statusCode, headers, body) on the fly. The Scripts screen has one-click examples and a **Try it** button that shows what a script changes on a captured request before you turn it on; saving applies it to the running proxy without a restart. Errors and `console.log` output are shown on the request.
 - **Breakpoints** — hold requests, or responses, matching a URL regex + methods, edit them, then continue.
 - **Mocks and routes** — answer any request with a response you write (fake an endpoint, force a 500, add latency), or send some requests to a different upstream by path or Host. No code, plain "path starts with" matching, one click from a captured request, and changes apply while the proxy runs.
 - **Replay and HAR** — re-send a captured request (as is, or edited), and export or import sessions as HAR files.
@@ -109,7 +109,8 @@ The package is published as [`reversee-mcp`](https://www.npmjs.com/package/rever
 | `summarize_session`                                         | Aggregate view: status classes, methods, content types, top hosts, errors, slowest                                            |
 | `get_traffic_entry`                                         | One request in full: headers, bodies, timings, curl, upstream target, decoded JWTs, and decoded gRPC                          |
 | `replay_request`                                            | Re-send a captured request with optional edits (method/url/headers/body) to test a hypothesis                                 |
-| `set_interceptor`                                           | Install request/response interceptor JS for mocking or fault injection                                                        |
+| `set_interceptor`                                           | Install request/response interceptor JS for mocking or fault injection (applies live)                                         |
+| `try_interceptor`                                           | Dry-run a script on a captured request: what it changes, errors, console output                                               |
 | `decode_jwt`                                                | Decode a JWT's header and claims (inspection only)                                                                            |
 | `list_breakpoints` / `set_breakpoints`                      | Read / replace the breakpoint rules (request or response phase)                                                               |
 | `list_held_requests` / `resume_held_request`                | See what is held at a breakpoint and resume it, optionally edited                                                             |
@@ -119,7 +120,7 @@ The package is published as [`reversee-mcp`](https://www.npmjs.com/package/rever
 | `validate_setup`                                            | Setup checks (destination, ports, root cert, proxy process)                                                                   |
 | `export_diagnostics`                                        | Versions, platform, settings, state — for bug reports                                                                         |
 
-`replay_request`, `set_interceptor`, `set_breakpoints`, `resume_held_request`, `export_har`, `regenerate_root_cert`, `update_config`, `add_proto_spec`, `remove_proto_spec`, and the start/stop/restart tools are gated behind _Allow MCP to Control the Proxy_ (or `--allow-mcp-control` headless); the rest are always available read-only.
+`replay_request`, `set_interceptor`, `try_interceptor`, `set_breakpoints`, `resume_held_request`, `export_har`, `regenerate_root_cert`, `update_config`, `add_proto_spec`, `remove_proto_spec`, and the start/stop/restart tools are gated behind _Allow MCP to Control the Proxy_ (or `--allow-mcp-control` headless); the rest are always available read-only.
 
 The app owns this list — it serves the catalog to the bridge at startup, so **tools added in an app update appear automatically** with no MCP-server reinstall (the bridge is a generic passthrough). When the app is not running, the bridge advertises a built-in fallback list and each call returns a "launch Reversee" message.
 
@@ -138,7 +139,7 @@ This touches only Reversee's `npx` cache; the next run pulls the latest publishe
 ### Security model
 
 - The bridge talks to the app over a **local socket** (unix domain socket / Windows named pipe), never a TCP port, with a per-boot token — only your user account can reach it.
-- It is **read-only by default**. The twelve tools that change state (start/stop/restart, `update_config`, `replay_request`, `set_interceptor`, `set_breakpoints`, `resume_held_request`, `export_har`, `regenerate_root_cert`, `add_proto_spec`, `remove_proto_spec`) are rejected until you check _Proxy Settings → Allow MCP to Control the Proxy_ in the app.
+- It is **read-only by default**. The tools that change state or run code (start/stop/restart, the mock and route tools, `update_config`, `replay_request`, `set_interceptor`, `try_interceptor`, `set_breakpoints`, `resume_held_request`, `export_har`, `regenerate_root_cert`, `add_proto_spec`, `remove_proto_spec`) are rejected until you check _Proxy Settings → Allow MCP to Control the Proxy_ in the app.
 - _Proxy Settings → Enable MCP Integration_ turns the socket off entirely.
 
 ### Headless mode (for agents)

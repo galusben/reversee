@@ -15,6 +15,9 @@ import type {
   GrpcProtoBundle,
   ProxySettings,
   RuleSet,
+  ScriptSet,
+  ScriptTrialInput,
+  ScriptTrialResult,
   TrafficEntry,
 } from '../shared/types';
 
@@ -25,6 +28,9 @@ export interface ProxyHostEvents {
   onBreakpointHit(hit: BreakpointHit): void;
   onBreakpointErrors(errors: BreakpointCompileError[]): void;
 }
+
+/** A script gets 1 s; the rest is headroom for a worker that has to spawn first. */
+const TRIAL_TIMEOUT_MS = 10_000;
 
 interface StartArgs {
   settings: ProxySettings;
@@ -39,6 +45,12 @@ export class ProxyHost {
   private lastStart: StartArgs | null = null;
   private pendingStart: { resolve(port: number): void; reject(err: ProxyErrorInfo): void } | null =
     null;
+
+  private nextTrialId = 0;
+  private trials = new Map<
+    number,
+    { resolve(result: ScriptTrialResult): void; reject(error: Error): void; timer: NodeJS.Timeout }
+  >();
 
   constructor(private events: ProxyHostEvents) {}
 
@@ -61,6 +73,7 @@ export class ProxyHost {
       }
       this.pendingStart?.reject({ message: `proxy process exited (code ${code})` });
       this.pendingStart = null;
+      this.failTrials('the proxy process exited');
     });
     this.proc = proc;
     this.send({ type: 'set-breakpoints', rules: this.breakpointRules });
@@ -95,6 +108,15 @@ export class ProxyHost {
       case 'breakpoint-hit':
         this.events.onBreakpointHit(msg.hit);
         break;
+      case 'script-result': {
+        const trial = this.trials.get(msg.id);
+        if (trial) {
+          clearTimeout(trial.timer);
+          this.trials.delete(msg.id);
+          trial.resolve(msg.result);
+        }
+        break;
+      }
       case 'breakpoint-errors':
         this.events.onBreakpointErrors(msg.errors);
         break;
@@ -133,6 +155,38 @@ export class ProxyHost {
     if (this.proc && this.running) this.send({ type: 'set-rules', rules });
   }
 
+  /** Applies the interceptor scripts to the running proxy (no-op when stopped). */
+  setScripts(scripts: ScriptSet): void {
+    if (this.lastStart) {
+      this.lastStart.settings = { ...this.lastStart.settings, ...scripts };
+    }
+    if (this.proc && this.running) this.send({ type: 'set-scripts', scripts });
+  }
+
+  /**
+   * Dry-runs a script in the worker (never in the main process). Works whether
+   * or not the proxy is running; the worker is spawned on demand.
+   */
+  tryScript(input: ScriptTrialInput): Promise<ScriptTrialResult> {
+    return new Promise((resolve, reject) => {
+      const id = this.nextTrialId++;
+      const timer = setTimeout(() => {
+        this.trials.delete(id);
+        reject(new Error('the script run did not finish in time'));
+      }, TRIAL_TIMEOUT_MS);
+      this.trials.set(id, { resolve, reject, timer });
+      this.send({ type: 'try-script', id, input });
+    });
+  }
+
+  private failTrials(reason: string): void {
+    for (const trial of this.trials.values()) {
+      clearTimeout(trial.timer);
+      trial.reject(new Error(reason));
+    }
+    this.trials.clear();
+  }
+
   setProtoSpecs(bundle: GrpcProtoBundle): void {
     this.protoBundle = bundle;
     if (this.proc) this.send({ type: 'set-proto-specs', bundle });
@@ -143,6 +197,7 @@ export class ProxyHost {
   }
 
   kill(): void {
+    this.failTrials('the proxy process was restarted');
     if (this.proc) {
       this.proc.removeAllListeners('exit');
       this.proc.kill();

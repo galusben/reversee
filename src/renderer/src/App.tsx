@@ -4,7 +4,6 @@ import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useProxyStore } from './stores/proxyStore';
 import { useBreakpointStore } from './stores/breakpointStore';
 import { SettingsBar } from './components/SettingsBar';
-import { InterceptorPanel } from './components/InterceptorPanel';
 import { TrafficTable } from './components/TrafficTable';
 import { DetailPanes } from './components/DetailPanes';
 import { BreakpointsDialog } from './components/BreakpointsDialog';
@@ -16,6 +15,7 @@ import { SummaryDialog } from './components/SummaryDialog';
 import { useUiStore } from './stores/uiStore';
 import { PreferencesDialog } from './components/PreferencesDialog';
 import { RulesDialog } from './components/RulesDialog';
+import { ScriptsDialog } from './components/ScriptsDialog';
 import { ReplayDialog } from './components/ReplayDialog';
 
 export default function App(): React.JSX.Element {
@@ -45,6 +45,7 @@ export default function App(): React.JSX.Element {
       window.reversee.onOpenConnectAi(() => openConnectAi(true)),
       window.reversee.onOpenPreferences(() => ui.setPreferencesOpen(true)),
       window.reversee.onOpenRules(() => ui.setRulesOpen(true)),
+      window.reversee.onOpenScripts(() => ui.setScriptsOpen(true)),
       window.reversee.onFocusFilter(() => ui.requestFilterFocus()),
       window.reversee.onToggleProxy(() => {
         const proxy = useProxyStore.getState();
@@ -68,7 +69,6 @@ export default function App(): React.JSX.Element {
   return (
     <div className="flex h-screen flex-col bg-neutral-100">
       <SettingsBar />
-      <InterceptorPanel />
       <BreakpointQueue />
       <BreakpointsDialog />
       <ProtoSpecsDialog />
@@ -76,6 +76,7 @@ export default function App(): React.JSX.Element {
       <SummaryDialog />
       <PreferencesDialog />
       <RulesDialog />
+      <ScriptsDialog />
       <ReplayDialog />
       {certProblem && (
         <div

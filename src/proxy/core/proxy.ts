@@ -252,6 +252,11 @@ export function handleRequest(
   }
 
   if (settings.requestInterceptor && settings.interceptRequest) {
+    requestView.beforeScript = {
+      url: requestParams.path as string,
+      method: requestParams.method as string,
+      headers: { ...requestParams.headers },
+    };
     recordIntercept(
       entry,
       'request',

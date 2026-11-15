@@ -12,6 +12,11 @@ import type {
   ProtoSpecCompileError,
   ProxySettings,
   RuleSet,
+  ScriptKind,
+  ScriptSet,
+  ScriptTrialExchange,
+  ScriptTrialInput,
+  ScriptTrialResult,
   TrafficEntry,
 } from './types';
 
@@ -37,6 +42,7 @@ export const IPC = {
   certStatusGet: 'cert:status',
   certRegenerate: 'cert:regenerate',
   filePick: 'file:pick',
+  scriptTry: 'script:try',
   // main -> renderer events
   trafficEvent: 'proxy:traffic',
   trafficClearedEvent: 'proxy:traffic-cleared',
@@ -53,6 +59,7 @@ export const IPC = {
   certStatusEvent: 'cert:status-changed',
   openPreferencesEvent: 'ui:open-preferences',
   openRulesEvent: 'ui:open-rules',
+  openScriptsEvent: 'ui:open-scripts',
   focusFilterEvent: 'ui:focus-filter',
   toggleProxyEvent: 'ui:toggle-proxy',
 } as const;
@@ -118,6 +125,20 @@ export type HarExportResult =
 export type HarImportResult =
   { ok: true; count: number } | { ok: false; canceled?: boolean; error?: string };
 
+/** Result of running a script against a captured exchange without sending anything. */
+export type ScriptTrialOutcome =
+  | {
+      ok: true;
+      before: ScriptTrialExchange;
+      after: ScriptTrialExchange;
+      /** Plain-language list of what the script changed. */
+      changes: string[];
+      /** What the script threw (or a timeout), if it failed. */
+      error?: string;
+      logs: string[];
+    }
+  | { ok: false; error: string };
+
 /** Validity of the root CA that signs the HTTPS listener's certificate. */
 export interface RootCertStatus {
   /** ISO timestamp the root CA stops being valid. */
@@ -165,6 +186,8 @@ export interface RevAPI {
   regenerateRootCert(): Promise<RootCertStatus>;
   /** Native file picker for a PEM file; resolves with the chosen path or null. */
   pickFile(title: string): Promise<string | null>;
+  /** Dry-runs script code against a captured exchange; nothing is sent or saved. */
+  tryScript(kind: ScriptKind, code: string, trafficId: number): Promise<ScriptTrialOutcome>;
   onTraffic(cb: (entry: TrafficEntry) => void): () => void;
   onTrafficCleared(cb: () => void): () => void;
   onBreakpointHit(cb: (hit: BreakpointHit) => void): () => void;
@@ -179,6 +202,7 @@ export interface RevAPI {
   onCertStatus(cb: (status: RootCertStatus) => void): () => void;
   onOpenPreferences(cb: () => void): () => void;
   onOpenRules(cb: () => void): () => void;
+  onOpenScripts(cb: () => void): () => void;
   onFocusFilter(cb: () => void): () => void;
   onToggleProxy(cb: () => void): () => void;
   onProxyState(cb: (state: ProxyState) => void): () => void;
@@ -193,6 +217,8 @@ export type WorkerInbound =
   | { type: 'stop' }
   | { type: 'set-breakpoints'; rules: BreakpointRule[] }
   | { type: 'set-rules'; rules: RuleSet }
+  | { type: 'set-scripts'; scripts: ScriptSet }
+  | { type: 'try-script'; id: number; input: ScriptTrialInput }
   | { type: 'resume-breakpoint'; id: number; params: BreakpointResume }
   | { type: 'set-proto-specs'; bundle: GrpcProtoBundle };
 
@@ -205,4 +231,5 @@ export type WorkerOutbound =
   | { type: 'traffic'; entry: TrafficEntry; streamId?: string }
   | { type: 'server-error'; error: ProxyErrorInfo }
   | { type: 'breakpoint-hit'; hit: BreakpointHit }
+  | { type: 'script-result'; id: number; result: ScriptTrialResult }
   | { type: 'breakpoint-errors'; errors: BreakpointCompileError[] };
