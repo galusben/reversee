@@ -292,12 +292,13 @@ gets its own `trafficId`.
 
 > Install (or clear/toggle) a request or response interceptor — arbitrary
 > JavaScript that rewrites traffic on the fly, for mocking, fault injection, or
-> header rewriting. The code runs per matching request in a sandbox. Request
+> header rewriting. The code runs once per request with a one-second budget. Request
 > interceptors can mutate `requestParams` (host, path, method, port, headers,
 > body). Response interceptors can mutate `responseParams` (statusCode, headers,
 > body) and read `requestParams`. Example (force a 500):
 > `responseParams.statusCode = 500; responseParams.body = "{\"error\":\"injected\"}";`.
-> Requires control to be enabled in the app.
+> Changes apply to the running proxy at once, no restart needed. Requires control
+> to be enabled in the app.
 
 | Param     | Type                        | Required | Notes                                                                                  |
 | --------- | --------------------------- | -------- | -------------------------------------------------------------------------------------- |
@@ -318,6 +319,34 @@ You write real JavaScript — there is no DSL. The code runs once per matching
 request with a one-second budget; a throw or a timeout is contained, does not crash the
 proxy, and is recorded on the traffic entry together with any `console.log` output
 (`get_traffic_entry` returns `interceptorErrors` and `interceptorLogs`).
+
+The result is `{ kind, enabled, code, applied }`; `applied` says whether the
+script is active on a running proxy or waiting for `start_proxy`.
+
+### `try_interceptor` 🔒
+
+> Dry-run interceptor JavaScript against a captured exchange without sending or
+> saving anything. Returns the exchange after the script ran (`after`), a plain
+> list of `changes`, any `error` the script threw, and its console output
+> (`logs`). Requires control to be enabled in the app (it runs code).
+
+| Param       | Type                        | Required | Notes                                                    |
+| ----------- | --------------------------- | -------- | -------------------------------------------------------- |
+| `kind`      | `"request"` \| `"response"` | yes      | Which kind of script this is.                            |
+| `trafficId` | number                      | yes      | Captured exchange to run against (`list_traffic`).       |
+| `code`      | string                      | no       | JavaScript to try. Omit to try the saved script instead. |
+
+```jsonc
+// check a script before installing it
+{ "kind": "request", "trafficId": 12, "code": "requestParams.headers['x-debug'] = 'true'" }
+// -> { "after": { "request": { … } }, "changes": ["header x-debug added: true"], "logs": [] }
+```
+
+A request trial starts from the request as the client sent it, even if a
+request script was already running when it was captured. A compressed response
+body is handed to a response script decompressed, live and in a trial alike, and
+the `content-encoding` header is dropped, so whatever the script leaves is sent
+plain.
 
 ---
 

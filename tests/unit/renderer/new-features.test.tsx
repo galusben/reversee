@@ -11,7 +11,6 @@ import { TrafficTable, ROW_HEIGHT } from '../../../src/renderer/src/components/T
 import { DetailPanes } from '../../../src/renderer/src/components/DetailPanes';
 import { BreakpointQueue } from '../../../src/renderer/src/components/BreakpointQueue';
 import { BreakpointsDialog } from '../../../src/renderer/src/components/BreakpointsDialog';
-import { InterceptorPanel } from '../../../src/renderer/src/components/InterceptorPanel';
 import { PreferencesDialog } from '../../../src/renderer/src/components/PreferencesDialog';
 import { RulesDialog } from '../../../src/renderer/src/components/RulesDialog';
 import {
@@ -520,31 +519,6 @@ describe('response breakpoints', () => {
         statusCode: 503,
       })
     );
-  });
-});
-
-describe('interceptor panel', () => {
-  it('shows the latest run failure and clears it after a clean run', () => {
-    useProxyStore.setState({
-      settings: { ...defaultSettings, interceptRequest: true },
-      traffic: [
-        entry(1, { interceptorErrors: [{ phase: 'request', message: 'nope is not defined' }] }),
-      ],
-    });
-    render(<InterceptorPanel />);
-    expect(screen.getByRole('status').textContent).toBe('last run failed: nope is not defined');
-
-    act(() => useProxyStore.setState({ traffic: [...useProxyStore.getState().traffic, entry(2)] }));
-    expect(screen.queryByRole('status')).toBeNull();
-  });
-
-  it('does not blame the request interceptor for a response-phase error', () => {
-    useProxyStore.setState({
-      settings: { ...defaultSettings, interceptRequest: true, interceptResponse: false },
-      traffic: [entry(1, { interceptorErrors: [{ phase: 'response', message: 'r' }] })],
-    });
-    render(<InterceptorPanel />);
-    expect(screen.queryByRole('status')).toBeNull();
   });
 });
 
@@ -1124,6 +1098,8 @@ describe('App shell', () => {
     expect(useUiStore.getState().preferencesOpen).toBe(true);
     act(() => fake.emit('onOpenRules'));
     expect(useUiStore.getState().rulesOpen).toBe(true);
+    act(() => fake.emit('onOpenScripts'));
+    expect(useUiStore.getState().scriptsOpen).toBe(true);
     act(() => fake.emit('onFocusFilter'));
     expect(useUiStore.getState().filterFocusRequest).toBe(1);
 

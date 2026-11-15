@@ -24,6 +24,7 @@ const SUBSCRIPTIONS = [
   'onCertStatus',
   'onOpenPreferences',
   'onOpenRules',
+  'onOpenScripts',
   'onFocusFilter',
   'onToggleProxy',
   'onProxyState',
@@ -68,6 +69,19 @@ export function installFakeApi() {
     getCertStatus: vi.fn(() => Promise.resolve(certStatus)),
     regenerateRootCert: vi.fn(() => Promise.resolve(certStatus)),
     pickFile: vi.fn(() => Promise.resolve('/picked/file.pem')),
+    tryScript: vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        before: {
+          request: { method: 'GET', path: '/', host: 'h', port: 80, headers: {}, body: '' },
+        },
+        after: {
+          request: { method: 'GET', path: '/', host: 'h', port: 80, headers: {}, body: '' },
+        },
+        changes: ['header x-debug added: true'],
+        logs: ['GET /'],
+      })
+    ),
     ...Object.fromEntries(
       SUBSCRIPTIONS.map((name) => [
         name,

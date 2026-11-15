@@ -1,5 +1,15 @@
 import { useState } from 'react';
-import { ArrowRight, OctagonPause, Play, Settings, Sparkles, Split, Square } from 'lucide-react';
+import {
+  ArrowRight,
+  FileCode,
+  OctagonPause,
+  Play,
+  Settings,
+  Sparkles,
+  Split,
+  Square,
+} from 'lucide-react';
+import { lastScriptError } from './ScriptsDialog';
 import { useProxyStore } from '../stores/proxyStore';
 import { useBreakpointStore } from '../stores/breakpointStore';
 import { useUiStore } from '../stores/uiStore';
@@ -81,7 +91,17 @@ export function SettingsBar(): React.JSX.Element | null {
   const ruleCount = useBreakpointStore((s) => s.rules.length);
   const openConnectAi = useUiStore((s) => s.setConnectAiOpen);
   const openRules = useUiStore((s) => s.setRulesOpen);
+  const openScripts = useUiStore((s) => s.setScriptsOpen);
   const openPreferences = useUiStore((s) => s.setPreferencesOpen);
+  // A script that failed on the latest request is flagged on the button itself.
+  const scriptError = useProxyStore((s) => {
+    const on = s.settings;
+    if (!on) return null;
+    return (
+      (on.interceptRequest ? lastScriptError(s.traffic, 'request') : null) ??
+      (on.interceptResponse ? lastScriptError(s.traffic, 'response') : null)
+    );
+  });
 
   const [invalidPorts, setInvalidPorts] = useState({ listen: false, dest: false });
 
@@ -91,6 +111,7 @@ export function SettingsBar(): React.JSX.Element | null {
   const activeRules =
     settings.routes.filter((r) => r.enabled).length +
     settings.mocks.filter((m) => m.enabled).length;
+  const activeScripts = Number(settings.interceptRequest) + Number(settings.interceptResponse);
   const startDisabled =
     !settings.dest ||
     invalidPorts.listen ||
@@ -176,6 +197,29 @@ export function SettingsBar(): React.JSX.Element | null {
           {activeRules > 0 && (
             <span className="rounded-full bg-blue-600 px-1.5 text-xs font-medium leading-5 text-white">
               {activeRules}
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => openScripts(true)}
+          title={
+            scriptError
+              ? `A script failed on the last request: ${scriptError}`
+              : 'Scripts: change requests and responses with a few lines of JavaScript (Cmd/Ctrl+Shift+J)'
+          }
+          aria-label={`Scripts${activeScripts > 0 ? `, ${activeScripts} on` : ''}${scriptError ? ', last run failed' : ''}`}
+          className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-neutral-300 px-2.5 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50"
+        >
+          <FileCode className="h-3.5 w-3.5" aria-hidden />
+          Scripts
+          {activeScripts > 0 && (
+            <span
+              className={`rounded-full px-1.5 text-xs font-medium leading-5 text-white ${
+                scriptError ? 'bg-red-600' : 'bg-blue-600'
+              }`}
+            >
+              {scriptError ? '!' : activeScripts}
             </span>
           )}
         </button>

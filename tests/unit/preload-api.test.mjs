@@ -54,6 +54,7 @@ const INVOKES = {
   getCertStatus: [IPC.certStatusGet, []],
   regenerateRootCert: [IPC.certRegenerate, []],
   pickFile: [IPC.filePick, ['Choose']],
+  tryScript: [IPC.scriptTry, ['request', 'code', 3]],
 };
 
 const SUBSCRIPTIONS = {
@@ -69,6 +70,7 @@ const SUBSCRIPTIONS = {
   onCertStatus: IPC.certStatusEvent,
   onOpenPreferences: IPC.openPreferencesEvent,
   onOpenRules: IPC.openRulesEvent,
+  onOpenScripts: IPC.openScriptsEvent,
   onFocusFilter: IPC.focusFilterEvent,
   onToggleProxy: IPC.toggleProxyEvent,
   onProxyState: IPC.proxyStateEvent,

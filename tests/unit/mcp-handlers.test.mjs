@@ -3,6 +3,7 @@
 // and replay path. Only ProxyHost is faked — it owns a utilityProcess. The
 // control-server tests cover transport and gating; this covers what each tool
 // actually does.
+import { tryScript } from '../../src/proxy/core/try-script';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -93,6 +94,8 @@ beforeEach(() => {
         ctx.proxyHost.isRunning = false;
       }),
       restart: vi.fn(() => Promise.resolve(8123)),
+      // The real host runs this in the worker; the engine is the same.
+      tryScript: vi.fn((input) => Promise.resolve(tryScript(input))),
     },
     trafficStore,
     getBreakpointRules: () => rules,
@@ -162,14 +165,61 @@ describe('status and config', () => {
   });
 
   it('set_interceptor writes the right fields per kind and validates kind', () => {
-    expect(handlers.set_interceptor({ kind: 'request', code: 'a', enabled: true })).toMatchObject({
+    expect(handlers.set_interceptor({ kind: 'request', code: 'a', enabled: true })).toEqual({
+      kind: 'request',
+      enabled: true,
+      code: 'a',
+      applied: 'saved; takes effect when the proxy starts (start_proxy)',
+    });
+    expect(handlers.get_config()).toMatchObject({
       requestInterceptor: 'a',
       interceptRequest: true,
     });
+    ctx.proxyHost.isRunning = true;
     expect(handlers.set_interceptor({ kind: 'response', enabled: true })).toMatchObject({
-      interceptResponse: true,
+      kind: 'response',
+      enabled: true,
+      applied: 'active now on the running proxy',
     });
+    expect(handlers.get_config()).toMatchObject({ interceptResponse: true });
     expect(() => handlers.set_interceptor({ kind: 'both' })).toThrow(/kind must be/);
+  });
+
+  it('try_interceptor dry-runs code, or the saved script, against a captured exchange', async () => {
+    const { trafficId } = ctx.trafficStore.add(
+      entry({ url: '/a', body: 'hello', target: { protocol: 'http', host: 'up', port: 81 } })
+    );
+    const result = await handlers.try_interceptor({
+      kind: 'response',
+      trafficId,
+      code: 'responseParams.statusCode = 503; console.log(requestParams.path)',
+    });
+    expect(result).toEqual({
+      after: {
+        request: { method: 'GET', path: '/a', host: 'up', port: 81, headers: {}, body: '' },
+        response: { statusCode: 503, headers: {}, body: 'hello' },
+      },
+      changes: ['status: 200 → 503'],
+      error: undefined,
+      logs: ['/a'],
+    });
+
+    handlers.set_interceptor({ kind: 'request', code: "requestParams.path = '/b'" });
+    expect((await handlers.try_interceptor({ kind: 'request', trafficId })).changes).toEqual([
+      'path: /a → /b',
+    ]);
+
+    const failed = await handlers.try_interceptor({ kind: 'request', trafficId, code: 'nope()' });
+    expect(failed.error).toBe('nope is not defined');
+    expect(failed.changes).toEqual([]);
+
+    await expect(handlers.try_interceptor({ kind: 'request', trafficId: 999 })).rejects.toThrow(
+      /no longer in the list/
+    );
+    await expect(handlers.try_interceptor({ kind: 'both', trafficId })).rejects.toThrow(
+      /kind must be/
+    );
+    await expect(handlers.try_interceptor({ kind: 'request' })).rejects.toThrow(/trafficId/);
   });
 });
 

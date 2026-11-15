@@ -84,6 +84,49 @@ export interface RuleSet {
   mocks?: MockRule[];
 }
 
+/** The interceptor scripts and their switches; applied to a running proxy live. */
+export type ScriptSet = Pick<
+  ProxySettings,
+  'requestInterceptor' | 'interceptRequest' | 'responseInterceptor' | 'interceptResponse'
+>;
+
+export type ScriptKind = 'request' | 'response';
+
+/** A request as an interceptor script sees it, with the body as text. */
+export interface ScriptTrialRequest {
+  method: string;
+  path: string;
+  host: string;
+  port: number;
+  headers: Headers;
+  body: string;
+}
+
+/** A response as an interceptor script sees it, with the body as text. */
+export interface ScriptTrialResponse {
+  statusCode: number;
+  headers: Headers;
+  body: string;
+}
+
+export interface ScriptTrialExchange {
+  request: ScriptTrialRequest;
+  /** Present for response scripts. */
+  response?: ScriptTrialResponse;
+}
+
+/** A dry run of a script: nothing is sent anywhere. */
+export interface ScriptTrialInput extends ScriptTrialExchange {
+  kind: ScriptKind;
+  code: string;
+}
+
+/** The exchange after the script ran, plus what the script reported. */
+export interface ScriptTrialResult extends ScriptTrialExchange {
+  error?: string;
+  logs: string[];
+}
+
 /** Parameters of the upstream request; mutated by request interceptors. */
 export interface RequestParams {
   /** Upstream protocol. Defaults to the destination (or matched route) protocol. */
@@ -112,6 +155,11 @@ export interface RequestView {
   curl?: string;
   /** Where the proxy forwarded this request. */
   target?: UpstreamTarget;
+  /**
+   * The request line and headers as the client sent them, kept when a request
+   * script ran, so the script can be tried again on what it originally saw.
+   */
+  beforeScript?: { url: string; method: string; headers: Headers };
   /** True when the stored body was cut at the display cap. */
   truncated?: boolean;
   /** Full body size in bytes (the stored body may be truncated). */

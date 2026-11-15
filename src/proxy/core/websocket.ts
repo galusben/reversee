@@ -78,6 +78,11 @@ export function handleUpgrade(
   };
 
   if (settings.requestInterceptor && settings.interceptRequest) {
+    requestView.beforeScript = {
+      url: requestParams.path as string,
+      method: requestParams.method as string,
+      headers: { ...requestParams.headers },
+    };
     const result = interceptRequest(requestParams, settings.requestInterceptor, logger);
     if (result.error) entry.interceptorErrors = [{ phase: 'request', message: result.error }];
     if (result.logs.length) entry.interceptorLogs = result.logs;

@@ -622,7 +622,13 @@ test('interceptor failures are visible, and a runaway interceptor cannot wedge t
   expect(res.statusCode).toBe(200);
   expect(res.body).toBe('upstream body'); // the broken interceptor did not break the response
 
+  // The toolbar button flags the failure, and the Scripts screen names it.
+  const scripts = page.getByRole('button', { name: /^Scripts/ });
+  await expect(scripts).toHaveAccessibleName('Scripts, 2 on, last run failed');
+  await scripts.click();
+  await page.getByRole('tab', { name: /Response script/ }).click();
   await expect(page.getByText(/last run failed: missingVariable is not defined/)).toBeVisible();
+  await page.keyboard.press('Escape');
   await row(page, '/ok').click();
   await page.getByRole('tab', { name: /Interceptor/ }).click();
   await expect(
@@ -634,12 +640,64 @@ test('interceptor failures are visible, and a runaway interceptor cannot wedge t
   const started = Date.now();
   expect((await fetchViaProxy(listenPort, '/spin')).statusCode).toBe(200);
   expect(Date.now() - started).toBeLessThan(5000);
-  await expect(
-    page.getByText(/last run failed: interceptor timed out after 1000 ms/)
-  ).toBeVisible();
-  // The next request runs normally, which clears the request-side warning.
+  await expect(scripts).toHaveAttribute(
+    'title',
+    'A script failed on the last request: interceptor timed out after 1000 ms'
+  );
+  // The next request runs the request script normally; only the response one still fails.
   expect((await fetchViaProxy(listenPort, '/after')).statusCode).toBe(200);
-  await expect(page.getByText(/interceptor timed out/)).toHaveCount(0);
+  await expect(scripts).toHaveAttribute(
+    'title',
+    'A script failed on the last request: missingVariable is not defined'
+  );
+});
+
+test('the Scripts screen: try a script on a captured request, then apply it while running', async () => {
+  const upstream = await upstreamOf((req, res) => res.end(`tag=${req.headers['x-tag'] ?? '-'}`));
+  const { page, listenPort } = await startProxied(upstream.port);
+  expect((await fetchViaProxy(listenPort, '/first')).body).toBe('tag=-');
+  await expect(row(page, '/first')).toBeVisible();
+
+  const scripts = page.getByRole('button', { name: /^Scripts/ });
+  await expect(scripts).toHaveAccessibleName('Scripts');
+  await scripts.click();
+  const dialog = page.getByRole('dialog', { name: 'Scripts' });
+  await expect(dialog.getByText('requestParams.headers', { exact: true })).toBeVisible();
+  await expect(dialog.getByText(/applies the scripts to the running proxy at once/)).toBeVisible();
+
+  // Editable although the proxy is running.
+  const editor = dialog.locator('.monaco-editor').first();
+  await expect(editor).toBeVisible({ timeout: 15_000 });
+  await editor.click();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');
+  await page.keyboard.type("requestParams.headers['x-tag'] = 'scripted'; console.log('ran');");
+
+  // Dry run: reports the change, sends nothing.
+  const sent = upstream.requests.length;
+  await dialog.getByRole('button', { name: 'Try it' }).click();
+  const result = dialog.getByLabel('Try it result');
+  await expect(result).toContainText('made 1 change');
+  await expect(result).toContainText('header x-tag added: scripted');
+  await expect(result).toContainText('ran');
+  expect(upstream.requests).toHaveLength(sent);
+
+  await dialog.getByLabel('Run on every request').check();
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(scripts).toHaveAccessibleName('Scripts, 1 on');
+  await expect(page.getByText(/Proxy running/)).toBeVisible();
+  await expect
+    .poll(async () => (await fetchViaProxy(listenPort, '/second')).body)
+    .toBe('tag=scripted');
+
+  // An example from the side panel, for the response this time.
+  await scripts.click();
+  await dialog.getByRole('tab', { name: /Response script/ }).click();
+  await dialog.getByRole('button', { name: 'Change the status' }).click();
+  await dialog.getByLabel('Run on every response').check();
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(scripts).toHaveAccessibleName('Scripts, 2 on');
+  await expect.poll(async () => (await fetchViaProxy(listenPort, '/third')).statusCode).toBe(503);
 });
 
 test('a hung upstream times out with a 504 that explains itself', async () => {

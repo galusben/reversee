@@ -18,6 +18,7 @@ import { toHar } from '../../shared/har';
 import { readClientCert } from '../client-cert';
 import { filterTraffic, summarizeTraffic, type TrafficFilter } from '../../shared/traffic-query';
 import { decodeJwt, findTokens } from '../../shared/decode';
+import { runScriptTrial } from '../script-trial';
 import { replayEntry, type ReplayOverrides } from '../replay';
 import {
   MCP_TOOL_CATALOG,
@@ -377,7 +378,36 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
       if (typeof p.enabled === 'boolean') {
         patch[p.kind === 'request' ? 'interceptRequest' : 'interceptResponse'] = p.enabled;
       }
-      return setSettings(patch);
+      const saved = setSettings(patch);
+      return {
+        kind: p.kind,
+        enabled: p.kind === 'request' ? saved.interceptRequest : saved.interceptResponse,
+        code: p.kind === 'request' ? saved.requestInterceptor : saved.responseInterceptor,
+        ...appliedNote(ctx),
+      };
+    },
+
+    try_interceptor: async (params) => {
+      const p = (params ?? {}) as { kind?: unknown; code?: unknown; trafficId?: unknown };
+      if (typeof p.trafficId !== 'number') throw new Error('trafficId (number) is required');
+      const settings = getSettings();
+      const code =
+        p.code ??
+        (p.kind === 'response' ? settings.responseInterceptor : settings.requestInterceptor);
+      const outcome = await runScriptTrial(
+        ctx.proxyHost,
+        ctx.trafficStore,
+        p.kind,
+        code,
+        p.trafficId
+      );
+      if (!outcome.ok) throw new Error(outcome.error);
+      return {
+        after: outcome.after,
+        changes: outcome.changes,
+        error: outcome.error,
+        logs: outcome.logs,
+      };
     },
 
     decode_jwt: (params) => {

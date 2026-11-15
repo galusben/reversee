@@ -6,10 +6,11 @@ import { createProxyServer, type ProxyServer } from './core/server';
 import { createHttp2ProxyServer } from './core/http2';
 import { compileBreakpoints, matchBreakpoint, type CompiledBreakpoint } from './core/breakpoints';
 import { GrpcRegistry } from './core/grpc-registry';
+import { tryScript } from './core/try-script';
 import type { RequestGate } from './core/server';
 import type { ResponseEdit, ResponseGate } from './core/proxy';
 import type { WorkerInbound, WorkerOutbound, BreakpointResume } from '../shared/ipc';
-import type { Logger, RequestParams, TrafficEntry } from '../shared/types';
+import type { Logger, RequestParams, ScriptTrialResult, TrafficEntry } from '../shared/types';
 
 // Electron's utilityProcess parentPort; typed loosely to keep this file free
 // of the electron module (it must be bundleable as a plain node entry).
@@ -168,6 +169,20 @@ parentPort.on('message', (e) => {
     case 'set-rules':
       server?.setRules(msg.rules);
       break;
+    case 'set-scripts':
+      server?.setScripts(msg.scripts);
+      break;
+    case 'try-script': {
+      let result: ScriptTrialResult;
+      try {
+        result = tryScript(msg.input);
+      } catch (err) {
+        // A trial must never take the proxy down with it.
+        result = { request: msg.input.request, error: (err as Error).message, logs: [] };
+      }
+      send({ type: 'script-result', id: msg.id, result });
+      break;
+    }
     case 'resume-breakpoint':
       resume(msg.id, msg.params);
       break;

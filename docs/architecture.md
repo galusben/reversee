@@ -87,7 +87,7 @@ Entry: `src/renderer/src/main.tsx` → `App.tsx`.
 - **Stores** also include `protoSpecStore.ts` (saved gRPC proto specs + compile errors).
 - **Components** (`src/renderer/src/components/`): `SettingsBar.tsx`,
   `TrafficTable.tsx`, `DetailPanes.tsx`, `BreakpointsDialog.tsx`,
-  `BreakpointQueue.tsx`, `InterceptorPanel.tsx`, `ConnectAiDialog.tsx`,
+  `BreakpointQueue.tsx`, `ScriptsDialog.tsx` (interceptor scripts), `ConnectAiDialog.tsx`,
   `ProtoSpecsDialog.tsx` (manage gRPC proto specs),
   `MonacoView.tsx` / `MonacoViewImpl.tsx` (JS editor for interceptors), and `ui/`
   (Radix-based primitives).
@@ -104,6 +104,7 @@ unit-tested headlessly — see [ADR 0001](adr/0001-electron-free-proxy-core.md).
 | `core/proxy.ts`         | One exchange: route / mock matching, upstream request with header timeout, **streamed** response (buffered only for a response interceptor or breakpoint), traffic recording.          |
 | `core/capture.ts`       | Bounded, incrementally decompressed copy of a streamed body for the traffic view.                                                                                                      |
 | `core/rules.ts`         | Compiles and matches route rules (alternate upstreams) and mock rules (canned responses).                                                                                              |
+| `core/try-script.ts`    | Dry run of an interceptor script on a captured exchange (Scripts screen, `try_interceptor`); same engine, nothing sent.                                                                |
 | `core/websocket.ts`     | Forwards an Upgrade request and pipes the two sockets; records messages on the traffic entry.                                                                                          |
 | `core/ws-frames.ts`     | WebSocket frame parser + message assembler (fragments, permessage-deflate) working on a copy of the bytes.                                                                             |
 | `core/http2.ts`         | Listener used when `enableGrpc` is set: HTTP/2 streams forwarded over a shared upstream session with gRPC frame decode; HTTP/1.1 served on the same port via the `server.ts` handlers. |
