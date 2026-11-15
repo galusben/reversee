@@ -2,6 +2,7 @@
 // client gets from an HTTPS listener.
 import { describe, it, expect, afterEach } from 'vitest';
 import net from 'node:net';
+import zlib from 'node:zlib';
 import {
   startUpstream,
   startProxyServer,
@@ -197,6 +198,34 @@ describe('live script updates', () => {
     });
     release();
     expect((await pending).body.toString()).toBe('old script');
+  });
+
+  it('gives a response script the decompressed body, and sends the result plain', async () => {
+    const upstream = await startUpstream((_req, res) => {
+      const body = zlib.gzipSync('{"beta":false}');
+      res.writeHead(200, {
+        'content-encoding': 'gzip',
+        'content-type': 'application/json',
+        'content-length': body.length,
+      });
+      res.end(body);
+    });
+    const proxy = await startProxyServer(
+      makeSettings(upstream.port, {
+        interceptResponse: true,
+        responseInterceptor:
+          'const data = JSON.parse(responseParams.body.toString());\n' +
+          'data.beta = true;\n' +
+          'responseParams.body = JSON.stringify(data);',
+      })
+    );
+    open.push(upstream.server, proxy.server);
+
+    const res = await request({ port: proxy.port, path: '/' });
+    expect(res.headers['content-encoding']).toBeUndefined();
+    expect(res.body.toString()).toBe('{"beta":true}');
+    expect(res.headers['content-length']).toBe('13');
+    expect(proxy.traffic.at(-1).interceptorErrors).toBeUndefined();
   });
 
   it('reaches the HTTP/1.1 path of the gRPC-mode listener too', async () => {

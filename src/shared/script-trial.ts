@@ -7,6 +7,19 @@ function bodyText(body: Uint8Array | string | undefined): string {
   return typeof body === 'string' ? body : new TextDecoder().decode(body);
 }
 
+/**
+ * A live script gets the body decompressed and no content-encoding header.
+ * The captured body is already decompressed, so only the header has to go.
+ */
+function responseHeaders(entry: TrafficEntry): Headers {
+  const headers = { ...entry.response.headers };
+  if (entry.response.decodeError) return headers;
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === 'content-encoding') delete headers[key];
+  }
+  return headers;
+}
+
 /** The exchange as a script would see it. Bodies are the captured (display) text. */
 export function exchangeFromEntry(
   entry: TrafficEntry,
@@ -25,7 +38,7 @@ export function exchangeFromEntry(
     },
     response: {
       statusCode: entry.response.statusCode ?? 0,
-      headers: { ...entry.response.headers },
+      headers: responseHeaders(entry),
       body: bodyText(entry.response.body),
     },
   };

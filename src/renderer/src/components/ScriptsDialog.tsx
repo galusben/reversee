@@ -173,7 +173,11 @@ function ScriptsEditor({ onClose }: { onClose: () => void }): React.JSX.Element 
   const lastError = savedOn ? lastScriptError(traffic, kind) : null;
   const picked = choices.find((e) => e.trafficId === trialId) ?? choices[0];
 
-  const setCode = (value: string): void => setDraft({ ...draft, [field.code]: value });
+  const setCode = (value: string): void => {
+    setDraft({ ...draft, [field.code]: value });
+    // A result describes the code it ran, not what is typed after it.
+    setTrial(null);
+  };
   const insert = (snippet: string): void => {
     const next = appendSnippet(code, snippet);
     setCode(next);
@@ -194,6 +198,8 @@ function ScriptsEditor({ onClose }: { onClose: () => void }): React.JSX.Element 
     try {
       const outcome = await window.reversee.tryScript(kind, code, picked.trafficId);
       setTrial({ kind, outcome });
+    } catch (error) {
+      setTrial({ kind, outcome: { ok: false, error: (error as Error).message } });
     } finally {
       setTrying(false);
     }

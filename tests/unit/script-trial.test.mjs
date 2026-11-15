@@ -212,6 +212,18 @@ describe('exchangeFromEntry', () => {
     });
   });
 
+  it('drops content-encoding, since the captured body is already decompressed', () => {
+    const gz = { statusCode: 200, headers: { 'Content-Encoding': 'gzip', etag: 'e' }, body: '{}' };
+    expect(exchangeFromEntry(entry({ response: gz }), settings).response.headers).toEqual({
+      etag: 'e',
+    });
+    // A body that could not be decompressed is still raw, so the header stays.
+    const broken = { ...gz, decodeError: 'bad gzip' };
+    expect(exchangeFromEntry(entry({ response: broken }), settings).response.headers).toEqual(
+      gz.headers
+    );
+  });
+
   it('copies headers so a trial cannot touch the captured entry', () => {
     const e = entry();
     exchangeFromEntry(e, settings).request.headers['x'] = '1';

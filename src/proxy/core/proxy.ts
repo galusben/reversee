@@ -490,6 +490,21 @@ export function handleRequest(
         body: Buffer.concat(chunks) as Buffer | string,
       };
 
+      // A script or a held response gets readable text: decompress the body
+      // and drop the encoding (whatever comes out of it is sent plain).
+      const encodingKey = findHeaderKey(responseParams.headers, 'content-encoding');
+      if (encodingKey) {
+        const plain = decodeBodySync(
+          toBuffer(responseParams.body),
+          responseParams.headers[encodingKey]
+        );
+        if (plain) {
+          responseParams.body = plain;
+          delete responseParams.headers[encodingKey];
+          syncContentLength(responseParams.headers, responseParams.body);
+        }
+      }
+
       if (interceptOn) {
         recordIntercept(
           entry,
@@ -534,19 +549,6 @@ export function handleRequest(
       if (!hold || !ctx.responseGate) {
         send();
         return;
-      }
-      // A held response is shown for editing, so hand over readable text:
-      // decompress it and drop the encoding (the edited body goes out plain).
-      const encodingKey = findHeaderKey(responseParams.headers, 'content-encoding');
-      if (encodingKey) {
-        const plain = decodeBodySync(
-          toBuffer(responseParams.body),
-          responseParams.headers[encodingKey]
-        );
-        if (plain) {
-          responseParams.body = plain;
-          delete responseParams.headers[encodingKey];
-        }
       }
       void ctx.responseGate
         .hold(

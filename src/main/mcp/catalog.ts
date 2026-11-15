@@ -304,7 +304,7 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
       'Dry-run interceptor JavaScript against a captured exchange without sending or saving anything. Returns ' +
       'the exchange after the script ran (`after`), a plain list of `changes`, any `error` the script threw, ' +
       'and its console output (`logs`). Use it to check a script before installing it with set_interceptor. ' +
-      'Bodies are the captured text, so a compressed response appears decoded here. ' +
+      'A compressed response body reaches a response script decompressed (live too), with content-encoding dropped. ' +
       'Requires control to be enabled in the app (it runs code).',
     inputSchema: {
       type: 'object',

@@ -39,9 +39,11 @@ export const SCRIPT_SNIPPETS: Record<ScriptKind, ScriptSnippet[]> = {
     {
       label: 'Change a JSON field',
       code:
-        'const data = JSON.parse(requestParams.body.toString());\n' +
-        'data.debug = true;\n' +
-        'requestParams.body = JSON.stringify(data);',
+        '{\n' +
+        '  const data = JSON.parse(requestParams.body.toString());\n' +
+        '  data.debug = true;\n' +
+        '  requestParams.body = JSON.stringify(data);\n' +
+        '}',
     },
     {
       label: 'Only some requests',
@@ -61,9 +63,11 @@ export const SCRIPT_SNIPPETS: Record<ScriptKind, ScriptSnippet[]> = {
     {
       label: 'Change a JSON field',
       code:
-        'const data = JSON.parse(responseParams.body.toString());\n' +
-        'data.beta = true;\n' +
-        'responseParams.body = JSON.stringify(data);',
+        '{\n' +
+        '  const data = JSON.parse(responseParams.body.toString());\n' +
+        '  data.beta = true;\n' +
+        '  responseParams.body = JSON.stringify(data);\n' +
+        '}',
     },
     { label: 'Replace the body', code: 'responseParams.body = JSON.stringify({ ok: true });' },
     {

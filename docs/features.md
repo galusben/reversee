@@ -42,7 +42,9 @@ the desktop UI, and agents through the Model Context Protocol.
   examples. **Try it** dry-runs the draft on a captured request in the proxy
   worker and lists what changed, the error if it threw, and its `console.log`
   output; nothing is sent. Saving applies the scripts to the running proxy at
-  once. Each run has a one-second budget. User-code errors and console output
+  once. Each run has a one-second budget. A compressed response body reaches the
+  response script decompressed, and is then sent on without `content-encoding`.
+  User-code errors and console output
   are recorded on the traffic entry (the request's Interceptor tab), and the
   toolbar button turns red when a script failed on the latest request.
 - **Breakpoints** — hold requests, or responses, matching a URL regex + HTTP methods;

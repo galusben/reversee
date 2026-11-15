@@ -343,9 +343,10 @@ script is active on a running proxy or waiting for `start_proxy`.
 ```
 
 A request trial starts from the request as the client sent it, even if a
-request script was already running when it was captured. Bodies are the captured
-text, so a compressed response appears decoded here while a live script sees the
-raw bytes.
+request script was already running when it was captured. A compressed response
+body is handed to a response script decompressed, live and in a trial alike, and
+the `content-encoding` header is dropped, so whatever the script leaves is sent
+plain.
 
 ---
 
