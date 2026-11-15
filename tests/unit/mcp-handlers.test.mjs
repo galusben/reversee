@@ -585,3 +585,106 @@ describe('new entry fields in tool output', () => {
     expect(full.interceptorError).toBe(true);
   });
 });
+
+describe('route and mock tools', () => {
+  it('list_rules starts empty and explains the order', () => {
+    handlers.update_config({ dest: 'api.example.com', destProtocol: 'https', destPort: 443 });
+    const view = handlers.list_rules();
+    expect(view).toMatchObject({
+      proxyRunning: false,
+      defaultDestination: 'https://api.example.com:443',
+      mocks: [],
+      routes: [],
+    });
+    expect(view.note).toMatch(/first enabled mock/);
+  });
+
+  it('add_mock stores a rule built from plain input, newest first', () => {
+    const first = handlers.add_mock({ path: '/api/flags', body: { beta: true } });
+    expect(first.applied).toMatch(/takes effect when the proxy starts/);
+    expect(first.added).toMatchObject({
+      pathPattern: '^/api/flags(?:\\?.*)?$',
+      statusCode: 200,
+      headers: { 'content-type': 'application/json' },
+      summary: 'any method, path is "/api/flags" -> 200',
+    });
+    ctx.proxyHost.isRunning = true;
+    const second = handlers.add_mock({ path: '/pay', status: 500, name: 'Pay down' });
+    expect(second.applied).toBe('active now on the running proxy');
+    handlers.add_mock({ path: '/last', priority: 'last' });
+
+    const { mocks, proxyRunning } = handlers.list_rules();
+    expect(proxyRunning).toBe(true);
+    expect(mocks.map((m) => m.summary)).toEqual([
+      'any method, path is "/pay" -> 500',
+      'any method, path is "/api/flags" -> 200',
+      'any method, path is "/last" -> 200',
+    ]);
+    expect(mocks[0].name).toBe('Pay down');
+    // Stored in settings, so the window and get_config see the same rules.
+    expect(handlers.get_config().mocks).toHaveLength(3);
+  });
+
+  it('add_route stores a route to a target URL', () => {
+    const { added } = handlers.add_route({ path: '/api/v2', target: 'http://localhost:3001' });
+    expect(added).toMatchObject({
+      pathPattern: '^/api/v2',
+      destProtocol: 'http',
+      dest: 'localhost',
+      destPort: 3001,
+      summary: 'path starts with "/api/v2" -> http://localhost:3001',
+    });
+    handlers.add_route({ host: 'a.test', target: 'https://b.test', priority: 'last' });
+    handlers.add_route({ path: '/first', target: 'localhost:1' });
+    expect(handlers.list_rules().routes.map((r) => r.dest)).toEqual([
+      'localhost',
+      'localhost',
+      'b.test',
+    ]);
+  });
+
+  it('rejects bad input without changing the rules', () => {
+    expect(() => handlers.add_mock({})).toThrow(/path is required/);
+    expect(() => handlers.add_mock()).toThrow(/path is required/);
+    expect(() => handlers.add_route({ path: '/x' })).toThrow(/target is required/);
+    expect(() => handlers.add_route()).toThrow(/target is required/);
+    expect(handlers.list_rules()).toMatchObject({ mocks: [], routes: [] });
+  });
+
+  it('update_rule switches a rule off and on', () => {
+    const mock = handlers.add_mock({ path: '/m' }).added;
+    const route = handlers.add_route({ path: '/r', target: 'localhost:1' }).added;
+    expect(handlers.update_rule({ id: mock.id, enabled: false }).mocks[0].enabled).toBe(false);
+    expect(handlers.update_rule({ id: route.id, enabled: false }).routes[0].enabled).toBe(false);
+    const view = handlers.update_rule({ id: mock.id, enabled: true });
+    expect(view.mocks[0].enabled).toBe(true);
+    expect(view.routes[0].enabled).toBe(false);
+
+    expect(() => handlers.update_rule({ enabled: true })).toThrow(/id \(string\) is required/);
+    expect(() => handlers.update_rule()).toThrow(/id \(string\) is required/);
+    expect(() => handlers.update_rule({ id: mock.id })).toThrow(/enabled \(boolean\) is required/);
+    expect(() => handlers.update_rule({ id: 'nope', enabled: true })).toThrow(/no route or mock/);
+  });
+
+  it('remove_rule deletes one rule by id, or all of them', () => {
+    const a = handlers.add_mock({ path: '/a' }).added;
+    handlers.add_mock({ path: '/b' });
+    const route = handlers.add_route({ path: '/r', target: 'localhost:1' }).added;
+
+    const afterOne = handlers.remove_rule({ id: a.id });
+    expect(afterOne.removed).toBe(1);
+    expect(afterOne.mocks).toHaveLength(1);
+    expect(handlers.remove_rule({ id: route.id }).routes).toEqual([]);
+
+    expect(() => handlers.remove_rule({ id: a.id })).toThrow(/no route or mock has id/);
+    expect(() => handlers.remove_rule({})).toThrow(/id \(string\) is required/);
+    expect(() => handlers.remove_rule()).toThrow(/id \(string\) is required/);
+
+    handlers.add_route({ path: '/r', target: 'localhost:1' });
+    expect(handlers.remove_rule({ all: true })).toMatchObject({
+      removed: 2,
+      mocks: [],
+      routes: [],
+    });
+  });
+});

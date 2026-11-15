@@ -8,7 +8,14 @@ import type { Duplex } from 'node:stream';
 import { handleRequest, type ProxyContext, type ResponseGate } from './proxy';
 import { compileRules } from './rules';
 import { handleUpgrade } from './websocket';
-import type { Logger, ProxySettings, RequestParams, TrafficEntry } from '../../shared/types';
+import { answerPlainHttpOnTls } from './tls-hint';
+import type {
+  Logger,
+  ProxySettings,
+  RequestParams,
+  RuleSet,
+  TrafficEntry,
+} from '../../shared/types';
 
 export interface SslOptions {
   key: string | Buffer;
@@ -45,6 +52,8 @@ export interface ProxyServer {
   listen(): Promise<number>;
   close(): Promise<void>;
   readonly listening: boolean;
+  /** Swaps the route and mock rules without restarting the listener. */
+  setRules(rules: RuleSet): void;
 }
 
 const noop: Logger = { debug() {}, info() {}, warn() {}, error() {} };
@@ -55,6 +64,7 @@ export interface Http1Handlers {
   onUpgrade(request: http.IncomingMessage, socket: Duplex, head: Buffer): void;
   /** Destroys every open WebSocket tunnel (they outlive closeAllConnections). */
   closeTunnels(): void;
+  setRules(rules: RuleSet): void;
 }
 
 export function createHttp1Handlers(options: ProxyServerOptions): Http1Handlers {
@@ -91,6 +101,10 @@ export function createHttp1Handlers(options: ProxyServerOptions): Http1Handlers 
       for (const socket of tunnels) socket.destroy();
       tunnels.clear();
     },
+    setRules(rules) {
+      // Requests already in flight keep the rule they matched.
+      ctx.rules = compileRules(rules, logger);
+    },
   };
 }
 
@@ -107,6 +121,7 @@ export function createProxyServer(options: ProxyServerOptions): ProxyServer {
         )
       : http.createServer(handlers.onRequest);
   server.on('upgrade', handlers.onUpgrade);
+  if (server instanceof https.Server) answerPlainHttpOnTls(server);
 
   server.on('error', (err: NodeJS.ErrnoException) => {
     logger.error('proxy server error', err);
@@ -129,6 +144,7 @@ export function createProxyServer(options: ProxyServerOptions): ProxyServer {
         });
       });
     },
+    setRules: handlers.setRules,
     close(): Promise<void> {
       return new Promise((resolve) => {
         handlers.closeTunnels();

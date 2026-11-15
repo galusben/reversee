@@ -406,6 +406,8 @@ function applyAppSettings(): void {
   trafficStore.setCap(settings.trafficCap);
   // Keeps native chrome (title bar, menus, dialogs) in step with the UI theme.
   nativeTheme.themeSource = settings.theme;
+  // Routes and mocks apply to the running proxy at once; no restart needed.
+  proxyHost.setRules({ routes: settings.routes, mocks: settings.mocks });
 }
 
 /**

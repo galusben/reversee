@@ -13,6 +13,7 @@ import {
 import { useProxyStore, type SortKey, type SortState } from '../stores/proxyStore';
 import { useUiStore } from '../stores/uiStore';
 import { WithContextMenu } from './ui/ContextMenu';
+import { mockFromEntry, routeFromEntry } from '../lib/rule-seed';
 import { filterTraffic } from '../../../shared/traffic-query';
 import { formatBytes, formatDuration, totalMs } from '../../../shared/timings';
 import type { TrafficEntry } from '../../../shared/types';
@@ -185,6 +186,7 @@ export function TrafficTable(): React.JSX.Element {
   const toggleScrollLock = useProxyStore((s) => s.toggleScrollLock);
   const openSummary = useUiStore((s) => s.setSummaryOpen);
   const openReplayEditor = useUiStore((s) => s.setReplayEditorId);
+  const openRules = useUiStore((s) => s.setRulesOpen);
   const filterFocusRequest = useUiStore((s) => s.filterFocusRequest);
 
   const traffic = useMemo(() => {
@@ -434,6 +436,20 @@ export function TrafficTable(): React.JSX.Element {
               {
                 label: 'Edit and Replay…',
                 onSelect: () => openReplayEditor(menuEntryRef.current?.trafficId ?? null),
+              },
+              {
+                label: 'Mock This Response…',
+                onSelect: () => {
+                  const entry = menuEntryRef.current;
+                  if (entry) openRules(true, { kind: 'mock', rule: mockFromEntry(entry) });
+                },
+              },
+              {
+                label: 'Route Requests Like This…',
+                onSelect: () => {
+                  const entry = menuEntryRef.current;
+                  if (entry) openRules(true, { kind: 'route', rule: routeFromEntry(entry) });
+                },
               },
               {
                 label: 'Copy as curl',

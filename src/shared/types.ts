@@ -49,6 +49,8 @@ export interface ProxySettings {
  */
 export interface RouteRule {
   id: string;
+  /** Optional label shown in the rules screen. */
+  name?: string;
   enabled: boolean;
   /** Regex matched against the request Host header (without port). */
   hostPattern?: string;
@@ -62,6 +64,8 @@ export interface RouteRule {
 /** Answers matching requests with a canned response (no upstream contact). */
 export interface MockRule {
   id: string;
+  /** Optional label shown in the rules screen. */
+  name?: string;
   enabled: boolean;
   /** HTTP method, or empty / "*" for any. */
   method?: string;
@@ -72,6 +76,12 @@ export interface MockRule {
   body: string;
   /** Artificial latency before responding. */
   delayMs?: number;
+}
+
+/** The rules the proxy matches per request; replaceable while it runs. */
+export interface RuleSet {
+  routes?: RouteRule[];
+  mocks?: MockRule[];
 }
 
 /** Parameters of the upstream request; mutated by request interceptors. */

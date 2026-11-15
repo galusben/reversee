@@ -13,7 +13,7 @@ Reversee sits between your client and a destination server. Point your client at
 - **Streaming and WebSockets** — responses are streamed through, so Server-Sent Events and large downloads work as they would without the proxy. WebSocket connections are tunnelled and their messages listed.
 - **Interceptors** — JavaScript snippets that rewrite requests (`requestParams`: host, path, method, port, headers, body) or responses (`responseParams`: statusCode, headers, body) on the fly. Errors and `console.log` output are shown on the request.
 - **Breakpoints** — hold requests, or responses, matching a URL regex + methods, edit them, then continue.
-- **Routes and mocks** — send some requests to a different upstream by Host or path, or answer them with a canned response without any upstream.
+- **Mocks and routes** — answer any request with a response you write (fake an endpoint, force a 500, add latency), or send some requests to a different upstream by path or Host. No code, plain "path starts with" matching, one click from a captured request, and changes apply while the proxy runs.
 - **Replay and HAR** — re-send a captured request (as is, or edited), and export or import sessions as HAR files.
 - **gRPC** — proxy native gRPC over HTTP/2 (h2 via ALPN, or cleartext h2c) and decode every message — unary and server/client/bidi streaming — into readable JSON, using `.proto`/`.desc` definitions you import. See [gRPC](#grpc).
 - **Redirect & host rewriting** — keep redirect chains and Host headers pointed at the proxy.

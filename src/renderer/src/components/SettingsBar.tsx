@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, OctagonPause, Play, Settings, Shuffle, Sparkles, Square } from 'lucide-react';
+import { ArrowRight, OctagonPause, Play, Settings, Sparkles, Split, Square } from 'lucide-react';
 import { useProxyStore } from '../stores/proxyStore';
 import { useBreakpointStore } from '../stores/breakpointStore';
 import { useUiStore } from '../stores/uiStore';
@@ -99,112 +99,123 @@ export function SettingsBar(): React.JSX.Element | null {
     !isValidPort(settings.destPort);
 
   return (
-    <div className="flex items-center gap-2 border-b border-neutral-200 bg-white px-3 py-2">
-      <span className="shrink-0 text-sm font-medium text-neutral-600">Listen</span>
-      <ProtocolSelect
-        label="Listen protocol"
-        value={settings.listenProtocol}
-        disabled={running}
-        onChange={(p) => set({ listenProtocol: p })}
-      />
-      <PortInput
-        label="Listen port"
-        value={settings.listenPort}
-        disabled={running}
-        onCommit={(port) => set({ listenPort: port })}
-        onValidity={(valid) => setInvalidPorts((p) => ({ ...p, listen: !valid }))}
-      />
-      <ArrowRight className="h-4 w-4 text-neutral-400" aria-hidden />
-      <span className="shrink-0 text-sm font-medium text-neutral-600">Destination</span>
-      <ProtocolSelect
-        label="Destination protocol"
-        value={settings.destProtocol}
-        disabled={running}
-        onChange={(p) => set({ destProtocol: p })}
-      />
-      <input
-        type="text"
-        aria-label="Destination host"
-        placeholder="host, e.g. example.com"
-        className="w-44 min-w-24 shrink rounded-md border border-neutral-300 px-2 py-1 text-sm disabled:bg-neutral-100 disabled:text-neutral-400"
-        value={settings.dest}
-        disabled={running}
-        onChange={(e) => set({ dest: e.target.value.trim() })}
-      />
-      <PortInput
-        label="Destination port"
-        value={settings.destPort}
-        disabled={running}
-        onCommit={(port) => set({ destPort: port })}
-        onValidity={(valid) => setInvalidPorts((p) => ({ ...p, dest: !valid }))}
-      />
-      <label
-        className="flex shrink-0 items-center gap-1.5 text-sm text-neutral-600"
-        title="Run an HTTP/2 listener to proxy and decode gRPC. Import .proto/.desc under the gRPC menu."
-      >
-        <input
-          type="checkbox"
-          checked={settings.enableGrpc}
+    // Two groups that share a row when the window is wide enough; otherwise the
+    // actions wrap under the connection settings instead of being clipped.
+    <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 bg-white px-3 py-2">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="shrink-0 text-sm font-medium text-neutral-600">Listen</span>
+        <ProtocolSelect
+          label="Listen protocol"
+          value={settings.listenProtocol}
           disabled={running}
-          onChange={(e) => set({ enableGrpc: e.target.checked })}
+          onChange={(p) => set({ listenProtocol: p })}
         />
-        gRPC
-      </label>
-      <div className="grow" />
-      <button
-        type="button"
-        onClick={() => openConnectAi(true)}
-        title="Connect an AI agent (MCP)"
-        className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-2.5 py-1.5 text-sm font-medium text-white shadow-sm transition-opacity hover:opacity-90"
-      >
-        <Sparkles className="h-3.5 w-3.5" aria-hidden />
-        Connect AI
-      </button>
-      <button
-        type="button"
-        onClick={() => openRules(true)}
-        title="Routes and mocks"
-        className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-neutral-300 px-2.5 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50"
-      >
-        <Shuffle className="h-3.5 w-3.5" aria-hidden />
-        Rules{activeRules > 0 ? ` (${activeRules})` : ''}
-      </button>
-      <button
-        type="button"
-        onClick={() => openBreakpoints(true)}
-        title="Edit breakpoints (Cmd/Ctrl+B)"
-        className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-neutral-300 px-2.5 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50"
-      >
-        <OctagonPause className="h-3.5 w-3.5" aria-hidden />
-        Breakpoints{ruleCount > 0 ? ` (${ruleCount})` : ''}
-      </button>
-      <button
-        type="button"
-        onClick={() => openPreferences(true)}
-        title="Preferences"
-        aria-label="Preferences"
-        className="shrink-0 rounded-md border border-neutral-300 p-2 text-neutral-600 hover:bg-neutral-50"
-      >
-        <Settings className="h-3.5 w-3.5" aria-hidden />
-      </button>
-      {running ? (
+        <PortInput
+          label="Listen port"
+          value={settings.listenPort}
+          disabled={running}
+          onCommit={(port) => set({ listenPort: port })}
+          onValidity={(valid) => setInvalidPorts((p) => ({ ...p, listen: !valid }))}
+        />
+        <ArrowRight className="h-4 w-4 text-neutral-400" aria-hidden />
+        <span className="shrink-0 text-sm font-medium text-neutral-600">Destination</span>
+        <ProtocolSelect
+          label="Destination protocol"
+          value={settings.destProtocol}
+          disabled={running}
+          onChange={(p) => set({ destProtocol: p })}
+        />
+        <input
+          type="text"
+          aria-label="Destination host"
+          placeholder="host, e.g. example.com"
+          className="w-44 min-w-24 shrink rounded-md border border-neutral-300 px-2 py-1 text-sm disabled:bg-neutral-100 disabled:text-neutral-400"
+          value={settings.dest}
+          disabled={running}
+          onChange={(e) => set({ dest: e.target.value.trim() })}
+        />
+        <PortInput
+          label="Destination port"
+          value={settings.destPort}
+          disabled={running}
+          onCommit={(port) => set({ destPort: port })}
+          onValidity={(valid) => setInvalidPorts((p) => ({ ...p, dest: !valid }))}
+        />
+        <label
+          className="flex shrink-0 items-center gap-1.5 text-sm text-neutral-600"
+          title="Run an HTTP/2 listener to proxy and decode gRPC. Import .proto/.desc under the gRPC menu."
+        >
+          <input
+            type="checkbox"
+            checked={settings.enableGrpc}
+            disabled={running}
+            onChange={(e) => set({ enableGrpc: e.target.checked })}
+          />
+          gRPC
+        </label>
+      </div>
+      <div className="ml-auto flex shrink-0 items-center gap-2">
         <button
           type="button"
-          onClick={() => void stop()}
-          className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+          onClick={() => openConnectAi(true)}
+          title="Connect an AI agent (MCP)"
+          className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-gradient-to-r from-indigo-500 to-fuchsia-500 px-2.5 py-1.5 text-sm font-medium text-white shadow-sm transition-opacity hover:opacity-90"
         >
-          <Square className="h-3.5 w-3.5" aria-hidden /> Stop
+          <Sparkles className="h-3.5 w-3.5" aria-hidden />
+          Connect AI
         </button>
-      ) : (
         <button
           type="button"
-          onClick={() => void start()}
-          disabled={startDisabled}
-          className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-neutral-300"
+          onClick={() => openRules(true)}
+          title="Routes and mocks: answer requests with a response you write, or send some to a different server (Cmd/Ctrl+Shift+M)"
+          aria-label={`Routes and mocks${activeRules > 0 ? `, ${activeRules} active` : ''}`}
+          className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-neutral-300 px-2.5 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50"
         >
-          <Play className="h-3.5 w-3.5" aria-hidden /> Start
+          <Split className="h-3.5 w-3.5" aria-hidden />
+          Routes &amp; Mocks
+          {activeRules > 0 && (
+            <span className="rounded-full bg-blue-600 px-1.5 text-xs font-medium leading-5 text-white">
+              {activeRules}
+            </span>
+          )}
         </button>
-      )}
+        <button
+          type="button"
+          onClick={() => openBreakpoints(true)}
+          title="Edit breakpoints (Cmd/Ctrl+B)"
+          className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-neutral-300 px-2.5 py-1.5 text-sm text-neutral-600 hover:bg-neutral-50"
+        >
+          <OctagonPause className="h-3.5 w-3.5" aria-hidden />
+          Breakpoints{ruleCount > 0 ? ` (${ruleCount})` : ''}
+        </button>
+        <button
+          type="button"
+          onClick={() => openPreferences(true)}
+          title="Preferences"
+          aria-label="Preferences"
+          className="shrink-0 rounded-md border border-neutral-300 p-2 text-neutral-600 hover:bg-neutral-50"
+        >
+          <Settings className="h-3.5 w-3.5" aria-hidden />
+        </button>
+        {running ? (
+          <button
+            type="button"
+            onClick={() => void stop()}
+            className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+          >
+            <Square className="h-3.5 w-3.5" aria-hidden /> Stop
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void start()}
+            disabled={startDisabled}
+            className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-neutral-300"
+          >
+            <Play className="h-3.5 w-3.5" aria-hidden /> Start
+          </button>
+        )}
+      </div>
     </div>
   );
 }

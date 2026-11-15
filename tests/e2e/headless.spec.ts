@@ -253,3 +253,74 @@ test('headless read-only: the new mutating tools are gated, the listing ones are
     expect((error as ControlCallError).message, method).toMatch(/control is disabled/i);
   }
 });
+
+test('headless: rule tools apply to the running proxy without a restart', async () => {
+  upstream = await startUpstream((req, res) => res.end(`upstream ${req.url}`));
+  const other = await startUpstream((req, res) => res.end(`other ${req.url}`));
+  const client = await launchHeadless(['--allow-mcp-control']);
+  try {
+    const listenPort = await freePort();
+    await client.call('update_config', {
+      dest: '127.0.0.1',
+      destProtocol: 'http',
+      destPort: upstream.port,
+      listenProtocol: 'http',
+      listenPort,
+    });
+    await client.call('start_proxy');
+    expect((await fetchViaProxy(listenPort, '/api/flags')).body).toBe('upstream /api/flags');
+
+    const mock = (await client.call('add_mock', {
+      path: '/api/flags',
+      body: { beta: true },
+      name: 'Flags',
+    })) as { added: { id: string; summary: string }; applied: string };
+    expect(mock.applied).toBe('active now on the running proxy');
+    await expect
+      .poll(async () => (await fetchViaProxy(listenPort, '/api/flags?u=1')).body)
+      .toBe('{\n  "beta": true\n}');
+
+    await client.call('add_route', { path: '/v2', target: `http://127.0.0.1:${other.port}` });
+    await expect
+      .poll(async () => (await fetchViaProxy(listenPort, '/v2/items')).body)
+      .toBe('other /v2/items');
+
+    const listed = (await client.call('list_rules')) as {
+      proxyRunning: boolean;
+      mocks: Array<{ id: string; summary: string }>;
+      routes: Array<{ summary: string }>;
+    };
+    expect(listed.proxyRunning).toBe(true);
+    expect(listed.mocks[0]!.summary).toBe('any method, path is "/api/flags" -> 200');
+    expect(listed.routes[0]!.summary).toBe(
+      `path starts with "/v2" -> http://127.0.0.1:${other.port}`
+    );
+
+    await client.call('update_rule', { id: mock.added.id, enabled: false });
+    await expect
+      .poll(async () => (await fetchViaProxy(listenPort, '/api/flags')).body)
+      .toBe('upstream /api/flags');
+
+    await client.call('remove_rule', { all: true });
+    await expect
+      .poll(async () => (await fetchViaProxy(listenPort, '/v2/items')).body)
+      .toBe('upstream /v2/items');
+    expect(((await client.call('get_status')) as { running: boolean }).running).toBe(true);
+  } finally {
+    await other.close();
+  }
+});
+
+test('headless: the rule tools are gated behind control', async () => {
+  const client = await launchHeadless([]);
+  expect(((await client.call('list_rules')) as { mocks: unknown[] }).mocks).toEqual([]);
+  for (const [method, params] of [
+    ['add_mock', { path: '/x' }],
+    ['add_route', { path: '/x', target: 'http://localhost:1' }],
+    ['update_rule', { id: 'x', enabled: false }],
+    ['remove_rule', { all: true }],
+  ] as const) {
+    const error = await client.call(method, params).catch((e) => e);
+    expect(error, method).toBeInstanceOf(ControlCallError);
+  }
+});

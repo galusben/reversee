@@ -233,6 +233,47 @@ describe('replay and HAR actions', () => {
     );
   });
 
+  it('Mock This Response opens the rules screen with the response prefilled', async () => {
+    useProxyStore.setState({
+      traffic: [
+        entry(1),
+        entry(2, {
+          request: { url: '/users?page=2', method: 'get', headers: {} },
+          response: {
+            statusCode: 201,
+            headers: { 'content-type': ['application/json', 'x'], etag: 'abc' },
+            body: new TextEncoder().encode('{"id":1}'),
+          },
+        }),
+      ],
+    });
+    render(<TrafficTable />);
+    fireEvent.contextMenu(dataRows()[1]);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Mock This Response…' }));
+    expect(useUiStore.getState().rulesOpen).toBe(true);
+    expect(useUiStore.getState().rulesSeed).toEqual({
+      kind: 'mock',
+      rule: {
+        name: 'get /users',
+        enabled: true,
+        method: 'GET',
+        pathPattern: '^/users(?:\\?.*)?$',
+        statusCode: 201,
+        headers: { 'content-type': 'application/json' },
+        body: '{"id":1}',
+      },
+    });
+  });
+
+  it('Route Requests Like This seeds a route for that path', async () => {
+    openMenu();
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Route Requests Like This…' }));
+    expect(useUiStore.getState().rulesSeed).toMatchObject({
+      kind: 'route',
+      rule: { destProtocol: 'http', dest: 'localhost', destPort: 3000 },
+    });
+  });
+
   it('Edit and Replay opens the editor for that request', async () => {
     openMenu();
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Edit and Replay…' }));
@@ -577,98 +618,386 @@ describe('PreferencesDialog', () => {
 });
 
 describe('RulesDialog', () => {
-  function open(settings = {}) {
+  function open(
+    settings = {},
+    seed?: Parameters<ReturnType<typeof useUiStore.getState>['setRulesOpen']>[1]
+  ) {
     useProxyStore.setState({ settings: { ...defaultSettings, ...settings } });
-    useUiStore.setState({ rulesOpen: true });
+    act(() => useUiStore.getState().setRulesOpen(true, seed));
     render(<RulesDialog />);
   }
-
-  it('adds a route and saves it only once it is valid', async () => {
-    open();
-    fireEvent.click(screen.getByRole('button', { name: /Add route/ }));
-    const save = screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement;
-    expect(save.disabled).toBe(true);
-    expect(screen.getByRole('alert').textContent).toBe('destination host is required');
-
-    fireEvent.change(screen.getByLabelText('Route 1 path pattern'), { target: { value: '(' } });
-    fireEvent.change(screen.getByLabelText('Route 1 destination host'), {
-      target: { value: 'v2.internal' },
-    });
-    expect(screen.getByRole('alert').textContent).toBe('path pattern is not a valid regex');
-    fireEvent.change(screen.getByLabelText('Route 1 path pattern'), { target: { value: '^/v2/' } });
-    fireEvent.change(screen.getByLabelText('Route 1 destination port'), {
-      target: { value: '8443' },
-    });
-    fireEvent.change(screen.getByLabelText('Route 1 protocol'), { target: { value: 'https' } });
-    expect(screen.queryByRole('alert')).toBeNull();
-    expect(save.disabled).toBe(false);
-
-    fireEvent.click(save);
+  const value = (label: string) =>
+    (screen.getByLabelText(label) as HTMLInputElement | HTMLTextAreaElement).value;
+  const change = (label: string, v: string) =>
+    fireEvent.change(screen.getByLabelText(label), { target: { value: v } });
+  const saved = async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(fake.api.setSettings).toHaveBeenCalledOnce());
-    const patch = fake.api.setSettings.mock.calls[0][0] as { routes: unknown[]; mocks: unknown[] };
-    expect(patch.mocks).toEqual([]);
-    expect(patch.routes).toEqual([
+    return fake.api.setSettings.mock.calls[0][0] as { routes: unknown[]; mocks: unknown[] };
+  };
+
+  it('explains both kinds and starts on mocks with examples', () => {
+    open({ dest: 'api.example.com', destProtocol: 'https', destPort: 443 });
+    expect(screen.getByRole('tab', { name: /Mocks \(0\)/ }).getAttribute('aria-selected')).toBe(
+      'true'
+    );
+    expect(screen.getByText(/Answer with a response you write/)).toBeTruthy();
+    expect(screen.getByText(/Send some requests to a different server/)).toBeTruthy();
+    expect(screen.getByText('https://api.example.com:443')).toBeTruthy();
+    expect(screen.getByText('No mocks yet.')).toBeTruthy();
+    expect(screen.getByText(/Rules take effect when the proxy is started/)).toBeTruthy();
+  });
+
+  it('says rules apply at once while the proxy runs', () => {
+    useProxyStore.setState({ running: true });
+    open();
+    expect(screen.getByText(/applies the rules to the running proxy at once/)).toBeTruthy();
+  });
+
+  it('opens on routes when only routes exist', () => {
+    open({
+      routes: [
+        {
+          id: 'r',
+          enabled: true,
+          pathPattern: '^/v2/',
+          destProtocol: 'http',
+          dest: 'x',
+          destPort: 1,
+        },
+      ],
+    });
+    expect(screen.getByRole('tab', { name: /Routes \(1\)/ }).getAttribute('aria-selected')).toBe(
+      'true'
+    );
+    expect(value('Route 1 path match')).toBe('prefix');
+    expect(value('Route 1 path')).toBe('/v2/');
+  });
+
+  it('builds a mock from a starter and saves the plain match as a regex', async () => {
+    open();
+    fireEvent.click(screen.getByRole('button', { name: 'Server error (500)' }));
+    expect(value('Mock 1 name')).toBe('Server error');
+    expect(value('Mock 1 status')).toBe('500');
+    change('Mock 1 path', '/api/pay');
+    change('Mock 1 method', 'POST');
+    const patch = await saved();
+    expect(patch.routes).toEqual([]);
+    expect(patch.mocks).toEqual([
       {
         id: expect.any(String),
+        name: 'Server error',
         enabled: true,
-        pathPattern: '^/v2/',
-        destProtocol: 'https',
-        dest: 'v2.internal',
-        destPort: 8443,
+        method: 'POST',
+        pathPattern: '^/api/pay(?:\\?.*)?$',
+        statusCode: 500,
+        headers: { 'content-type': 'application/json' },
+        body: '{\n  "error": "Internal Server Error"\n}',
       },
     ]);
     await waitFor(() => expect(useUiStore.getState().rulesOpen).toBe(false));
   });
 
-  it('edits, disables and deletes existing mocks', async () => {
-    const mock = (id: string, pathPattern: string) => ({
+  it('a new mock cannot be saved until it has a valid path, status and delay', () => {
+    open();
+    fireEvent.click(screen.getByRole('button', { name: /Add mock/ }));
+    const save = screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    expect(screen.getByRole('alert').textContent).toMatch(/Enter the path this mock answers/);
+
+    change('Mock 1 path match', 'regex');
+    change('Mock 1 path', '(');
+    expect(screen.getByRole('alert').textContent).toMatch(/not a valid regular expression/);
+    change('Mock 1 path', '^/v[12]/');
+    expect(screen.queryByRole('alert')).toBeNull();
+
+    change('Mock 1 status', '99');
+    expect(screen.getByRole('alert').textContent).toMatch(/status must be a number/);
+    change('Mock 1 status', '204');
+    change('Mock 1 delay', 'soon');
+    expect(screen.getByRole('alert').textContent).toMatch(/delay must be a whole number/);
+    change('Mock 1 delay', '250');
+    expect(save.disabled).toBe(false);
+  });
+
+  it('edits body type, headers and JSON, with a warning for broken JSON', async () => {
+    const mock = {
+      id: 'a',
+      enabled: true,
+      pathPattern: '^/a',
+      statusCode: 200,
+      headers: { 'content-type': 'text/plain', 'x-keep': '1' },
+      body: 'hi',
+    };
+    open({ mocks: [mock] });
+    expect(value('Mock 1 path match')).toBe('prefix');
+    expect(screen.getByRole('button', { name: 'Text' }).getAttribute('aria-pressed')).toBe('true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'JSON' }));
+    expect(screen.getByText(/The body is not valid JSON/)).toBeTruthy();
+    change('Mock 1 body', '{"down":true}');
+    expect(screen.queryByText(/The body is not valid JSON/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Format JSON' }));
+    expect(value('Mock 1 body')).toBe('{\n  "down": true\n}');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit headers (2)' }));
+    expect(value('Mock 1 headers')).toBe('content-type: application/json\nx-keep: 1');
+    change('Mock 1 headers', 'content-type: application/json\nx-mock: 1\nnot a header');
+    fireEvent.click(screen.getByRole('button', { name: 'Hide headers' }));
+    expect(screen.queryByLabelText('Mock 1 headers')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'HTML' }));
+    change('Mock 1 delay', '250');
+    fireEvent.click(screen.getByLabelText('Mock 1 enabled'));
+
+    expect((await saved()).mocks).toEqual([
+      {
+        id: 'a',
+        enabled: false,
+        pathPattern: '^/a',
+        statusCode: 200,
+        headers: { 'content-type': 'text/html', 'x-mock': '1' },
+        body: '{\n  "down": true\n}',
+        delayMs: 250,
+      },
+    ]);
+  });
+
+  it('reorders, duplicates, collapses and deletes rules', async () => {
+    const mock = (id: string, path: string) => ({
+      id,
+      name: id.toUpperCase(),
+      enabled: true,
+      pathPattern: `^${path}`,
+      statusCode: 200,
+      headers: {},
+      body: '',
+    });
+    open({ mocks: [mock('a', '/a'), mock('b', '/b'), mock('c', '/c')] });
+    // Three rules start collapsed to their summaries.
+    expect(screen.queryByLabelText('Mock 1 path')).toBeNull();
+    expect(screen.getByText('Any method · path starts with /a → 200')).toBeTruthy();
+    expect(
+      (screen.getByRole('button', { name: 'Move mock 1 up' }) as HTMLButtonElement).disabled
+    ).toBe(true);
+    expect(
+      (screen.getByRole('button', { name: 'Move mock 3 down' }) as HTMLButtonElement).disabled
+    ).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move mock 1 down' })); // b a c
+    fireEvent.click(screen.getByRole('button', { name: 'Move mock 3 up' })); // b c a
+    fireEvent.click(screen.getByRole('button', { name: 'Delete mock 1' })); // c a
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate mock 1' })); // c a c-copy
+    expect(value('Mock 3 name')).toBe('C copy'); // the copy opens for editing
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse mock 3' }));
+    expect(screen.queryByLabelText('Mock 3 name')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Expand mock 2' }));
+    change('Mock 2 path', '');
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse mock 2' }));
+    // A collapsed rule still shows what is wrong with it.
+    expect(screen.getByRole('alert').textContent).toMatch(/Enter the path/);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete mock 2' }));
+
+    const { mocks } = (await saved()) as { mocks: { id: string; name: string }[] };
+    expect(mocks.map((m) => m.name)).toEqual(['C', 'C copy']);
+    expect(mocks[0]?.id).toBe('c');
+    expect(mocks[1]?.id).not.toBe('c');
+  });
+
+  it('adds a route from the example and validates it', async () => {
+    open();
+    fireEvent.click(screen.getByRole('tab', { name: /Routes/ }));
+    expect(screen.getByText('No routes yet.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Example: \/api\/v2/ }));
+    expect(value('Route 1 path')).toBe('/api/v2');
+    expect(value('Route 1 destination host')).toBe('localhost');
+    const save = screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement;
+    expect(save.disabled).toBe(false);
+
+    change('Route 1 path', '');
+    expect(screen.getByRole('alert').textContent).toMatch(/Enter a path or a host/);
+    change('Route 1 host match', 'regex');
+    change('Route 1 host', '(');
+    expect(screen.getByRole('alert').textContent).toMatch(/host is not a valid regular/);
+    change('Route 1 host match', 'exact');
+    change('Route 1 host', 'api.example.com');
+    change('Route 1 path match', 'regex');
+    change('Route 1 path', '[');
+    expect(screen.getByRole('alert').textContent).toMatch(/path is not a valid regular/);
+    change('Route 1 path match', 'exact');
+    change('Route 1 path', '/health');
+    change('Route 1 destination host', ' ');
+    expect(screen.getByRole('alert').textContent).toMatch(/Enter the server/);
+    change('Route 1 destination host', 'v2.internal');
+    change('Route 1 destination port', '0');
+    expect(screen.getByRole('alert').textContent).toMatch(/port must be between/);
+    expect(save.disabled).toBe(true);
+    // Switching protocol follows the default port only when none was typed.
+    change('Route 1 destination port', '80');
+    change('Route 1 protocol', 'https');
+    expect(value('Route 1 destination port')).toBe('443');
+    change('Route 1 destination port', '8443');
+    change('Route 1 protocol', 'http');
+    expect(value('Route 1 destination port')).toBe('8443');
+    change('Route 1 name', '  Health  ');
+
+    expect((await saved()).routes).toEqual([
+      {
+        id: expect.any(String),
+        name: 'Health',
+        enabled: true,
+        hostPattern: '^api\\.example\\.com$',
+        pathPattern: '^/health(?:\\?.*)?$',
+        destProtocol: 'http',
+        dest: 'v2.internal',
+        destPort: 8443,
+      },
+    ]);
+  });
+
+  it('adds, reorders, duplicates and removes routes', async () => {
+    const route = (id: string) => ({
       id,
       enabled: true,
-      pathPattern,
-      statusCode: 200,
-      headers: { 'content-type': 'text/plain' },
-      body: 'hi',
+      pathPattern: `^/${id}`,
+      destProtocol: 'http' as const,
+      dest: id,
+      destPort: 80,
     });
-    open({ mocks: [mock('a', '^/a'), mock('b', '^/b')] });
-    openTab(/Mocks \(2\)/);
+    open({ routes: [route('a'), route('b'), route('c')] });
+    expect(screen.getByText('path starts with /a → http://a:80')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Move route 1 down' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate route 3' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete route 3' }));
+    fireEvent.click(screen.getByLabelText('Route 1 enabled'));
+    fireEvent.click(screen.getByRole('button', { name: 'Expand route 2' }));
+    change('Route 2 path', '');
+    change('Route 2 host', '');
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse route 2' }));
+    expect(screen.getByRole('alert').textContent).toMatch(/Enter a path or a host/);
+    expect(screen.getByText('New route')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete route 2' }));
+    fireEvent.click(screen.getByRole('button', { name: /Add route/ }));
+    change('Route 3 host', 'x.test');
+    change('Route 3 destination host', 'y.test');
+    expect(screen.getByText(/host is x\.test → http:\/\/y\.test:80/)).toBeTruthy();
 
-    expect((screen.getByLabelText('Mock 1 headers') as HTMLTextAreaElement).value).toBe(
-      'content-type: text/plain'
-    );
-    fireEvent.change(screen.getByLabelText('Mock 1 status'), { target: { value: '503' } });
-    fireEvent.change(screen.getByLabelText('Mock 1 method'), { target: { value: 'POST' } });
-    fireEvent.change(screen.getByLabelText('Mock 1 delay'), { target: { value: '250' } });
-    fireEvent.change(screen.getByLabelText('Mock 1 headers'), {
-      target: { value: 'content-type: application/json\nx-mock: 1\nnot a header' },
+    const { routes } = (await saved()) as { routes: { dest: string; enabled: boolean }[] };
+    expect(routes.map((r) => [r.dest, r.enabled])).toEqual([
+      ['b', false],
+      ['c', true],
+      ['y.test', true],
+    ]);
+  });
+
+  it('shows how many captured requests each rule matches', () => {
+    useProxyStore.setState({
+      traffic: [
+        entry(1, {
+          request: { url: '/api/flags?u=1', method: 'GET', headers: { host: 'a.test:80' } },
+        }),
+        entry(2, { request: { url: '/api/flags', method: 'POST', headers: { host: ['b.test'] } } }),
+        entry(3, { request: { url: '/other', method: 'GET', headers: {} } }),
+      ],
     });
-    fireEvent.change(screen.getByLabelText('Mock 1 body'), { target: { value: '{"down":true}' } });
-    fireEvent.click(screen.getByLabelText('Mock 1 enabled'));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete mock 2' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-
-    await waitFor(() => expect(fake.api.setSettings).toHaveBeenCalledOnce());
-    expect(fake.api.setSettings.mock.calls[0][0]).toEqual({
-      routes: [],
+    open({
       mocks: [
         {
-          id: 'a',
-          enabled: false,
-          method: 'POST',
-          pathPattern: '^/a',
-          statusCode: 503,
-          headers: { 'content-type': 'application/json', 'x-mock': '1' },
-          body: '{"down":true}',
-          delayMs: 250,
+          id: 'm',
+          enabled: true,
+          method: 'GET',
+          pathPattern: '^/api/flags(?:\\?.*)?$',
+          statusCode: 200,
+          headers: {},
+          body: '',
+        },
+      ],
+      routes: [
+        {
+          id: 'r',
+          enabled: true,
+          hostPattern: '^a\\.test$',
+          pathPattern: '^/api',
+          destProtocol: 'http',
+          dest: 'x',
+          destPort: 1,
         },
       ],
     });
+    expect(screen.getByText('Matches 1 of 3 captured requests')).toBeTruthy();
+    change('Mock 1 method', '');
+    expect(screen.getByText('Matches 2 of 3 captured requests')).toBeTruthy();
+    change('Mock 1 path', '/nothing');
+    expect(screen.getByText('Matches no captured request')).toBeTruthy();
+    change('Mock 1 path', '');
+    expect(screen.getByText('Matches no captured request')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('tab', { name: /Routes/ }));
+    expect(screen.getByText('Matches 1 of 3 captured requests')).toBeTruthy();
+    change('Route 1 host', '');
+    expect(screen.getByText('Matches 2 of 3 captured requests')).toBeTruthy();
+    change('Route 1 path', '');
+    expect(screen.getByText('Matches no captured request')).toBeTruthy();
+    change('Route 1 path match', 'regex');
+    change('Route 1 path', '(');
+    expect(screen.getByText('Matches no captured request')).toBeTruthy();
   });
 
-  it('Cancel discards the drafts', () => {
-    open();
-    fireEvent.click(screen.getByRole('button', { name: /Add route/ }));
+  it('opens with a prefilled mock or route when seeded', async () => {
+    open(
+      {
+        mocks: [
+          {
+            id: 'old',
+            enabled: true,
+            pathPattern: '^/old',
+            statusCode: 200,
+            headers: {},
+            body: '',
+          },
+        ],
+      },
+      {
+        kind: 'mock',
+        rule: {
+          name: 'GET /users',
+          enabled: true,
+          method: 'GET',
+          pathPattern: '^/users(?:\\?.*)?$',
+          statusCode: 201,
+          headers: { 'content-type': 'application/json' },
+          body: '[]',
+        },
+      }
+    );
+    expect(value('Mock 1 name')).toBe('GET /users');
+    expect(value('Mock 1 path match')).toBe('exact');
+    expect(value('Mock 1 path')).toBe('/users');
+    const { mocks } = (await saved()) as { mocks: { id: string }[] };
+    expect(mocks).toHaveLength(2);
+    expect(mocks[1]?.id).toBe('old');
+  });
+
+  it('a route seed opens the routes tab; closing clears the seed', () => {
+    open(
+      {},
+      {
+        kind: 'route',
+        rule: {
+          enabled: true,
+          pathPattern: '^/users',
+          destProtocol: 'http',
+          dest: 'localhost',
+          destPort: 3000,
+        },
+      }
+    );
+    expect(screen.getByRole('tab', { name: /Routes \(1\)/ }).getAttribute('aria-selected')).toBe(
+      'true'
+    );
+    expect(value('Route 1 path')).toBe('/users');
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(useUiStore.getState().rulesOpen).toBe(false);
+    expect(useUiStore.getState().rulesSeed).toBeNull();
     expect(fake.api.setSettings).not.toHaveBeenCalled();
   });
 });
@@ -815,7 +1144,7 @@ describe('App shell', () => {
 
   it('opens Rules and Preferences from the settings bar', async () => {
     render(<App />);
-    fireEvent.click(await screen.findByRole('button', { name: /Rules/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Routes and mocks/ }));
     expect(useUiStore.getState().rulesOpen).toBe(true);
     act(() => useUiStore.getState().setRulesOpen(false)); // a modal hides the bar behind it
     fireEvent.click(await screen.findByRole('button', { name: 'Preferences' }));

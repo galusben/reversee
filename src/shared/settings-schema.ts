@@ -111,6 +111,11 @@ function optionalPattern(value: unknown): string | undefined | null {
   return value;
 }
 
+function ruleName(value: unknown): { name?: string } {
+  const name = typeof value === 'string' ? value.trim().slice(0, 80) : '';
+  return name ? { name } : {};
+}
+
 /** A well-formed route rule, or null when any field is invalid. */
 export function sanitizeRouteRule(raw: unknown): RouteRule | null {
   if (typeof raw !== 'object' || raw === null) return null;
@@ -123,6 +128,7 @@ export function sanitizeRouteRule(raw: unknown): RouteRule | null {
   if (!isProtocol(r['destProtocol']) || !isValidPort(r['destPort'])) return null;
   return {
     id: r['id'],
+    ...ruleName(r['name']),
     enabled: r['enabled'] !== false,
     ...(hostPattern ? { hostPattern } : {}),
     ...(pathPattern ? { pathPattern } : {}),
@@ -148,6 +154,7 @@ export function sanitizeMockRule(raw: unknown): MockRule | null {
   const method = typeof r['method'] === 'string' ? r['method'].trim().toUpperCase() : '';
   return {
     id: r['id'],
+    ...ruleName(r['name']),
     enabled: r['enabled'] !== false,
     ...(method && method !== '*' ? { method } : {}),
     pathPattern: r['pathPattern'],

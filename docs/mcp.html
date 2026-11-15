@@ -6,7 +6,7 @@
     <title>Reversee MCP tools — control an HTTP proxy from Claude Code &amp; Cursor</title>
     <meta
       name="description"
-      content="The full Reversee MCP tool reference: 24 tools that let AI agents (Claude Code, Cursor, any MCP client) inspect and control a reverse proxy — search traffic, replay requests, inject faults, decode JWTs and gRPC. Read-only by default, one-line setup."
+      content="The full Reversee MCP tool reference: 29 tools that let AI agents (Claude Code, Cursor, any MCP client) inspect and control a reverse proxy — search traffic, replay requests, mock endpoints, inject faults, decode JWTs and gRPC. Read-only by default, one-line setup."
     />
     <link rel="canonical" href="https://galusben.github.io/reversee/mcp.html" />
     <link rel="icon" type="image/png" href="./logo.png" />
@@ -16,7 +16,7 @@
     <meta property="og:title" content="Reversee MCP tools — drive an HTTP proxy from AI agents" />
     <meta
       property="og:description"
-      content="24 MCP tools for AI agents to inspect and control Reversee's reverse proxy: search & summarize traffic, replay requests, install interceptors, decode JWTs and gRPC. Read-only by default."
+      content="29 MCP tools for AI agents to inspect and control Reversee's reverse proxy: search & summarize traffic, replay requests, install interceptors, decode JWTs and gRPC. Read-only by default."
     />
     <meta property="og:url" content="https://galusben.github.io/reversee/mcp.html" />
     <meta
@@ -54,7 +54,7 @@
         "mainEntity": {
           "@type": "ItemList",
           "name": "Reversee MCP tools",
-          "numberOfItems": 24,
+          "numberOfItems": 29,
           "itemListElement": [
             { "@type": "ListItem", "position": 1, "name": "get_status" },
             { "@type": "ListItem", "position": 2, "name": "validate_setup" },
@@ -79,7 +79,12 @@
             { "@type": "ListItem", "position": 21, "name": "list_held_requests" },
             { "@type": "ListItem", "position": 22, "name": "resume_held_request" },
             { "@type": "ListItem", "position": 23, "name": "export_har" },
-            { "@type": "ListItem", "position": 24, "name": "regenerate_root_cert" }
+            { "@type": "ListItem", "position": 24, "name": "regenerate_root_cert" },
+            { "@type": "ListItem", "position": 25, "name": "list_rules" },
+            { "@type": "ListItem", "position": 26, "name": "add_mock" },
+            { "@type": "ListItem", "position": 27, "name": "add_route" },
+            { "@type": "ListItem", "position": 28, "name": "update_rule" },
+            { "@type": "ListItem", "position": 29, "name": "remove_rule" }
           ]
         }
       }
@@ -427,11 +432,11 @@
           <div class="crumbs"><a href="./">Reversee</a> → MCP tools</div>
           <h1>Reversee <span class="grad-text">MCP tools</span></h1>
           <p class="lede">
-            Reversee exposes <strong>24 Model Context Protocol tools</strong> so AI agents — Claude
+            Reversee exposes <strong>29 Model Context Protocol tools</strong> so AI agents — Claude
             Code, Cursor, or any MCP client — can inspect and control its reverse proxy: search and
-            summarize captured traffic, replay requests, install interceptors for mocking and fault
-            injection, and decode JWTs and gRPC. Read-only by default; the proxy-changing tools stay
-            locked until you opt in.
+            summarize captured traffic, replay requests, mock endpoints and reroute paths, install
+            interceptors for fault injection, and decode JWTs and gRPC. Read-only by default; the
+            proxy-changing tools stay locked until you opt in.
           </p>
           <div class="cta-row">
             <a class="btn btn-primary" href="#setup">Set up in one line</a>
@@ -493,7 +498,7 @@
 
       <section class="section-soft">
         <div class="wrap">
-          <h2 class="section-title">The 24 tools</h2>
+          <h2 class="section-title">The 29 tools</h2>
           <p class="section-sub">
             Descriptions below are verbatim — this is exactly what an agent reads in the
             <code>tools/list</code> response. The app owns this catalog and serves it to the bridge
@@ -712,6 +717,78 @@
                 <code>code</code> (string — omit to leave unchanged),
                 <code>enabled</code> (boolean).
               </p>
+            </div>
+          </div>
+
+          <div class="toolgroup">
+            <h3>Mocks &amp; routes</h3>
+            <div class="tool">
+              <div class="tool-head">
+                <span class="tool-name">list_rules</span><span class="tag tag-read">READ</span>
+              </div>
+              <p class="desc">
+                List the mock and route rules in match order, each with its id and a plain-language
+                summary. The first enabled mock that matches answers the request; otherwise the
+                first enabled route picks the upstream; otherwise the default destination is used.
+              </p>
+              <p class="params">No parameters.</p>
+            </div>
+            <div class="tool">
+              <div class="tool-head">
+                <span class="tool-name">add_mock</span><span class="tag tag-gated">CONTROL</span>
+              </div>
+              <p class="desc">
+                Answer matching requests with a canned response, without contacting the upstream.
+                Fake an endpoint, force an error status, or add latency. Takes effect immediately,
+                also while the proxy runs. Example:
+                <code>{"path": "/api/flags", "body": {"beta": true}}</code>.
+              </p>
+              <p class="params">
+                <code>path</code> (string, required), <code>pathMatch</code> (<code>"exact"</code>
+                default | <code>"prefix"</code> | <code>"contains"</code> | <code>"regex"</code>),
+                <code>method</code>, <code>status</code> (default 200), <code>body</code> (string,
+                or object/array sent as JSON), <code>headers</code>, <code>delayMs</code>,
+                <code>name</code>, <code>priority</code> (<code>"first"</code> default |
+                <code>"last"</code>).
+              </p>
+            </div>
+            <div class="tool">
+              <div class="tool-head">
+                <span class="tool-name">add_route</span><span class="tag tag-gated">CONTROL</span>
+              </div>
+              <p class="desc">
+                Send matching requests to a different upstream than the default destination, for
+                example one path to a local service while the rest goes to staging. The request path
+                is forwarded unchanged. Takes effect immediately. Example:
+                <code>{"path": "/api/v2", "target": "http://localhost:3001"}</code>.
+              </p>
+              <p class="params">
+                <code>target</code> (URL, required), <code>path</code>,
+                <code>pathMatch</code> (<code>"prefix"</code> default | <code>"exact"</code> |
+                <code>"contains"</code> | <code>"regex"</code>), <code>host</code>,
+                <code>hostMatch</code> (<code>"exact"</code> default | <code>"regex"</code>),
+                <code>name</code>, <code>priority</code>. Give <code>path</code> and/or
+                <code>host</code>.
+              </p>
+            </div>
+            <div class="tool">
+              <div class="tool-head">
+                <span class="tool-name">update_rule</span><span class="tag tag-gated">CONTROL</span>
+              </div>
+              <p class="desc">Enable or disable one mock or route by id, without deleting it.</p>
+              <p class="params">
+                <code>id</code> (string, required), <code>enabled</code> (boolean, required).
+              </p>
+            </div>
+            <div class="tool">
+              <div class="tool-head">
+                <span class="tool-name">remove_rule</span><span class="tag tag-gated">CONTROL</span>
+              </div>
+              <p class="desc">
+                Delete one mock or route by id, or every mock and route with
+                <code>{"all": true}</code>.
+              </p>
+              <p class="params"><code>id</code> (string) or <code>all</code> (boolean).</p>
             </div>
           </div>
 

@@ -179,19 +179,24 @@ test('a mock rule added in the Rules dialog answers without the upstream; a rout
   });
   const { page } = launched;
 
-  await page.getByRole('button', { name: /Rules \(1\)/ }).click();
+  const rulesButton = page.getByRole('button', { name: /Routes and mocks/ });
+  await expect(rulesButton).toHaveAccessibleName('Routes and mocks, 1 active');
+  await rulesButton.click();
   const dialog = page.getByRole('dialog', { name: 'Routes and mocks' });
-  await expect(dialog.getByLabel('Route 1 path pattern')).toHaveValue('^/v2/');
+  // With only routes saved the screen opens on them, shown as a plain match.
+  await expect(dialog.getByLabel('Route 1 path match')).toHaveValue('prefix');
+  await expect(dialog.getByLabel('Route 1 path', { exact: true })).toHaveValue('/v2/');
   await dialog.getByRole('tab', { name: /Mocks/ }).click();
+  await expect(dialog.getByText('No mocks yet.')).toBeVisible();
   await dialog.getByRole('button', { name: 'Add mock' }).click();
   // Not saveable until the rule is valid.
   await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled();
-  await dialog.getByLabel('Mock 1 path pattern').fill('^/api/flags');
+  await dialog.getByLabel('Mock 1 path', { exact: true }).fill('/api/flags');
   await dialog.getByLabel('Mock 1 status').fill('418');
   await dialog.getByLabel('Mock 1 body').fill('{"feature":"on"}');
   await dialog.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /Rules \(2\)/ })).toBeVisible();
+  await expect(rulesButton).toHaveAccessibleName('Routes and mocks, 2 active');
 
   await page.getByRole('button', { name: 'Start' }).click();
   await expect(page.getByText(/Proxy running/)).toBeVisible();
@@ -214,6 +219,25 @@ test('a mock rule added in the Rules dialog answers without the upstream; a rout
   await expect(page.getByLabel('Request summary')).toContainText(
     `→ http://127.0.0.1:${other.port}`
   );
+
+  // While the proxy runs: turn a captured response into a mock, edit it, and
+  // see it answer the very next request. No restart.
+  await row(page, '/v1/users').click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Mock This Response…' }).click();
+  await expect(dialog.getByLabel('Mock 1 name')).toHaveValue('GET /v1/users');
+  await expect(dialog.getByLabel('Mock 1 path', { exact: true })).toHaveValue('/v1/users');
+  await expect(dialog.getByLabel('Mock 1 body')).toHaveValue('main upstream');
+  await expect(dialog.getByText(/Matches 1 of 3 captured requests/)).toBeVisible();
+  await expect(dialog.getByText(/applies the rules to the running proxy at once/)).toBeVisible();
+  await dialog.getByLabel('Mock 1 body').fill('from the mock');
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByText(/Proxy running/)).toBeVisible();
+  const before = main.requests.length;
+  await expect
+    .poll(async () => (await fetchViaProxy(listenPort, '/v1/users?live=1')).body)
+    .toBe('from the mock');
+  expect(main.requests).toHaveLength(before);
 });
 
 test('a response breakpoint holds the response until it is edited and continued', async () => {

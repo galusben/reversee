@@ -4,6 +4,11 @@ import log from 'electron-log';
 import path from 'node:path';
 import iconAsset from '../../resources/icon.png?asset';
 
+/** How long to wait for ready-to-show before showing the window anyway. */
+const REVEAL_FALLBACK_MS = 5000;
+/** Grace given to ready-to-show once the page has loaded. */
+const REVEAL_AFTER_LOAD_MS = 300;
+
 const EXTERNAL_LINK_ALLOWLIST = ['https://github.com/galusben/reversee'];
 
 /**
@@ -50,11 +55,25 @@ export function createMainWindow(): BrowserWindow {
     event.preventDefault();
   });
 
-  win.on('ready-to-show', () => {
-    log.info('main window ready-to-show');
+  // ready-to-show is not guaranteed: when the main thread was blocked for a
+  // long time during startup (a macOS keychain prompt waiting on the user) it
+  // has been seen never to fire, leaving the app running with no window. The
+  // page load and a timer are fallbacks, so the window always appears.
+  let shown = false;
+  const reveal = (reason: string): void => {
+    if (shown || win.isDestroyed()) return;
+    shown = true;
+    clearTimeout(revealTimer);
+    log.info(`main window ${reason}`);
     win.show();
     win.focus();
+  };
+  const revealTimer = setTimeout(() => reveal('shown by fallback timer'), REVEAL_FALLBACK_MS);
+  win.once('ready-to-show', () => reveal('ready-to-show'));
+  win.webContents.once('did-finish-load', () => {
+    setTimeout(() => reveal('shown after load'), REVEAL_AFTER_LOAD_MS);
   });
+  win.once('closed', () => clearTimeout(revealTimer));
 
   if (process.env['ELECTRON_RENDERER_URL']) {
     void win.loadURL(process.env['ELECTRON_RENDERER_URL']);
