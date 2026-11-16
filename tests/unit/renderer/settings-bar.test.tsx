@@ -70,6 +70,30 @@ describe('SettingsBar', () => {
     expect(startButton().disabled).toBe(true);
   });
 
+  it('switches to capture anything: no destination needed, the proxy address is shown', async () => {
+    fake.setStoredSettings({ dest: '', listenPort: 8123 });
+    await useProxyStore.getState().init();
+    render(<SettingsBar />);
+    expect(startButton().disabled).toBe(true);
+
+    fireEvent.change(screen.getByLabelText('Mode'), { target: { value: 'capture' } });
+    await waitFor(() => expect(fake.api.setSettings).toHaveBeenCalledWith({ captureAll: true }));
+    await waitFor(() => expect(screen.queryByLabelText('Destination host')).toBeNull());
+    expect(screen.queryByLabelText('Listen protocol')).toBeNull();
+    expect(screen.queryByLabelText('gRPC')).toBeNull();
+    expect(screen.getByText('http://localhost:8123')).toBeTruthy();
+    expect(startButton().disabled).toBe(false);
+
+    fireEvent.click(screen.getByRole('button', { name: 'How to connect' }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.textContent).toContain('export HTTPS_PROXY=http://localhost:8123');
+    expect(dialog.textContent).toContain('Export Root Cert');
+
+    // An invalid (hidden) destination port must not block Start in this mode.
+    fireEvent.change(screen.getByLabelText('Mode'), { target: { value: 'forward' } });
+    await waitFor(() => expect(fake.api.setSettings).toHaveBeenCalledWith({ captureAll: false }));
+  });
+
   it('starts the proxy, and shows a start failure', async () => {
     render(<SettingsBar />);
     fireEvent.click(startButton());

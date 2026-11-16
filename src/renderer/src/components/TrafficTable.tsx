@@ -14,7 +14,7 @@ import { useProxyStore, type SortKey, type SortState } from '../stores/proxyStor
 import { useUiStore } from '../stores/uiStore';
 import { WithContextMenu } from './ui/ContextMenu';
 import { mockFromEntry, routeFromEntry } from '../lib/rule-seed';
-import { filterTraffic } from '../../../shared/traffic-query';
+import { filterTraffic, hostOf } from '../../../shared/traffic-query';
 import { formatBytes, formatDuration, totalMs } from '../../../shared/timings';
 import type { TrafficEntry } from '../../../shared/types';
 
@@ -47,6 +47,17 @@ function statusText(entry: TrafficEntry): string {
   return String(entry.response.statusCode);
 }
 
+/** Host cell: the server the request went to, with the port when it is not the usual one. */
+function hostLabel(entry: TrafficEntry): string {
+  const target = entry.request.target;
+  if (!target) {
+    const host = hostOf(entry);
+    return host === '(unknown)' ? '' : host;
+  }
+  const usual = target.protocol === 'https' ? 443 : 80;
+  return target.port === usual ? target.host : `${target.host}:${target.port}`;
+}
+
 function contentType(entry: TrafficEntry): string {
   const value = entry.response.headers['content-type'];
   const text = Array.isArray(value) ? value[0] : value;
@@ -70,6 +81,8 @@ function sortValue(entry: TrafficEntry, key: SortKey): number | string {
       return entry.trafficId;
     case 'method':
       return entry.grpc ? 'GRPC' : entry.request.method;
+    case 'host':
+      return hostLabel(entry);
     case 'url':
       return entry.request.url;
     case 'status':
@@ -138,6 +151,9 @@ const Row = memo(function Row({
           entry.request.method
         )}
       </td>
+      <td className="max-w-0 truncate px-3 text-neutral-600" title={hostLabel(entry)}>
+        {hostLabel(entry)}
+      </td>
       <td className="max-w-0 px-3" title={entry.request.url}>
         {entry.ws && <Badge tone="bg-emerald-100 text-emerald-700">WS</Badge>}
         {entry.mocked && <Badge tone="bg-amber-100 text-amber-800">MOCK</Badge>}
@@ -160,6 +176,7 @@ const Row = memo(function Row({
 const COLUMNS: Array<{ key: SortKey | null; label: string; className: string }> = [
   { key: 'id', label: '#', className: 'w-16' },
   { key: 'method', label: 'Method', className: 'w-20' },
+  { key: 'host', label: 'Host', className: 'w-48' },
   { key: 'url', label: 'Path', className: '' },
   { key: 'status', label: 'Status', className: 'w-20' },
   { key: 'type', label: 'Content-Type', className: 'w-44' },
@@ -291,7 +308,7 @@ export function TrafficTable(): React.JSX.Element {
             ref={filterRef}
             type="text"
             aria-label="Filter traffic"
-            placeholder="Filter — method, path, status, content-type…"
+            placeholder="Filter — method, host, path, status, content-type…"
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
             onKeyDown={(e) => {

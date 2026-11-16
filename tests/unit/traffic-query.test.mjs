@@ -62,6 +62,14 @@ describe('filterTraffic', () => {
     expect(ids(filterTraffic(sample, { status: 404 }))).toEqual([3]);
   });
 
+  it('filters by host, with or without the port', () => {
+    expect(ids(filterTraffic(sample, { host: 'CDN.' }))).toEqual([4, 5]);
+    expect(ids(filterTraffic(sample, { host: 'example.com:80' }))).toEqual([1, 2, 3, 4, 5]);
+    expect(ids(filterTraffic(sample, { host: 'example.com:443' }))).toEqual([]);
+    // The free-text filter sees the host too.
+    expect(ids(filterTraffic(sample, { text: 'cdn.example' }))).toEqual([4, 5]);
+  });
+
   it('filters by url, content-type, and body', () => {
     expect(ids(filterTraffic(sample, { urlContains: '/api/' }))).toEqual([1, 2]);
     expect(ids(filterTraffic(sample, { urlRegex: '^/api/(users|orders)$' }))).toEqual([1, 2]);

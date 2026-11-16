@@ -25,6 +25,7 @@ import type {
   RouteRule,
   Timings,
   TrafficEntry,
+  UpstreamTarget,
 } from '../../shared/types';
 
 let trafficId = 0;
@@ -71,14 +72,17 @@ export function buildRequestParams(
   requestParams: RequestParams,
   userSettings: ProxySettings,
   clientReq: http.IncomingMessage,
-  route?: RouteRule | null
+  route?: RouteRule | null,
+  /** Capture-anything mode: the server the client itself asked for. A route still wins. */
+  forward?: UpstreamTarget
 ): void {
   requestParams.protocol =
-    requestParams.protocol || route?.destProtocol || userSettings.destProtocol;
-  requestParams.host = requestParams.host || route?.dest || userSettings.dest;
+    requestParams.protocol || route?.destProtocol || forward?.protocol || userSettings.destProtocol;
+  requestParams.host = requestParams.host || route?.dest || forward?.host || userSettings.dest;
   requestParams.path = requestParams.path || clientReq.url;
   requestParams.method = requestParams.method || clientReq.method;
-  requestParams.port = requestParams.port || route?.destPort || userSettings.destPort;
+  requestParams.port =
+    requestParams.port || route?.destPort || forward?.port || userSettings.destPort;
   requestParams.headers = requestParams.headers || clientReq.headers;
   // Self-signed upstreams are the common dev use case, so verification is
   // opt-in, and scoped to this request rather than process-global.
@@ -149,7 +153,9 @@ export function handleRequest(
   clientReq: http.IncomingMessage,
   clientRes: http.ServerResponse,
   ctx: ProxyContext,
-  requestParams: RequestParams
+  requestParams: RequestParams,
+  /** Capture-anything mode: the server the client asked for (see buildRequestParams). */
+  forward?: UpstreamTarget
 ): void {
   const { settings } = ctx;
   const logger = ctx.logger ?? noop;
@@ -173,7 +179,10 @@ export function handleRequest(
   const effectiveHeaders = requestParams.headers || clientReq.headers;
   const effectivePath = requestParams.path || clientUrl;
   const route = matchRoute(rules, effectiveHeaders['host'] as string | undefined, effectivePath);
-  buildRequestParams(requestParams, settings, clientReq, route);
+  buildRequestParams(requestParams, settings, clientReq, route, forward);
+  // A client that picked its own server already sent the right Host header and
+  // expects that server's redirects untouched.
+  const rewriteForListener = !forward || Boolean(route);
 
   const responseView: ResponseView = { headers: {}, body: Buffer.alloc(0) };
   const requestView: RequestView = {
@@ -276,7 +285,7 @@ export function handleRequest(
   };
 
   const originalHost = headers['host'];
-  if (settings.hostRewrite) {
+  if (settings.hostRewrite && rewriteForListener) {
     headers['host'] = requestParams.host + ':' + requestParams.port;
   }
   syncContentLength(headers, requestParams.body);
@@ -408,7 +417,12 @@ export function handleRequest(
     responseView.statusCode = statusCode;
     for (const key of Object.keys(responseHeaders)) setResponseHeader(key, responseHeaders[key]);
 
-    if (settings.redirect && String(upstreamStatus).startsWith('30') && upstreamLocation) {
+    if (
+      settings.redirect &&
+      !forward &&
+      String(upstreamStatus).startsWith('30') &&
+      upstreamLocation
+    ) {
       logger.info('handling redirect, location:', upstreamLocation);
       try {
         const url = new URL(upstreamLocation);

@@ -39,4 +39,26 @@ describe('TrafficTable XSS hardening', () => {
     expect(container.querySelector('i')).toBeNull();
     expect(document.title).not.toBe('pwned');
   });
+
+  it('shows the server each request went to, with unusual ports only', () => {
+    const base = useProxyStore.getState().traffic[0];
+    const withTarget = (trafficId: number, target: object | undefined, headers = {}) => ({
+      ...base,
+      trafficId,
+      request: { ...base.request, url: `/r${trafficId}`, headers, target },
+    });
+    useProxyStore.setState({
+      traffic: [
+        withTarget(1, { protocol: 'https', host: 'api.example.com', port: 443 }),
+        withTarget(2, { protocol: 'http', host: 'localhost', port: 3000 }),
+        withTarget(3, undefined, { host: '<b>mock.test</b>' }),
+      ] as never,
+    });
+    const { container } = render(<TrafficTable />);
+    const hosts = [...container.querySelectorAll('tr[data-traffic-id] td:nth-child(3)')].map(
+      (td) => td.textContent
+    );
+    expect(hosts).toEqual(['api.example.com', 'localhost:3000', '<b>mock.test</b>']);
+    expect(container.querySelector('b')).toBeNull();
+  });
 });

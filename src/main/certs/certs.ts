@@ -4,6 +4,8 @@
 // every boot.
 import forge from 'node-forge';
 import fs from 'node:fs/promises';
+import net from 'node:net';
+import { generateKeyPairSync } from 'node:crypto';
 import { dialog, type BrowserWindow } from 'electron';
 import log from 'electron-log';
 import { readRootCert, setRootCertPem, type RootCertPem } from '../settings';
@@ -105,6 +107,56 @@ export function generateAndSignCert(root: RootCertPem): LeafCert {
   return {
     certificate: forge.pki.certificateToPem(cert),
     privateKey: forge.pki.privateKeyToPem(keys.privateKey),
+  };
+}
+
+/**
+ * Issues certificates for arbitrary hosts, signed by the root ("Capture
+ * anything" mode presents one per HTTPS host). All of them share one key pair,
+ * generated on first use: signing is fast, key generation is not.
+ */
+export function createHostCertIssuer(root: RootCertPem): (host: string) => LeafCert {
+  const caCert = forge.pki.certificateFromPem(root.certificate);
+  const caKey = forge.pki.privateKeyFromPem(root.privateKey);
+  let keys: { publicKey: forge.pki.PublicKey; privateKeyPem: string } | null = null;
+
+  return (host) => {
+    if (!keys) {
+      const pair = generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        publicKeyEncoding: { type: 'spki', format: 'pem' },
+        privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+      });
+      keys = {
+        publicKey: forge.pki.publicKeyFromPem(pair.publicKey),
+        privateKeyPem: pair.privateKey,
+      };
+    }
+    const cert = forge.pki.createCertificate();
+    cert.publicKey = keys.publicKey;
+    cert.serialNumber = randomSerial();
+    cert.validity.notBefore = new Date(Date.now() - DAY_MS);
+    cert.validity.notAfter = new Date(
+      Math.min(Date.now() + LEAF_VALIDITY_DAYS * DAY_MS, caCert.validity.notAfter.getTime())
+    );
+    cert.setSubject([
+      // A common name holds at most 64 characters; clients match on the SAN anyway.
+      { name: 'commonName', value: host.slice(0, 64) },
+      { name: 'organizationName', value: 'Reversee' },
+      { shortName: 'OU', value: 'Reversee Web Debugger' },
+    ]);
+    cert.setIssuer(caCert.subject.attributes);
+    cert.setExtensions([
+      { name: 'basicConstraints', cA: false, critical: true },
+      { name: 'keyUsage', digitalSignature: true, keyEncipherment: true, critical: true },
+      { name: 'extKeyUsage', serverAuth: true },
+      {
+        name: 'subjectAltName',
+        altNames: [net.isIP(host) ? { type: 7, ip: host } : { type: 2, value: host }],
+      },
+    ]);
+    cert.sign(caKey, forge.md.sha256.create());
+    return { certificate: forge.pki.certificateToPem(cert), privateKey: keys.privateKeyPem };
   };
 }
 

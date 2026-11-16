@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import https from 'node:https';
+import tls from 'node:tls';
 import forge from 'node-forge';
 import {
   launchApp,
@@ -498,7 +499,7 @@ test('dark theme: follows the setting, restyles the app and the editor', async (
   );
   // Text stays readable: it flips to light on the dark surface.
   const textLightness = await page.evaluate(() => {
-    const cell = document.querySelector('tr[data-traffic-id] td:nth-child(3)') as HTMLElement;
+    const cell = document.querySelector('tr[data-traffic-id] td:nth-child(4)') as HTMLElement;
     const ctx = document.createElement('canvas').getContext('2d')!;
     ctx.fillStyle = getComputedStyle(cell).color;
     ctx.fillRect(0, 0, 1, 1);
@@ -842,4 +843,87 @@ test('mutual TLS: the client certificate chosen in Preferences reaches the upstr
   const res = await fetchViaProxy(listenPort, '/secure');
   expect(res.statusCode).toBe(200);
   expect(res.body).toBe('hello e2e-client');
+});
+
+test('capture anything: the app works as an HTTP/HTTPS proxy for any server', async () => {
+  const plain = await upstreamOf((_req, res) => res.end('plain server'));
+  const secure = await upstreamOf(
+    (_req, res) => {
+      res.setHeader('content-type', 'application/json');
+      res.end('{"from":"secure server"}');
+    },
+    { tls: true }
+  );
+  const listenPort = await freePort();
+  // No destination at all; the fixture's HTTPS server is self-signed.
+  launched = await launchApp({ settings: { dest: '', listenPort, captureVerifyUpstream: false } });
+  const { page } = launched;
+
+  await expect(page.getByRole('button', { name: 'Start' })).toBeDisabled();
+  await page.getByLabel('Mode').selectOption('capture');
+  await expect(page.getByLabel('Destination host')).toHaveCount(0);
+  await page.getByRole('button', { name: 'How to connect' }).click();
+  await expect(page.getByRole('dialog')).toContainText(
+    `HTTPS_PROXY=http://localhost:${listenPort}`
+  );
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Start' }).click();
+  await expect(page.getByText(`Proxy running on port ${listenPort}`)).toBeVisible();
+
+  // Plain HTTP: an absolute-form request, as a proxy client sends it.
+  const viaProxy = await new Promise<string>((resolve, reject) => {
+    http
+      .get(
+        { host: '127.0.0.1', port: listenPort, path: `http://127.0.0.1:${plain.port}/hello` },
+        (res) => {
+          let text = '';
+          res.on('data', (c) => (text += c));
+          res.on('end', () => resolve(text));
+        }
+      )
+      .on('error', reject);
+  });
+  expect(viaProxy).toBe('plain server');
+  expect(plain.requests[0].url).toBe('/hello');
+
+  // HTTPS: CONNECT, then TLS that trusts only the Reversee root.
+  const root = JSON.parse(fs.readFileSync(path.join(launched.userDataDir, 'config.json'), 'utf8'))
+    .root.cert.pem.certificate as string;
+  const tunnel = await new Promise<import('node:net').Socket>((resolve, reject) => {
+    const req = http.request({
+      host: '127.0.0.1',
+      port: listenPort,
+      method: 'CONNECT',
+      path: `127.0.0.1:${secure.port}`,
+    });
+    req.on('connect', (res, socket) =>
+      res.statusCode === 200 ? resolve(socket) : reject(new Error(`CONNECT ${res.statusCode}`))
+    );
+    req.on('error', reject);
+    req.end();
+  });
+  const body = await new Promise<string>((resolve, reject) => {
+    const agent = new https.Agent();
+    (agent as unknown as { createConnection: () => tls.TLSSocket }).createConnection = () =>
+      tls.connect({ socket: tunnel, host: '127.0.0.1', ca: root });
+    https
+      .get({ agent, host: '127.0.0.1', path: '/account?id=1' }, (res) => {
+        let text = '';
+        res.on('data', (c) => (text += c));
+        res.on('end', () => resolve(text));
+      })
+      .on('error', reject);
+  });
+  tunnel.destroy();
+  expect(body).toBe('{"from":"secure server"}');
+  expect(secure.requests[0].url).toBe('/account?id=1');
+
+  // Both show up, each under the server it went to.
+  await expect(row(page, '/hello')).toContainText(`127.0.0.1:${plain.port}`);
+  await expect(row(page, '/account?id=1')).toContainText(`127.0.0.1:${secure.port}`);
+  if (process.env['CAPTURE_SCREENSHOTS']) {
+    await page.screenshot({ path: 'docs/screenshots/capture-anything.png' });
+  }
+  await page.getByLabel('Filter traffic').fill(String(secure.port));
+  await expect(page.locator('tr[data-traffic-id]')).toHaveCount(1);
 });

@@ -86,6 +86,20 @@ const responseGate: ResponseGate = {
   },
 };
 
+// Certificates for HTTPS hosts in capture-anything mode are signed by main.
+let nextCertId = 0;
+const certRequests = new Map<
+  number,
+  { resolve(cert: { key: string; cert: string }): void; reject(err: Error): void }
+>();
+function issueCert(host: string): Promise<{ key: string; cert: string }> {
+  return new Promise((resolve, reject) => {
+    const id = nextCertId++;
+    certRequests.set(id, { resolve, reject });
+    send({ type: 'cert-request', id, host });
+  });
+}
+
 /** Closing the server drops every held connection, so their hits are void. */
 function dropHeld(): void {
   haltedRequests.clear();
@@ -114,6 +128,7 @@ async function start(msg: Extract<WorkerInbound, { type: 'start' }>): Promise<vo
     responseGate,
     logger,
     onServerError,
+    issueCert,
   };
   const next = msg.settings.enableGrpc
     ? createHttp2ProxyServer({ ...common, resolveMethod: (path) => grpcRegistry?.resolve(path) })
@@ -181,6 +196,13 @@ parentPort.on('message', (e) => {
         result = { request: msg.input.request, error: (err as Error).message, logs: [] };
       }
       send({ type: 'script-result', id: msg.id, result });
+      break;
+    }
+    case 'cert-reply': {
+      const pending = certRequests.get(msg.id);
+      certRequests.delete(msg.id);
+      if (msg.cert) pending?.resolve(msg.cert);
+      else pending?.reject(new Error(msg.error ?? 'no certificate'));
       break;
     }
     case 'resume-breakpoint':

@@ -4,12 +4,14 @@
 import type { Headers, TrafficEntry } from './types';
 
 export interface TrafficFilter {
-  /** Free-text substring across method, URL, status, and content-type. */
+  /** Free-text substring across method, host, URL, status, and content-type. */
   text?: string;
   /** HTTP method, case-insensitive exact match. */
   method?: string;
   /** Exact (200), class ("2xx"/"4xx"), or comparison (">=400", "<300", ">300"). */
   status?: string | number;
+  /** Substring of the host[:port] the request went to (case-insensitive). */
+  host?: string;
   urlContains?: string;
   urlRegex?: string;
   /** Substring match on the response content-type. */
@@ -87,6 +89,7 @@ function matchesFilter(entry: TrafficEntry, f: TrafficFilter): boolean {
 
   if (f.method && entry.request.method.toLowerCase() !== f.method.toLowerCase()) return false;
   if (f.status !== undefined && !statusMatches(status, f.status)) return false;
+  if (f.host && !hostAndPort(entry).toLowerCase().includes(f.host.toLowerCase())) return false;
   if (f.urlContains && !entry.request.url.toLowerCase().includes(f.urlContains.toLowerCase()))
     return false;
   if (f.urlRegex) {
@@ -116,6 +119,7 @@ function matchesFilter(entry: TrafficEntry, f: TrafficFilter): boolean {
     const t = f.text.toLowerCase();
     const hay = [
       entry.request.method,
+      hostAndPort(entry),
       entry.request.url,
       String(status ?? ''),
       contentTypeOf(entry),
@@ -151,7 +155,14 @@ function totalMs(entry: TrafficEntry): number {
   return entry.timings.total !== undefined ? entry.timings.total / 1_000_000 : 0;
 }
 
-function hostOf(entry: TrafficEntry): string {
+/** "host:port" of the upstream, so a filter can narrow down to one port. */
+function hostAndPort(entry: TrafficEntry): string {
+  const target = entry.request.target;
+  return target ? `${target.host}:${target.port}` : hostOf(entry);
+}
+
+/** The host a request went to: the upstream it was sent to, else its Host header. */
+export function hostOf(entry: TrafficEntry): string {
   if (entry.request.target?.host) return entry.request.target.host;
   return headerValue(entry.request.headers, 'host') ?? '(unknown)';
 }

@@ -220,6 +220,8 @@ export type WorkerInbound =
   | { type: 'set-scripts'; scripts: ScriptSet }
   | { type: 'try-script'; id: number; input: ScriptTrialInput }
   | { type: 'resume-breakpoint'; id: number; params: BreakpointResume }
+  // Answer to 'cert-request': a certificate for the host, or why there is none.
+  | { type: 'cert-reply'; id: number; cert?: { key: string; cert: string }; error?: string }
   | { type: 'set-proto-specs'; bundle: GrpcProtoBundle };
 
 export type WorkerOutbound =
@@ -232,4 +234,7 @@ export type WorkerOutbound =
   | { type: 'server-error'; error: ProxyErrorInfo }
   | { type: 'breakpoint-hit'; hit: BreakpointHit }
   | { type: 'script-result'; id: number; result: ScriptTrialResult }
+  // Capture anything: the worker needs a certificate for an HTTPS host. The CA
+  // key never leaves the main process.
+  | { type: 'cert-request'; id: number; host: string }
   | { type: 'breakpoint-errors'; errors: BreakpointCompileError[] };

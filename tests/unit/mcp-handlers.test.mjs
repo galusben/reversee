@@ -157,6 +157,15 @@ describe('status and config', () => {
     expect(status.bridge).toBeDefined();
   });
 
+  it('get_status reports capture-anything mode with the proxy address instead of a destination', () => {
+    setSettings({ captureAll: true, listenPort: 9001 });
+    const status = handlers.get_status({}, conn);
+    expect(status).toMatchObject({ mode: 'capture-anything', proxyUrl: 'http://localhost:9001' });
+    expect(status).not.toHaveProperty('destination');
+    setSettings({ captureAll: false });
+    expect(handlers.get_status({}, conn).mode).toBe('forward');
+  });
+
   it('update_config sanitizes and persists; get_config reads it back', () => {
     const next = handlers.update_config({ dest: 'x.test', listenPort: -1, bogus: true });
     expect(next.dest).toBe('x.test');
@@ -369,6 +378,13 @@ describe('validate_setup and diagnostics', () => {
     const byName = Object.fromEntries(result.checks.map((c) => [c.name, c.ok]));
     expect(byName['destination-configured']).toBe(false);
     expect(byName['root-certificate']).toBe(false);
+  });
+
+  it('does not ask for a destination in capture-anything mode', () => {
+    setSettings({ dest: '', captureAll: true });
+    const byName = Object.fromEntries(handlers.validate_setup().checks.map((c) => [c.name, c.ok]));
+    expect(byName['destination-configured']).toBe(true);
+    setSettings({ captureAll: false });
   });
 
   it('passes once configured', () => {

@@ -107,7 +107,7 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
       'Update Reversee configuration. Accepts a partial settings object; unknown keys and invalid values are ignored. ' +
       'Keys: listenProtocol/destProtocol (http|https), listenPort/destPort (1-65535), dest (host), ' +
       'interceptRequest/interceptResponse (bool), requestInterceptor/responseInterceptor (JS source), ' +
-      'rewriteRedirects/rewriteHost/allowSelfSignedUpstream/enableGrpc (bool), ' +
+      'rewriteRedirects/rewriteHost/allowSelfSignedUpstream/enableGrpc/captureAll/captureVerifyUpstream (bool), ' +
       'upstreamTimeoutSec (0-3600; seconds to wait for the upstream response head before a 504, 0 = never), ' +
       'trafficCap (100-20000 requests kept), theme (system|light|dark), ' +
       'upstreamClientCertPath/upstreamClientKeyPath (PEM files for mutual TLS to the upstream), ' +
@@ -118,6 +118,11 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
       'prefer add_mock / add_route / remove_rule, which take plain paths and apply at once. ' +
       'enableGrpc runs an HTTP/2 listener so native gRPC is proxied and decoded (against saved proto specs); ' +
       'HTTP/1.1 clients are still served on the same port. ' +
+      'captureAll ("Capture anything") turns the listener into a regular HTTP/HTTPS proxy at http://localhost:<listenPort>: ' +
+      'a client configured with HTTP_PROXY/HTTPS_PROXY has every request captured and sent to the server it asked for, ' +
+      'so dest is not needed. HTTPS is decrypted with certificates signed by the Reversee root CA, which the client must trust ' +
+      "(a client that does not shows up as a failed CONNECT entry); servers' certificates are verified unless " +
+      'captureVerifyUpstream is false. Routes, mocks, scripts and breakpoints still apply; gRPC mode does not. ' +
       'Proxy-behavior keys take effect the next time the proxy starts, except routes and mocks, which apply at once. ' +
       'Requires "Allow MCP to Control the Proxy" enabled in the app. Returns the resulting config.',
     inputSchema: {
@@ -178,13 +183,14 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
       properties: {
         text: {
           type: 'string',
-          description: 'Free-text substring across method, URL, status, content-type',
+          description: 'Free-text substring across method, host, URL, status, content-type',
         },
         method: { type: 'string', description: 'HTTP method (exact, case-insensitive)' },
         status: {
           description: 'Exact (404), class ("2xx"/"4xx"), or comparison (">=400", "<300")',
           anyOf: [{ type: 'integer' }, { type: 'string' }],
         },
+        host: { type: 'string', description: 'Substring of the host the request went to' },
         urlContains: { type: 'string' },
         urlRegex: { type: 'string', description: 'Regex matched against the request URL' },
         contentType: { type: 'string', description: 'Substring of the response content-type' },
@@ -608,6 +614,7 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
         text: { type: 'string' },
         method: { type: 'string' },
         status: { anyOf: [{ type: 'integer' }, { type: 'string' }] },
+        host: { type: 'string' },
         urlContains: { type: 'string' },
         urlRegex: { type: 'string' },
         contentType: { type: 'string' },

@@ -27,6 +27,8 @@ export interface ProxyHostEvents {
   onServerError(error: ProxyErrorInfo): void;
   onBreakpointHit(hit: BreakpointHit): void;
   onBreakpointErrors(errors: BreakpointCompileError[]): void;
+  /** Capture anything: a certificate for an HTTPS host, signed by the root CA. */
+  issueCert(host: string): { key: string; cert: string };
 }
 
 /** A script gets 1 s; the rest is headroom for a worker that has to spawn first. */
@@ -117,6 +119,13 @@ export class ProxyHost {
         }
         break;
       }
+      case 'cert-request':
+        try {
+          this.send({ type: 'cert-reply', id: msg.id, cert: this.events.issueCert(msg.host) });
+        } catch (err) {
+          this.send({ type: 'cert-reply', id: msg.id, error: (err as Error).message });
+        }
+        break;
       case 'breakpoint-errors':
         this.events.onBreakpointErrors(msg.errors);
         break;

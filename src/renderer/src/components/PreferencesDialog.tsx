@@ -172,6 +172,14 @@ export function PreferencesDialog(): React.JSX.Element | null {
           />
           Verify the upstream&apos;s TLS certificate
         </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={settings.captureVerifyUpstream}
+            onChange={(e) => set({ captureVerifyUpstream: e.target.checked })}
+          />
+          In Capture anything mode, verify the servers&apos; TLS certificates
+        </label>
         <p className="text-xs text-neutral-500">
           Client certificate for upstreams that require mutual TLS (PEM files; only the paths are
           saved).

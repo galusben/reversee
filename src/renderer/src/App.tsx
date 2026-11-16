@@ -30,7 +30,10 @@ export default function App(): React.JSX.Element {
   const notice = useUiStore((s) => s.notice);
   const clearNotice = useUiStore((s) => s.clearNotice);
   const certStatus = useProxyStore((s) => s.certStatus);
-  const listensHttps = useProxyStore((s) => s.settings?.listenProtocol === 'https');
+  // Both an HTTPS listener and capture-anything mode present certificates signed by the root.
+  const listensHttps = useProxyStore(
+    (s) => s.settings?.listenProtocol === 'https' || s.settings?.captureAll === true
+  );
   const regenerateRootCert = useProxyStore((s) => s.regenerateRootCert);
   const pendingCount = useProxyStore((s) => s.traffic.filter((e) => e.pending).length);
   const trafficCount = useProxyStore((s) => s.traffic.length);
@@ -50,7 +53,7 @@ export default function App(): React.JSX.Element {
       window.reversee.onToggleProxy(() => {
         const proxy = useProxyStore.getState();
         if (proxy.running) void proxy.stop();
-        else if (proxy.settings?.dest) void proxy.start();
+        else if (proxy.settings?.dest || proxy.settings?.captureAll) void proxy.start();
       }),
     ];
     return () => unsubscribe.forEach((off) => off());

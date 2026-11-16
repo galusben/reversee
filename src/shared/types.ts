@@ -29,6 +29,12 @@ export interface ProxySettings {
    */
   enableGrpc?: boolean;
   /**
+   * "Capture anything": act as a regular HTTP proxy (absolute-form requests and
+   * CONNECT) so each request goes to the server the client asked for, instead
+   * of forwarding everything to `dest`. Route rules still take precedence.
+   */
+  captureAll?: boolean;
+  /**
    * Seconds to wait for the upstream's response headers before answering 504.
    * 0 disables the timeout. Applies until the first response byte only, so
    * long-lived streams (SSE, long-poll bodies) are never cut off.

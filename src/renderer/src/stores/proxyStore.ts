@@ -28,7 +28,7 @@ export function upsert(traffic: TrafficEntry[], entry: TrafficEntry, cap: number
   return next;
 }
 
-export type SortKey = 'id' | 'method' | 'url' | 'status' | 'type' | 'size' | 'duration';
+export type SortKey = 'id' | 'method' | 'host' | 'url' | 'status' | 'type' | 'size' | 'duration';
 
 export interface SortState {
   key: SortKey;

@@ -10,6 +10,7 @@ import {
   Square,
 } from 'lucide-react';
 import { lastScriptError } from './ScriptsDialog';
+import { CaptureHowTo } from './CaptureHowTo';
 import { useProxyStore } from '../stores/proxyStore';
 import { useBreakpointStore } from '../stores/breakpointStore';
 import { useUiStore } from '../stores/uiStore';
@@ -104,6 +105,7 @@ export function SettingsBar(): React.JSX.Element | null {
   });
 
   const [invalidPorts, setInvalidPorts] = useState({ listen: false, dest: false });
+  const [howToOpen, setHowToOpen] = useState(false);
 
   if (!settings) return null;
 
@@ -112,25 +114,40 @@ export function SettingsBar(): React.JSX.Element | null {
     settings.routes.filter((r) => r.enabled).length +
     settings.mocks.filter((m) => m.enabled).length;
   const activeScripts = Number(settings.interceptRequest) + Number(settings.interceptResponse);
+  const capture = settings.captureAll;
   const startDisabled =
-    !settings.dest ||
     invalidPorts.listen ||
-    invalidPorts.dest ||
     !isValidPort(settings.listenPort) ||
-    !isValidPort(settings.destPort);
+    (!capture && (!settings.dest || invalidPorts.dest || !isValidPort(settings.destPort)));
+  const proxyAddress = `http://localhost:${settings.listenPort}`;
 
   return (
     // Two groups that share a row when the window is wide enough; otherwise the
     // actions wrap under the connection settings instead of being clipped.
     <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 bg-white px-3 py-2">
       <div className="flex min-w-0 items-center gap-2">
-        <span className="shrink-0 text-sm font-medium text-neutral-600">Listen</span>
-        <ProtocolSelect
-          label="Listen protocol"
-          value={settings.listenProtocol}
+        <select
+          aria-label="Mode"
+          title="Forward to one server: a reverse proxy in front of one destination. Capture anything: an HTTP/HTTPS proxy that records whatever the client talks to."
+          className="shrink-0 rounded-md border border-neutral-300 px-1 py-1 text-sm font-medium text-neutral-700 disabled:bg-neutral-100 disabled:text-neutral-400"
+          value={capture ? 'capture' : 'forward'}
           disabled={running}
-          onChange={(p) => set({ listenProtocol: p })}
-        />
+          onChange={(e) => set({ captureAll: e.target.value === 'capture' })}
+        >
+          <option value="forward">Forward to one server</option>
+          <option value="capture">Capture anything</option>
+        </select>
+        <span className="shrink-0 text-sm font-medium text-neutral-600">
+          {capture ? 'Proxy port' : 'Listen'}
+        </span>
+        {!capture && (
+          <ProtocolSelect
+            label="Listen protocol"
+            value={settings.listenProtocol}
+            disabled={running}
+            onChange={(p) => set({ listenProtocol: p })}
+          />
+        )}
         <PortInput
           label="Listen port"
           value={settings.listenPort}
@@ -138,42 +155,62 @@ export function SettingsBar(): React.JSX.Element | null {
           onCommit={(port) => set({ listenPort: port })}
           onValidity={(valid) => setInvalidPorts((p) => ({ ...p, listen: !valid }))}
         />
-        <ArrowRight className="h-4 w-4 text-neutral-400" aria-hidden />
-        <span className="shrink-0 text-sm font-medium text-neutral-600">Destination</span>
-        <ProtocolSelect
-          label="Destination protocol"
-          value={settings.destProtocol}
-          disabled={running}
-          onChange={(p) => set({ destProtocol: p })}
-        />
-        <input
-          type="text"
-          aria-label="Destination host"
-          placeholder="host, e.g. example.com"
-          className="w-44 min-w-24 shrink rounded-md border border-neutral-300 px-2 py-1 text-sm disabled:bg-neutral-100 disabled:text-neutral-400"
-          value={settings.dest}
-          disabled={running}
-          onChange={(e) => set({ dest: e.target.value.trim() })}
-        />
-        <PortInput
-          label="Destination port"
-          value={settings.destPort}
-          disabled={running}
-          onCommit={(port) => set({ destPort: port })}
-          onValidity={(valid) => setInvalidPorts((p) => ({ ...p, dest: !valid }))}
-        />
-        <label
-          className="flex shrink-0 items-center gap-1.5 text-sm text-neutral-600"
-          title="Run an HTTP/2 listener to proxy and decode gRPC. Import .proto/.desc under the gRPC menu."
-        >
-          <input
-            type="checkbox"
-            checked={settings.enableGrpc}
-            disabled={running}
-            onChange={(e) => set({ enableGrpc: e.target.checked })}
-          />
-          gRPC
-        </label>
+        {capture ? (
+          <>
+            <code
+              className="min-w-0 truncate rounded bg-neutral-100 px-1.5 py-1 text-xs text-neutral-700"
+              title="Set this as the HTTP and HTTPS proxy of the client you want to inspect"
+            >
+              {proxyAddress}
+            </code>
+            <button
+              type="button"
+              onClick={() => setHowToOpen(true)}
+              className="shrink-0 whitespace-nowrap rounded-md border border-neutral-300 px-2 py-1 text-sm text-neutral-600 hover:bg-neutral-50"
+            >
+              How to connect
+            </button>
+          </>
+        ) : (
+          <>
+            <ArrowRight className="h-4 w-4 text-neutral-400" aria-hidden />
+            <span className="shrink-0 text-sm font-medium text-neutral-600">Destination</span>
+            <ProtocolSelect
+              label="Destination protocol"
+              value={settings.destProtocol}
+              disabled={running}
+              onChange={(p) => set({ destProtocol: p })}
+            />
+            <input
+              type="text"
+              aria-label="Destination host"
+              placeholder="host, e.g. example.com"
+              className="w-44 min-w-24 shrink rounded-md border border-neutral-300 px-2 py-1 text-sm disabled:bg-neutral-100 disabled:text-neutral-400"
+              value={settings.dest}
+              disabled={running}
+              onChange={(e) => set({ dest: e.target.value.trim() })}
+            />
+            <PortInput
+              label="Destination port"
+              value={settings.destPort}
+              disabled={running}
+              onCommit={(port) => set({ destPort: port })}
+              onValidity={(valid) => setInvalidPorts((p) => ({ ...p, dest: !valid }))}
+            />
+            <label
+              className="flex shrink-0 items-center gap-1.5 text-sm text-neutral-600"
+              title="Run an HTTP/2 listener to proxy and decode gRPC. Import .proto/.desc under the gRPC menu."
+            >
+              <input
+                type="checkbox"
+                checked={settings.enableGrpc}
+                disabled={running}
+                onChange={(e) => set({ enableGrpc: e.target.checked })}
+              />
+              gRPC
+            </label>
+          </>
+        )}
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <button
@@ -260,6 +297,7 @@ export function SettingsBar(): React.JSX.Element | null {
           </button>
         )}
       </div>
+      {howToOpen && <CaptureHowTo address={proxyAddress} onClose={() => setHowToOpen(false)} />}
     </div>
   );
 }
