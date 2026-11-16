@@ -185,14 +185,18 @@ export function createProxyServer(options: ProxyServerOptions): ProxyServer {
     listen(): Promise<number> {
       return new Promise((resolve, reject) => {
         server.once('error', reject);
-        server.listen(settings.listenPort, () => {
+        const onListening = (): void => {
           server.removeListener('error', reject);
           const address = server.address();
           const port = typeof address === 'object' && address ? address.port : settings.listenPort;
           boundPort = port;
           logger.info(`proxy listening on ${settings.listenProtocol}://localhost:${port}`);
           resolve(port);
-        });
+        };
+        // An open proxy that decrypts HTTPS must not be reachable from the
+        // network: capture-anything mode listens on this machine only.
+        if (settings.captureAll) server.listen(settings.listenPort, '127.0.0.1', onListening);
+        else server.listen(settings.listenPort, onListening);
       });
     },
     setRules: handlers.setRules,

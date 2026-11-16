@@ -83,7 +83,7 @@ export function connectDisabledResponse(): string {
 }
 
 function usageText(port: number | undefined): string {
-  const address = `http://localhost:${port ?? '<port>'}`;
+  const address = `http://127.0.0.1:${port ?? '<port>'}`;
   return (
     'Reversee is in "Capture anything" mode: it works as an HTTP proxy, not as a web server.\n\n' +
     'Point a client at it as its proxy, for example:\n' +

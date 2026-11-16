@@ -118,7 +118,7 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
       'prefer add_mock / add_route / remove_rule, which take plain paths and apply at once. ' +
       'enableGrpc runs an HTTP/2 listener so native gRPC is proxied and decoded (against saved proto specs); ' +
       'HTTP/1.1 clients are still served on the same port. ' +
-      'captureAll ("Capture anything") turns the listener into a regular HTTP/HTTPS proxy at http://localhost:<listenPort>: ' +
+      'captureAll ("Capture anything") turns the listener into a regular HTTP/HTTPS proxy at http://127.0.0.1:<listenPort> (this machine only): ' +
       'a client configured with HTTP_PROXY/HTTPS_PROXY has every request captured and sent to the server it asked for, ' +
       'so dest is not needed. HTTPS is decrypted with certificates signed by the Reversee root CA, which the client must trust ' +
       "(a client that does not shows up as a failed CONNECT entry); servers' certificates are verified unless " +

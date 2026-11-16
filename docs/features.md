@@ -10,7 +10,7 @@ the desktop UI, and agents through the Model Context Protocol.
   _rewrite redirects_ (rewrite 3xx `Location`), _allow self-signed upstream_.
 - **Capture anything** — the mode selector in the settings bar switches between
   _Forward to one server_ (a reverse proxy in front of one destination) and _Capture
-  anything_: a regular HTTP proxy at `http://localhost:<port>`. A client set up with
+  anything_: a regular HTTP proxy at `http://127.0.0.1:<port>`, reachable from this machine only. A client set up with
   `HTTP_PROXY` / `HTTPS_PROXY` has every request captured and sent to the server it
   asked for; no destination is configured. Plain HTTP arrives as absolute-form
   requests; HTTPS arrives as `CONNECT` and is decrypted with a certificate issued per

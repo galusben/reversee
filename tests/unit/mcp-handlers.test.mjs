@@ -160,7 +160,7 @@ describe('status and config', () => {
   it('get_status reports capture-anything mode with the proxy address instead of a destination', () => {
     setSettings({ captureAll: true, listenPort: 9001 });
     const status = handlers.get_status({}, conn);
-    expect(status).toMatchObject({ mode: 'capture-anything', proxyUrl: 'http://localhost:9001' });
+    expect(status).toMatchObject({ mode: 'capture-anything', proxyUrl: 'http://127.0.0.1:9001' });
     expect(status).not.toHaveProperty('destination');
     setSettings({ captureAll: false });
     expect(handlers.get_status({}, conn).mode).toBe('forward');

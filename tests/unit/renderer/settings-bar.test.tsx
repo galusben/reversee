@@ -81,12 +81,12 @@ describe('SettingsBar', () => {
     await waitFor(() => expect(screen.queryByLabelText('Destination host')).toBeNull());
     expect(screen.queryByLabelText('Listen protocol')).toBeNull();
     expect(screen.queryByLabelText('gRPC')).toBeNull();
-    expect(screen.getByText('http://localhost:8123')).toBeTruthy();
+    expect(screen.getByText('http://127.0.0.1:8123')).toBeTruthy();
     expect(startButton().disabled).toBe(false);
 
     fireEvent.click(screen.getByRole('button', { name: 'How to connect' }));
     const dialog = screen.getByRole('dialog');
-    expect(dialog.textContent).toContain('export HTTPS_PROXY=http://localhost:8123');
+    expect(dialog.textContent).toContain('export HTTPS_PROXY=http://127.0.0.1:8123');
     expect(dialog.textContent).toContain('Export Root Cert');
 
     // An invalid (hidden) destination port must not block Start in this mode.

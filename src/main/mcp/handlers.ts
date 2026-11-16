@@ -290,7 +290,7 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
         // 'capture-anything': an HTTP/HTTPS proxy for any server; 'forward': one destination.
         mode: settings.captureAll ? 'capture-anything' : 'forward',
         ...(settings.captureAll
-          ? { proxyUrl: `http://localhost:${settings.listenPort}` }
+          ? { proxyUrl: `http://127.0.0.1:${settings.listenPort}` }
           : { destination: `${settings.destProtocol}://${settings.dest}:${settings.destPort}` }),
         trafficCount: ctx.trafficStore.size,
         breakpointCount: ctx.getBreakpointRules().length,

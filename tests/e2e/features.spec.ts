@@ -864,7 +864,7 @@ test('capture anything: the app works as an HTTP/HTTPS proxy for any server', as
   await expect(page.getByLabel('Destination host')).toHaveCount(0);
   await page.getByRole('button', { name: 'How to connect' }).click();
   await expect(page.getByRole('dialog')).toContainText(
-    `HTTPS_PROXY=http://localhost:${listenPort}`
+    `HTTPS_PROXY=http://127.0.0.1:${listenPort}`
   );
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Start' }).click();

@@ -192,7 +192,7 @@ describe('plain HTTP through the proxy', () => {
     const res = await request({ port: proxy.port, path: '/' });
     expect(res.statusCode).toBe(400);
     expect(res.headers['x-reversee-error']).toBe('not-a-proxy-request');
-    expect(res.body.toString()).toContain(`http://localhost:${proxy.port}`);
+    expect(res.body.toString()).toContain(`http://127.0.0.1:${proxy.port}`);
     expect(proxy.traffic).toHaveLength(0);
   });
 
@@ -478,5 +478,21 @@ describe('stopping', () => {
     const closed = new Promise((resolve) => secure.on('close', resolve));
     await closeAll(proxy.server);
     await closed;
+  });
+});
+
+describe('exposure', () => {
+  it('listens on this machine only', async () => {
+    const proxy = await startCapture();
+    const res = await raw(proxy.port, 'GET / HTTP/1.1\r\nhost: x\r\nconnection: close\r\n\r\n');
+    expect(res).toMatch(/^HTTP\/1\.1 400/);
+    // Not bound on the IPv6 wildcard / other interfaces.
+    await expect(
+      new Promise((resolve, reject) => {
+        const s = net.connect(proxy.port, '::1');
+        s.on('connect', () => (s.destroy(), resolve('connected')));
+        s.on('error', reject);
+      })
+    ).rejects.toThrow();
   });
 });

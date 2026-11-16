@@ -110,7 +110,7 @@ No parameters.
 > the Proxy" enabled in the app. Returns the resulting config.
 
 `captureAll` ("Capture anything") turns the listener into a regular HTTP/HTTPS proxy
-at `http://localhost:<listenPort>`: a client configured with `HTTP_PROXY` /
+at `http://127.0.0.1:<listenPort>` (reachable from this machine only): a client configured with `HTTP_PROXY` /
 `HTTPS_PROXY` has every request captured and sent to the server it asked for, so
 `dest` is not needed. HTTPS is decrypted with certificates signed by the Reversee
 root CA, which the client must trust; a client that does not appears as a failed

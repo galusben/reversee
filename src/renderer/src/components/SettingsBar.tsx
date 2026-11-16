@@ -119,7 +119,7 @@ export function SettingsBar(): React.JSX.Element | null {
     invalidPorts.listen ||
     !isValidPort(settings.listenPort) ||
     (!capture && (!settings.dest || invalidPorts.dest || !isValidPort(settings.destPort)));
-  const proxyAddress = `http://localhost:${settings.listenPort}`;
+  const proxyAddress = `http://127.0.0.1:${settings.listenPort}`;
 
   return (
     // Two groups that share a row when the window is wide enough; otherwise the

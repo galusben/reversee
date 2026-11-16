@@ -30,14 +30,14 @@ In the default mode Reversee stands in front of one destination. In **Capture an
 2. Point the program at the proxy:
 
    ```sh
-   export HTTP_PROXY=http://localhost:8000
-   export HTTPS_PROXY=http://localhost:8000
+   export HTTP_PROXY=http://127.0.0.1:8000
+   export HTTPS_PROXY=http://127.0.0.1:8000
    ```
 
 3. For HTTPS, make the program trust the Reversee root certificate. Save it with _Proxy Settings → Export Root Cert_, then for example:
 
    ```sh
-   curl -x http://localhost:8000 --cacert reversee.root.pem https://example.com/
+   curl -x http://127.0.0.1:8000 --cacert reversee.root.pem https://example.com/
    NODE_EXTRA_CA_CERTS=reversee.root.pem node --use-env-proxy app.js
    REQUESTS_CA_BUNDLE=reversee.root.pem python app.py
    ```
@@ -47,6 +47,7 @@ Each request is listed under the host it went to. Mocks, routes, scripts, breakp
 - A client that does not trust the certificate shows up as a failed `CONNECT` row. Apps that pin their server's certificate cannot be inspected.
 - Clients are offered HTTP/1.1 inside the tunnel, so gRPC decoding is only available in the one-server mode.
 - The servers' certificates are verified by default in this mode (Preferences has a switch for self-signed servers).
+- In this mode the proxy accepts connections from this machine only.
 - Only trust the root certificate on machines you control. Anyone holding its key can read that machine's HTTPS traffic.
 
 ## Install
