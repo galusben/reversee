@@ -7,7 +7,7 @@ import zlib from 'node:zlib';
 import { buildCurl } from '../proxy/core/curl';
 import { readClientCert } from './client-cert';
 import type { ReplayOverrides } from '../shared/ipc';
-import type { AppSettings } from '../shared/settings-schema';
+import { verifiesUpstream, type AppSettings } from '../shared/settings-schema';
 import type { Headers, RequestView, TrafficEntry, UpstreamTarget } from '../shared/types';
 
 export type { ReplayOverrides };
@@ -172,7 +172,7 @@ export async function replayEntry(
       body: entry.request.body,
     },
     overrides,
-    settings.allowSelfSignedUpstream === false,
+    verifiesUpstream(settings),
     {
       clientCert: readClientCert(settings),
       timeoutMs: settings.upstreamTimeoutSec * 1000,

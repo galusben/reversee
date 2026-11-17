@@ -5,6 +5,7 @@
 ## What it does
 
 - Acts as a reverse proxy: point a client at Reversee's listen address and it forwards to a destination, recording every request and response.
+- Capture anything mode: instead of forwarding to one destination, Reversee works as a regular HTTP/HTTPS proxy (`HTTP_PROXY`/`HTTPS_PROXY=http://127.0.0.1:<port>`), capturing every request a program makes to any server; HTTPS is decrypted with per-host certificates signed by the Reversee root CA, which the client must trust. Set `captureAll: true` with `update_config`.
 - Inspect traffic: method, path, status, content type, headers, request/response bodies (gzip/brotli decoded, syntax-highlighted), per-request timings, and a copy-as-curl command.
 - Interceptors: rewrite requests (`requestParams`: host, path, method, port, headers, body) or responses (`responseParams`: statusCode, headers, body) with JavaScript, live. The Scripts screen offers examples and a dry run on a captured request.
 - Breakpoints: hold requests matching a URL regex + HTTP methods, edit the URL/headers/body, then resume.

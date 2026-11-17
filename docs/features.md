@@ -8,9 +8,22 @@ the desktop UI, and agents through the Model Context Protocol.
 - **Configure the proxy** — listen protocol (http/https) + port, destination
   protocol + host + port. Toggles: _rewrite host_ (override the Host header),
   _rewrite redirects_ (rewrite 3xx `Location`), _allow self-signed upstream_.
+- **Capture anything** — the mode selector in the settings bar switches between
+  _Forward to one server_ (a reverse proxy in front of one destination) and _Capture
+  anything_: a regular HTTP proxy at `http://127.0.0.1:<port>`, reachable from this machine only. A client set up with
+  `HTTP_PROXY` / `HTTPS_PROXY` has every request captured and sent to the server it
+  asked for; no destination is configured. Plain HTTP arrives as absolute-form
+  requests; HTTPS arrives as `CONNECT` and is decrypted with a certificate issued per
+  host by the root CA (the client must trust the exported root certificate). A client
+  that refuses the certificate is listed as a failed `CONNECT` row. Other protocols
+  inside a tunnel are passed through untouched. Routes, mocks, scripts, breakpoints,
+  replay and WebSockets work as usual; host and redirect rewriting do not apply, and
+  gRPC decoding is not available (tunnels are HTTP/1.1). Server certificates are
+  verified by default in this mode (Preferences). _How to connect_ shows ready-made
+  commands.
 - **Start / stop** — from the settings bar (or F5); status shows the listen port or
   the error (e.g. `EADDRINUSE`).
-- **Inspect traffic** — a sortable table of method / URL / status / content-type /
+- **Inspect traffic** — a sortable table of method / host / URL / status / content-type /
   size / duration / start time; click a row (or use the arrow keys) for full request
   & response in the detail panes (headers, gzip/brotli/zstd-decoded and
   syntax-highlighted bodies, a timing waterfall). Requests appear while still in

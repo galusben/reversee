@@ -25,6 +25,17 @@ export interface AppSettings {
   mcpAllowControl: boolean;
   /** Run an HTTP/2 listener so native gRPC can be proxied and decoded. */
   enableGrpc: boolean;
+  /**
+   * "Capture anything": work as a regular HTTP/HTTPS proxy and send each request
+   * to the server the client asked for, instead of to one destination.
+   */
+  captureAll: boolean;
+  /**
+   * Capture anything only: verify the certificates of the HTTPS servers
+   * requests are sent to. On by default, because in that mode the servers are
+   * whatever the client talks to, not one development box.
+   */
+  captureVerifyUpstream: boolean;
   /** Seconds to wait for upstream response headers before a 504 (0 = never). */
   upstreamTimeoutSec: number;
   /** How many captured requests to keep (oldest are evicted). */
@@ -74,6 +85,8 @@ export const defaultSettings: AppSettings = {
   mcpAllowControl: false,
   // Off by default: only gRPC users need the HTTP/2 listener.
   enableGrpc: false,
+  captureAll: false,
+  captureVerifyUpstream: true,
   upstreamTimeoutSec: 60,
   trafficCap: 1000,
   theme: 'system',
@@ -198,6 +211,8 @@ export function sanitizeSettingsPatch(patch: unknown): Partial<AppSettings> {
     'mcpEnabled',
     'mcpAllowControl',
     'enableGrpc',
+    'captureAll',
+    'captureVerifyUpstream',
   ] as const) {
     if (typeof p[key] === 'boolean') out[key] = p[key];
   }
@@ -225,6 +240,11 @@ export function sanitizeSettingsPatch(patch: unknown): Partial<AppSettings> {
   return out;
 }
 
+/** Whether upstream TLS certificates are verified in the current mode. */
+export function verifiesUpstream(s: AppSettings): boolean {
+  return s.captureAll ? s.captureVerifyUpstream : !s.allowSelfSignedUpstream;
+}
+
 /**
  * Maps stored app settings to the proxy core's settings shape. The client
  * certificate is passed in already read from disk (main owns file access).
@@ -238,15 +258,18 @@ export function toProxySettings(
     destProtocol: s.destProtocol,
     destPort: s.destPort,
     listenPort: s.listenPort,
-    listenProtocol: s.listenProtocol,
+    // A proxy address is always given to clients as http://; HTTPS travels inside CONNECT.
+    listenProtocol: s.captureAll ? 'http' : s.listenProtocol,
     redirect: s.rewriteRedirects,
     hostRewrite: s.rewriteHost,
-    allowSelfSignedUpstream: s.allowSelfSignedUpstream,
+    allowSelfSignedUpstream: !verifiesUpstream(s),
     requestInterceptor: s.requestInterceptor,
     interceptRequest: s.interceptRequest,
     responseInterceptor: s.responseInterceptor,
     interceptResponse: s.interceptResponse,
-    enableGrpc: s.enableGrpc,
+    // Capture anything needs the HTTP/1.1 proxy listener; gRPC mode is one-server only.
+    enableGrpc: s.enableGrpc && !s.captureAll,
+    captureAll: s.captureAll,
     upstreamTimeoutSec: s.upstreamTimeoutSec,
     routes: s.routes,
     mocks: s.mocks,

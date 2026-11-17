@@ -98,6 +98,7 @@ function trafficSummary(entry: TrafficEntry): Record<string, unknown> {
   return {
     trafficId: entry.trafficId,
     method: entry.request.method,
+    host: entry.request.target?.host,
     url: entry.request.url,
     statusCode: entry.response.statusCode,
     contentType: Array.isArray(contentType) ? contentType[0] : contentType,
@@ -121,6 +122,7 @@ function pickFilter(p: Record<string, unknown>): TrafficFilter {
   for (const k of [
     'text',
     'method',
+    'host',
     'urlContains',
     'urlRegex',
     'contentType',
@@ -285,7 +287,11 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
         running: ctx.proxyHost.isRunning,
         listenProtocol: settings.listenProtocol,
         listenPort: settings.listenPort,
-        destination: `${settings.destProtocol}://${settings.dest}:${settings.destPort}`,
+        // 'capture-anything': an HTTP/HTTPS proxy for any server; 'forward': one destination.
+        mode: settings.captureAll ? 'capture-anything' : 'forward',
+        ...(settings.captureAll
+          ? { proxyUrl: `http://127.0.0.1:${settings.listenPort}` }
+          : { destination: `${settings.destProtocol}://${settings.dest}:${settings.destPort}` }),
         trafficCount: ctx.trafficStore.size,
         breakpointCount: ctx.getBreakpointRules().length,
       };
@@ -558,8 +564,10 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
       const checks = [
         {
           name: 'destination-configured',
-          ok: Boolean(settings.dest),
-          detail: settings.dest || 'destination host is empty',
+          ok: settings.captureAll || Boolean(settings.dest),
+          detail: settings.captureAll
+            ? 'not needed: capture-anything mode sends each request to the server the client asked for'
+            : settings.dest || 'destination host is empty',
         },
         {
           name: 'listen-port-valid',
@@ -568,7 +576,7 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
         },
         {
           name: 'dest-port-valid',
-          ok: isValidPort(settings.destPort),
+          ok: settings.captureAll || isValidPort(settings.destPort),
           detail: String(settings.destPort),
         },
         rootCertCheck(ctx),

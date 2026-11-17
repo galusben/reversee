@@ -11,7 +11,7 @@ const CURSOR_JSON = `{
 }`;
 const REPO = 'https://github.com/galusben/reversee#mcp-integration-claude-code--cursor';
 
-function CopyBlock({ label, text }: { label: string; text: string }): React.JSX.Element {
+export function CopyBlock({ label, text }: { label: string; text: string }): React.JSX.Element {
   const [copied, setCopied] = useState(false);
   const copy = (): void => {
     void window.reversee.copyToClipboard(text);

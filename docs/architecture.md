@@ -97,22 +97,23 @@ Entry: `src/renderer/src/main.tsx` → `App.tsx`.
 `core/` is plain Node with **no Electron imports** (ESLint-enforced) so it can be
 unit-tested headlessly — see [ADR 0001](adr/0001-electron-free-proxy-core.md).
 
-| File                    | Responsibility                                                                                                                                                                         |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `worker.ts`             | `utilityProcess` entry; speaks typed messages over `parentPort`; owns breakpoint gating and server lifecycle.                                                                          |
-| `core/server.ts`        | HTTP/1.1 HTTP/HTTPS listener; buffers request bodies; calls the optional gate (breakpoints) then proxies; hands upgrades to the WebSocket tunnel.                                      |
-| `core/proxy.ts`         | One exchange: route / mock matching, upstream request with header timeout, **streamed** response (buffered only for a response interceptor or breakpoint), traffic recording.          |
-| `core/capture.ts`       | Bounded, incrementally decompressed copy of a streamed body for the traffic view.                                                                                                      |
-| `core/rules.ts`         | Compiles and matches route rules (alternate upstreams) and mock rules (canned responses).                                                                                              |
-| `core/try-script.ts`    | Dry run of an interceptor script on a captured exchange (Scripts screen, `try_interceptor`); same engine, nothing sent.                                                                |
-| `core/websocket.ts`     | Forwards an Upgrade request and pipes the two sockets; records messages on the traffic entry.                                                                                          |
-| `core/ws-frames.ts`     | WebSocket frame parser + message assembler (fragments, permessage-deflate) working on a copy of the bytes.                                                                             |
-| `core/http2.ts`         | Listener used when `enableGrpc` is set: HTTP/2 streams forwarded over a shared upstream session with gRPC frame decode; HTTP/1.1 served on the same port via the `server.ts` handlers. |
-| `core/interceptor.ts`   | Runs user JS in a `node:vm` context with a time budget; returns errors and console output. Scope isolation only — not a security boundary.                                             |
-| `core/breakpoints.ts`   | Regex compilation and URL + method matching.                                                                                                                                           |
-| `core/curl.ts`          | Builds copy-pasteable curl commands from captured requests.                                                                                                                            |
-| `core/grpc-frames.ts`   | gRPC length-prefixed message framing (`[1B flag][4B len][protobuf]`), incremental `FrameAccumulator`, per-message gunzip, decode-against-type.                                         |
-| `core/grpc-registry.ts` | Rebuilds the compiled proto bundle (from main) and resolves a gRPC `:path` to request/response message types.                                                                          |
+| File                    | Responsibility                                                                                                                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `worker.ts`             | `utilityProcess` entry; speaks typed messages over `parentPort`; owns breakpoint gating and server lifecycle.                                                                                     |
+| `core/server.ts`        | HTTP/1.1 HTTP/HTTPS listener; buffers request bodies; calls the optional gate (breakpoints) then proxies; hands upgrades to the WebSocket tunnel.                                                 |
+| `core/proxy.ts`         | One exchange: route / mock matching, upstream request with header timeout, **streamed** response (buffered only for a response interceptor or breakpoint), traffic recording.                     |
+| `core/forward.ts`       | "Capture anything" mode: absolute-form requests and `CONNECT` tunnels; terminates the client's TLS with a per-host certificate (requested from main) and feeds the stream to the normal handlers. |
+| `core/capture.ts`       | Bounded, incrementally decompressed copy of a streamed body for the traffic view.                                                                                                                 |
+| `core/rules.ts`         | Compiles and matches route rules (alternate upstreams) and mock rules (canned responses).                                                                                                         |
+| `core/try-script.ts`    | Dry run of an interceptor script on a captured exchange (Scripts screen, `try_interceptor`); same engine, nothing sent.                                                                           |
+| `core/websocket.ts`     | Forwards an Upgrade request and pipes the two sockets; records messages on the traffic entry.                                                                                                     |
+| `core/ws-frames.ts`     | WebSocket frame parser + message assembler (fragments, permessage-deflate) working on a copy of the bytes.                                                                                        |
+| `core/http2.ts`         | Listener used when `enableGrpc` is set: HTTP/2 streams forwarded over a shared upstream session with gRPC frame decode; HTTP/1.1 served on the same port via the `server.ts` handlers.            |
+| `core/interceptor.ts`   | Runs user JS in a `node:vm` context with a time budget; returns errors and console output. Scope isolation only — not a security boundary.                                                        |
+| `core/breakpoints.ts`   | Regex compilation and URL + method matching.                                                                                                                                                      |
+| `core/curl.ts`          | Builds copy-pasteable curl commands from captured requests.                                                                                                                                       |
+| `core/grpc-frames.ts`   | gRPC length-prefixed message framing (`[1B flag][4B len][protobuf]`), incremental `FrameAccumulator`, per-message gunzip, decode-against-type.                                                    |
+| `core/grpc-registry.ts` | Rebuilds the compiled proto bundle (from main) and resolves a gRPC `:path` to request/response message types.                                                                                     |
 
 ## gRPC decoding
 

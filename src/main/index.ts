@@ -37,6 +37,7 @@ import {
   setSecretCodec,
 } from './settings';
 import {
+  createHostCertIssuer,
   ensureCertificates,
   regenerateRoot,
   rootCertStatus,
@@ -168,18 +169,32 @@ const proxyHost = new ProxyHost({
     log.warn('invalid breakpoint patterns', errors);
     sendToRenderer(IPC.breakpointErrorsEvent, errors);
   },
+  issueCert: (host) => {
+    if (!certs) throw new Error('certificates are not initialised yet');
+    if (!hostCerts || hostCerts.root !== certs.root) {
+      hostCerts = { root: certs.root, issue: createHostCertIssuer(certs.root) };
+    }
+    const leaf = hostCerts.issue(host);
+    return { key: leaf.privateKey, cert: leaf.certificate };
+  },
 });
+
+/** Signs per-host certificates for capture-anything mode; rebuilt when the root changes. */
+let hostCerts: {
+  root: Certificates['root'];
+  issue: ReturnType<typeof createHostCertIssuer>;
+} | null = null;
 
 /** Shared by the renderer IPC handler and the MCP start_proxy tool. */
 async function startProxyFromSettings(): Promise<StartProxyResult> {
   const settings = getSettings();
-  if (!settings.dest) {
+  if (!settings.dest && !settings.captureAll) {
     return { ok: false, error: { message: 'Destination host is required' } };
   }
   try {
     const leaf = certs?.leaf;
     const sslOptions =
-      settings.listenProtocol === 'https' && leaf
+      settings.listenProtocol === 'https' && !settings.captureAll && leaf
         ? { key: leaf.privateKey, cert: leaf.certificate }
         : undefined;
     const port = await proxyHost.start({
@@ -223,7 +238,8 @@ async function regenerateRootCert(): Promise<RootCertStatus> {
   log.info('root CA regenerated');
   const status = certStatus();
   sendToRenderer(IPC.certStatusEvent, status);
-  if (proxyHost.isRunning && getSettings().listenProtocol === 'https') {
+  const settings = getSettings();
+  if (proxyHost.isRunning && (settings.listenProtocol === 'https' || settings.captureAll)) {
     await startProxyFromSettings();
   }
   return status;

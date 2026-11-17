@@ -57,7 +57,8 @@ list positions, which shift as new traffic arrives.
 > listen/destination config, traffic and breakpoint counts.
 
 No parameters. Start here to learn whether the proxy is up and how much traffic has
-been captured.
+been captured. `mode` is `forward` (one `destination`) or `capture-anything` (a
+`proxyUrl` for clients to use as their HTTP/HTTPS proxy).
 
 ### `validate_setup`
 
@@ -99,7 +100,7 @@ No parameters.
 > and invalid values are ignored. Keys: listenProtocol/destProtocol (http|https),
 > listenPort/destPort (1-65535), dest (host), interceptRequest/interceptResponse
 > (bool), requestInterceptor/responseInterceptor (JS source),
-> rewriteRedirects/rewriteHost/allowSelfSignedUpstream/enableGrpc (bool),
+> rewriteRedirects/rewriteHost/allowSelfSignedUpstream/enableGrpc/captureAll/captureVerifyUpstream (bool),
 > upstreamTimeoutSec (0-3600; seconds to wait for the upstream response head
 > before a 504, 0 = never), trafficCap (100-20000 requests kept), theme
 > (system|light|dark), upstreamClientCertPath/upstreamClientKeyPath (PEM files
@@ -107,6 +108,14 @@ No parameters.
 > keys take effect the next time the proxy starts, except routes and mocks,
 > which apply at once. Requires "Allow MCP to Control
 > the Proxy" enabled in the app. Returns the resulting config.
+
+`captureAll` ("Capture anything") turns the listener into a regular HTTP/HTTPS proxy
+at `http://127.0.0.1:<listenPort>` (reachable from this machine only): a client configured with `HTTP_PROXY` /
+`HTTPS_PROXY` has every request captured and sent to the server it asked for, so
+`dest` is not needed. HTTPS is decrypted with certificates signed by the Reversee
+root CA, which the client must trust; a client that does not appears as a failed
+`CONNECT` entry. Server certificates are verified unless `captureVerifyUpstream` is
+false. `get_status` then reports `mode: "capture-anything"` and a `proxyUrl`.
 
 `routes` sends matching requests to a different upstream (first match wins);
 `mocks` answers them without contacting any upstream. Each key replaces the whole
@@ -195,6 +204,7 @@ No parameters. Reach for this if an interceptor wedged the worker.
 | `text`         | string            | Free-text substring across method, URL, status, content-type.                |
 | `method`       | string            | HTTP method (exact, case-insensitive).                                       |
 | `status`       | integer \| string | Exact (`404`), class (`"2xx"`/`"4xx"`), or comparison (`">=400"`, `"<300"`). |
+| `host`         | string            | Substring of the host the request went to.                                   |
 | `urlContains`  | string            | Substring of the request URL.                                                |
 | `urlRegex`     | string            | Regex matched against the request URL.                                       |
 | `contentType`  | string            | Substring of the response content-type.                                      |

@@ -116,6 +116,7 @@ describe('toProxySettings', () => {
       responseInterceptor: 'res',
       interceptResponse: true,
       enableGrpc: true,
+      captureAll: false,
       upstreamTimeoutSec: 60,
       routes: [],
       mocks: [],
@@ -143,6 +144,37 @@ describe('toProxySettings', () => {
     // Paths never reach the worker — only the material main read from them.
     expect(proxy).not.toHaveProperty('upstreamClientCertPath');
     expect(toProxySettings(defaultSettings)).not.toHaveProperty('upstreamClientCert');
+  });
+
+  it('maps capture-anything mode: plain http listener, no gRPC, verified servers', () => {
+    const proxy = toProxySettings({
+      ...defaultSettings,
+      captureAll: true,
+      listenProtocol: 'https',
+      enableGrpc: true,
+      allowSelfSignedUpstream: true,
+    });
+    expect(proxy.captureAll).toBe(true);
+    expect(proxy.listenProtocol).toBe('http');
+    expect(proxy.enableGrpc).toBe(false);
+    // The one-server "allow self-signed" default does not carry over.
+    expect(proxy.allowSelfSignedUpstream).toBe(false);
+    expect(
+      toProxySettings({ ...defaultSettings, captureAll: true, captureVerifyUpstream: false })
+        .allowSelfSignedUpstream
+    ).toBe(true);
+    // Outside capture mode the capture switch has no say.
+    expect(
+      toProxySettings({ ...defaultSettings, captureVerifyUpstream: true }).allowSelfSignedUpstream
+    ).toBe(true);
+  });
+
+  it('accepts the capture switches in a settings patch', () => {
+    expect(sanitizeSettingsPatch({ captureAll: true, captureVerifyUpstream: false })).toEqual({
+      captureAll: true,
+      captureVerifyUpstream: false,
+    });
+    expect(sanitizeSettingsPatch({ captureAll: 'yes' })).toEqual({});
   });
 
   it('never leaks the MCP flags into the proxy worker', () => {

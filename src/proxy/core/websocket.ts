@@ -19,6 +19,7 @@ import type {
   ResponseView,
   Timings,
   TrafficEntry,
+  UpstreamTarget,
   WebSocketView,
 } from '../../shared/types';
 
@@ -45,7 +46,9 @@ export function handleUpgrade(
   head: Buffer,
   ctx: ProxyContext,
   /** Live tunnel sockets, so the server can tear them down on stop. */
-  sockets: Set<Duplex>
+  sockets: Set<Duplex>,
+  /** Capture-anything mode: the server the client asked for. */
+  forward?: UpstreamTarget
 ): void {
   const { settings } = ctx;
   const logger = ctx.logger ?? noop;
@@ -57,7 +60,7 @@ export function handleUpgrade(
 
   const requestParams: RequestParams = {};
   const route = matchRoute(rules, clientReq.headers['host'], clientReq.url ?? '/');
-  buildRequestParams(requestParams, settings, clientReq, route);
+  buildRequestParams(requestParams, settings, clientReq, route, forward);
 
   const responseView: ResponseView = { headers: {}, body: Buffer.alloc(0) };
   const ws: WebSocketView = { messages: [], messageCount: 0 };
@@ -90,7 +93,8 @@ export function handleUpgrade(
 
   const headers = (requestParams.headers ??= {});
   const protocol = requestParams.protocol === 'https' ? 'https' : 'http';
-  if (settings.hostRewrite) headers['host'] = requestParams.host + ':' + requestParams.port;
+  if (settings.hostRewrite && (!forward || route))
+    headers['host'] = requestParams.host + ':' + requestParams.port;
   requestView.url = requestParams.path as string;
   requestView.method = requestParams.method as string;
   requestView.headers = headers;

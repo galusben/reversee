@@ -9,7 +9,8 @@ Reversee sits between your client and a destination server. Point your client at
 ## Features
 
 - **HTTP and HTTPS** on both sides — listen on either protocol, forward to either protocol. HTTPS listening uses a locally generated root CA you can trust once (macOS: _Proxy Settings → Manage Root Cert_).
-- **Traffic inspection** — a sortable table (method, path, status, content type, size, duration) with headers, request/response bodies (plain and formatted), and a per-request timing waterfall (DNS, TCP, TLS, first byte, download). Requests show up while they are still in flight.
+- **Capture anything** — switch from "Forward to one server" to "Capture anything" and Reversee becomes a regular HTTP/HTTPS proxy: set `HTTP_PROXY` / `HTTPS_PROXY` to its address and every request a program makes is captured, whichever server it goes to. HTTPS is decrypted with certificates signed by the Reversee root CA. See [Capture anything](#capture-anything).
+- **Traffic inspection** — a sortable table (method, host, path, status, content type, size, duration) with headers, request/response bodies (plain and formatted), and a per-request timing waterfall (DNS, TCP, TLS, first byte, download). Requests show up while they are still in flight.
 - **Streaming and WebSockets** — responses are streamed through, so Server-Sent Events and large downloads work as they would without the proxy. WebSocket connections are tunnelled and their messages listed.
 - **Scripts (interceptors)** — JavaScript snippets that rewrite requests (`requestParams`: host, path, method, port, headers, body) or responses (`responseParams`: statusCode, headers, body) on the fly. The Scripts screen has one-click examples and a **Try it** button that shows what a script changes on a captured request before you turn it on; saving applies it to the running proxy without a restart. Errors and `console.log` output are shown on the request.
 - **Breakpoints** — hold requests, or responses, matching a URL regex + methods, edit them, then continue.
@@ -20,6 +21,34 @@ Reversee sits between your client and a destination server. Point your client at
 - **Upstream TLS options** — a client certificate for mutual TLS, optional certificate verification, and a response timeout.
 - **Light and dark themes**, keyboard navigation, and a configurable history size.
 - **MCP integration** — let Claude Code, Cursor, or any MCP client inspect and (optionally) control the proxy. See below.
+
+## Capture anything
+
+In the default mode Reversee stands in front of one destination. In **Capture anything** mode it is a normal HTTP proxy, so you do not have to change the URLs your program calls:
+
+1. Pick **Capture anything** in the mode selector, choose a port, and press **Start**.
+2. Point the program at the proxy:
+
+   ```sh
+   export HTTP_PROXY=http://127.0.0.1:8000 http_proxy=http://127.0.0.1:8000
+   export HTTPS_PROXY=http://127.0.0.1:8000 https_proxy=http://127.0.0.1:8000
+   ```
+
+3. For HTTPS, make the program trust the Reversee root certificate. Save it with _Proxy Settings → Export Root Cert_, then for example:
+
+   ```sh
+   curl -x http://127.0.0.1:8000 --cacert reversee.root.pem https://example.com/
+   NODE_EXTRA_CA_CERTS=reversee.root.pem node --use-env-proxy app.js
+   REQUESTS_CA_BUNDLE=reversee.root.pem python app.py
+   ```
+
+Each request is listed under the host it went to. Mocks, routes, scripts, breakpoints, replay and WebSocket capture all work in this mode. Good to know:
+
+- A client that does not trust the certificate shows up as a failed `CONNECT` row. Apps that pin their server's certificate cannot be inspected.
+- Clients are offered HTTP/1.1 inside the tunnel, so gRPC decoding is only available in the one-server mode.
+- The servers' certificates are verified by default in this mode (Preferences has a switch for self-signed servers).
+- In this mode the proxy accepts connections from this machine only.
+- Only trust the root certificate on machines you control. Anyone holding its key can read that machine's HTTPS traffic.
 
 ## Install
 
