@@ -622,6 +622,32 @@ describe('RulesDialog', () => {
     expect(screen.getByText(/Rules take effect when the proxy is started/)).toBeTruthy();
   });
 
+  it('keeps a recorded binary body as base64 through a save, and can replace it with text', async () => {
+    const png = {
+      id: 'png',
+      name: 'Recorded: GET /logo.png',
+      enabled: true,
+      method: 'GET',
+      pathPattern: '^/logo\\.png(?:\\?.*)?$',
+      statusCode: 200,
+      headers: { 'content-type': 'image/png' },
+      body: 'iVBORw0KGgo=',
+      bodyEncoding: 'base64' as const,
+    };
+    open({ mocks: [png] });
+    expect(screen.getByText(/Binary body, stored as base64/)).toBeTruthy();
+    expect((await saved()).mocks).toEqual([png]);
+
+    cleanup();
+    fake.api.setSettings.mockClear();
+    open({ mocks: [png] });
+    fireEvent.click(screen.getByRole('button', { name: 'Replace with text' }));
+    change('Mock 1 body', 'hello');
+    const [mock] = (await saved()).mocks as Array<Record<string, unknown>>;
+    expect(mock['body']).toBe('hello');
+    expect(mock['bodyEncoding']).toBeUndefined();
+  });
+
   it('says rules apply at once while the proxy runs', () => {
     useProxyStore.setState({ running: true });
     open();

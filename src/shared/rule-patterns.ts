@@ -81,6 +81,11 @@ export function describeHostPattern(pattern: string): { match: HostMatch; value:
 export function pathPatternLabel(pattern: string): string {
   const { match, value } = describePathPattern(pattern);
   if (!pattern) return 'any path';
+  if (match === 'regex' && pattern.startsWith('^') && pattern.endsWith('$')) {
+    // A recorded URL with its query: "/search?q=a" and nothing else.
+    const literal = unescapeLiteral(pattern.slice(1, -1));
+    if (literal !== null) return `URL is exactly "${literal}"`;
+  }
   const words = { prefix: 'starts with', exact: 'is', contains: 'contains', regex: 'matches' };
   return `path ${words[match]} ${match === 'regex' ? `/${value}/` : `"${value}"`}`;
 }

@@ -32,6 +32,7 @@ const api: RevAPI = {
     ipcRenderer.invoke(IPC.trafficReplay, trafficId, overrides),
   exportHar: (ids) => ipcRenderer.invoke(IPC.trafficExportHar, ids),
   importHar: () => ipcRenderer.invoke(IPC.trafficImportHar),
+  recordMocks: (ids, options) => ipcRenderer.invoke(IPC.trafficRecordMocks, ids, options),
   getCertStatus: () => ipcRenderer.invoke(IPC.certStatusGet),
   regenerateRootCert: () => ipcRenderer.invoke(IPC.certRegenerate),
   pickFile: (title) => ipcRenderer.invoke(IPC.filePick, title),

@@ -52,6 +52,8 @@ export interface MockDraft {
   statusCode: string;
   headers: string;
   body: string;
+  /** Set for recorded binary bodies: `body` is base64. */
+  bodyEncoding?: 'base64';
   delayMs: string;
 }
 
@@ -84,6 +86,7 @@ const toMockDraft = (m: MockRule): MockDraft => {
     statusCode: String(m.statusCode),
     headers: headersToText(m.headers),
     body: m.body,
+    ...(m.bodyEncoding ? { bodyEncoding: m.bodyEncoding } : {}),
     delayMs: m.delayMs ? String(m.delayMs) : '',
   };
 };
@@ -138,6 +141,7 @@ const toMock = (d: MockDraft): MockRule => ({
   statusCode: Number(d.statusCode),
   headers: textToHeaders(d.headers),
   body: d.body,
+  ...(d.bodyEncoding ? { bodyEncoding: d.bodyEncoding } : {}),
   ...(Number(d.delayMs) > 0 ? { delayMs: Number(d.delayMs) } : {}),
 });
 
@@ -534,6 +538,18 @@ function MockCard({
               ))}
             </div>
           </div>
+          {d.bodyEncoding === 'base64' && (
+            <p className="mt-1.5 flex items-center gap-2 text-xs text-neutral-500">
+              Binary body, stored as base64.
+              <button
+                type="button"
+                className="text-blue-700 hover:underline"
+                onClick={() => patch({ body: '', bodyEncoding: undefined })}
+              >
+                Replace with text
+              </button>
+            </p>
+          )}
           <textarea
             aria-label={`${label} body`}
             placeholder={type === 'application/json' ? '{ "ok": true }' : 'Response body'}

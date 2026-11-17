@@ -55,6 +55,7 @@ System integration, state, and the MCP control surface.
 | `settings.ts`          | Persistence via electron-store; validation and change listeners.                                                                                                         |
 | `traffic-store.ts`     | Ring buffer of captured traffic entries; the cap follows the `trafficCap` setting.                                                                                       |
 | `replay.ts`            | Re-sends a stored request (optionally edited) to its upstream; used by the UI and the `replay_request` tool.                                                             |
+| `record-mocks.ts`      | Record and replay: saves captured entries as mock rules (merged into settings); used by the UI and the `record_mocks` tool.                                              |
 | `client-cert.ts`       | Reads the PEM client certificate + key configured for upstream mutual TLS.                                                                                               |
 | `windows.ts`           | BrowserWindow creation and lifecycle.                                                                                                                                    |
 | `menu.ts`              | Application menu, including the MCP setup item and cache reset.                                                                                                          |
@@ -166,6 +167,9 @@ entry is true until the final one. A fast exchange is reported once, when it end
   `ProtoSpec`, `GrpcProtoBundle`).
 - `settings-schema.ts` — `AppSettings` shape, defaults, and sanitization (port
   range, protocol enum, booleans, route and mock rules).
+- `record-mocks.ts` — record and replay: captured exchanges → mock rules (dedupe,
+  header filtering, base64 for binary bodies, skip reasons) and the merge into the
+  saved mocks; pure, so the dialog's preview and main's save run the same code.
 - `har.ts` — HAR 1.2 export / import; `timings.ts` — timing phases for the waterfall
   and HAR; `breakpoint-id.ts` — rule ids shared by the UI and MCP.
 

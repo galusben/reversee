@@ -691,6 +691,74 @@ describe('route and mock tools', () => {
     expect(handlers.get_config().mocks).toHaveLength(3);
   });
 
+  it('record_mocks saves captured traffic as mocks, filtered or by id', () => {
+    const users = ctx.trafficStore.add(
+      entry({ url: '/api/users', contentType: 'application/json', body: '[1,2]' })
+    );
+    ctx.trafficStore.add(
+      entry({ url: '/api/users', contentType: 'application/json', body: '[1,2,3]' })
+    );
+    const img = ctx.trafficStore.add(
+      entry({ url: '/img.png', contentType: 'image/png', body: '\u00ff' })
+    );
+    img.response.body = Buffer.from([0xff, 0xd8, 0x00]);
+    ctx.trafficStore.add(entry({ url: '/live', pending: true }));
+
+    const result = handlers.record_mocks({ urlContains: '/api' });
+    expect(result).toMatchObject({
+      considered: 2,
+      created: 1,
+      replaced: 0,
+      overLimit: 0,
+      applied: expect.stringMatching(/takes effect when the proxy starts/),
+    });
+    expect(result.mocks).toEqual([
+      {
+        id: expect.any(String),
+        fromTrafficId: users.trafficId + 1,
+        summary: 'GET, path is "/api/users" -> 200',
+        bodyBytes: 7,
+      },
+    ]);
+    expect(result.skipped[0]).toMatchObject({ count: 1, trafficIds: [users.trafficId] });
+    const saved = handlers.list_rules().mocks;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({ name: 'Recorded: GET /api/users', body: '[1,2,3]' });
+
+    // Recording the same request again updates the saved mock in place.
+    const again = handlers.record_mocks({ trafficIds: [users.trafficId] });
+    expect(again).toMatchObject({ created: 0, replaced: 1 });
+    expect(again.mocks[0].id).toBe(saved[0].id);
+    expect(handlers.list_rules().mocks[0].body).toBe('[1,2]');
+
+    // Everything: the image is kept as base64, the pending request skipped.
+    const all = handlers.record_mocks({ ignoreQuery: true, enabled: false });
+    expect(all).toMatchObject({ considered: 4, created: 1, replaced: 1 });
+    expect(all.mocks.find((m) => m.summary.includes('/img.png'))).toMatchObject({
+      bodyBytes: 3,
+      bodyEncoding: 'base64',
+    });
+    expect(all.skipped.map((s) => s.reason)).toContain('still in flight');
+    const mocks = handlers.list_rules().mocks;
+    expect(mocks.find((m) => m.name === 'Recorded: GET /img.png')).toMatchObject({
+      enabled: false,
+      bodyEncoding: 'base64',
+      body: Buffer.from([0xff, 0xd8, 0x00]).toString('base64'),
+    });
+  });
+
+  it('record_mocks rejects bad input and empty selections', () => {
+    expect(() => handlers.record_mocks({ trafficIds: 'x' })).toThrow(/array of request ids/);
+    expect(() => handlers.record_mocks({})).toThrow(/no captured requests match/);
+    ctx.trafficStore.add(entry({ url: '/a' }));
+    expect(() => handlers.record_mocks({ trafficIds: [999] })).toThrow(/no captured requests/);
+    expect(handlers.list_rules().mocks).toEqual([]);
+  });
+
+  it('record_mocks is gated as a mutating tool', () => {
+    expect(MCP_MUTATING_METHODS.has('record_mocks')).toBe(true);
+  });
+
   it('add_route stores a route to a target URL', () => {
     const { added } = handlers.add_route({ path: '/api/v2', target: 'http://localhost:3001' });
     expect(added).toMatchObject({

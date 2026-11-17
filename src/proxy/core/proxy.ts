@@ -587,7 +587,7 @@ export function handleRequest(
 
   function serveMock(rule: MockRule): void {
     entry.mocked = true;
-    const body = Buffer.from(rule.body ?? '');
+    const body = Buffer.from(rule.body ?? '', rule.bodyEncoding === 'base64' ? 'base64' : 'utf8');
     let timer: NodeJS.Timeout | null = null;
     const respond = (): void => {
       timer = null;

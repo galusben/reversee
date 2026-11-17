@@ -51,6 +51,7 @@ const INVOKES = {
   replayRequest: [IPC.trafficReplay, [3, { method: 'POST' }]],
   exportHar: [IPC.trafficExportHar, [[1, 2]]],
   importHar: [IPC.trafficImportHar, []],
+  recordMocks: [IPC.trafficRecordMocks, [[1, 2], { ignoreQuery: true }]],
   getCertStatus: [IPC.certStatusGet, []],
   regenerateRootCert: [IPC.certRegenerate, []],
   pickFile: [IPC.filePick, ['Choose']],

@@ -72,6 +72,8 @@ describe('rule patterns', () => {
   it('labels patterns in words', () => {
     expect(pathPatternLabel('^/api')).toBe('path starts with "/api"');
     expect(pathPatternLabel(pathPattern('exact', '/x'))).toBe('path is "/x"');
+    expect(pathPatternLabel('^/s\\?q=a\\.b$')).toBe('URL is exactly "/s?q=a.b"');
+    expect(pathPatternLabel('^/s(a|b)$')).toBe('path matches /^/s(a|b)$/');
     expect(pathPatternLabel('x')).toBe('path contains "x"');
     expect(pathPatternLabel('^/v[12]')).toBe('path matches /^/v[12]/');
     expect(pathPatternLabel('')).toBe('any path');

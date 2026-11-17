@@ -15,6 +15,7 @@ import {
   type RouteInput,
 } from '../../shared/rule-input';
 import { toHar } from '../../shared/har';
+import { saveRecordedMocks } from '../record-mocks';
 import { readClientCert } from '../client-cert';
 import { filterTraffic, summarizeTraffic, type TrafficFilter } from '../../shared/traffic-query';
 import { decodeJwt, findTokens } from '../../shared/decode';
@@ -443,6 +444,36 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
       const { mocks } = getSettings();
       setSettings({ mocks: p.priority === 'last' ? [...mocks, rule] : [rule, ...mocks] });
       return { added: { ...rule, summary: describeMock(rule) }, ...appliedNote(ctx) };
+    },
+
+    record_mocks: (params) => {
+      const p = (params ?? {}) as Record<string, unknown>;
+      const ids = p['trafficIds'];
+      if (ids !== undefined && !(Array.isArray(ids) && ids.every((id) => typeof id === 'number'))) {
+        throw new Error('trafficIds must be an array of request ids');
+      }
+      let entries = filterTraffic(ctx.trafficStore.getAll(), pickFilter(p));
+      if (Array.isArray(ids)) {
+        const wanted = new Set(ids as number[]);
+        entries = entries.filter((e) => wanted.has(e.trafficId));
+      }
+      if (entries.length === 0) throw new Error('no captured requests match (see search_traffic)');
+      const result = saveRecordedMocks(entries, {
+        ignoreQuery: p['ignoreQuery'] === true,
+        enabled: p['enabled'] !== false,
+      });
+      return {
+        ...result,
+        // Bodies can be large: list each mock by what it matches instead.
+        mocks: result.mocks.map(({ rule, trafficId }) => ({
+          id: rule.id,
+          fromTrafficId: trafficId,
+          summary: describeMock(rule),
+          bodyBytes: Buffer.byteLength(rule.body, rule.bodyEncoding ?? 'utf8'),
+          ...(rule.bodyEncoding ? { bodyEncoding: rule.bodyEncoding } : {}),
+        })),
+        ...appliedNote(ctx),
+      };
     },
 
     add_route: (params) => {

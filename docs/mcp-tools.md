@@ -397,6 +397,45 @@ Answer matching requests with a canned response, without contacting the upstream
 Returns the stored rule (`added`) and whether it is `active now on the running
 proxy` or waits for `start_proxy`.
 
+### `record_mocks` 🔒
+
+Record and replay: turn captured traffic into mocks, so the same responses are
+served again with no upstream (a frontend running offline, a test against fixed
+responses). Select entries with `trafficIds` and/or the
+[`search_traffic`](#search_traffic) filters; with neither, all captured traffic is
+recorded.
+
+| Parameter     | Type      | Required | Description                                                                                                                       |
+| ------------- | --------- | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `trafficIds`  | integer[] | no       | Only these captured requests.                                                                                                     |
+| `ignoreQuery` | boolean   | no       | One mock per path that matches any query string (default `false`: a recorded query matches exactly).                              |
+| `enabled`     | boolean   | no       | Save the mocks switched on (default `true`).                                                                                      |
+| _filters_     |           | no       | `text`, `method`, `status`, `host`, `urlContains`, `urlRegex`, `contentType`, `header`, `bodyContains`, `minTotalMs`, `hasError`. |
+
+How a recording is made:
+
+- One mock per method + URL; when a URL was captured more than once the latest
+  response wins. Mocks for an exact URL with a query come before path-only ones.
+- Status, headers and body are kept. Hop-by-hop headers, `content-length` and
+  `date` are dropped, and `content-encoding` too, because the stored body is the
+  decompressed one. Binary bodies are stored as base64 (`bodyEncoding: "base64"`).
+  Only the first of several `Set-Cookie` headers is kept.
+- Skipped, and reported in `skipped` with a reason: in-flight, failed,
+  already-mocked, WebSocket, gRPC, `CONNECT`, 1xx and `304` exchanges, truncated
+  bodies, bodies over 512 KB, and anything past 8 MB of bodies in one recording.
+- A saved mock with the same method and pattern is updated in place (`replaced`);
+  new ones go after the existing mocks (`created`). The rule list holds 200 mocks;
+  what does not fit is counted in `overLimit`.
+
+```json
+{ "urlContains": "/api/", "ignoreQuery": true }
+```
+
+Returns `considered`, `created`, `replaced`, `overLimit`, `skipped`
+(`[{ reason, count, trafficIds }]`), `mocks` (`[{ id, fromTrafficId, summary,
+bodyBytes }]`, bodies omitted) and `applied`. Undo with
+[`remove_rule`](#remove_rule-).
+
 ### `add_route` 🔒
 
 Send matching requests to a different upstream. The request path is forwarded

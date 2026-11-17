@@ -40,6 +40,16 @@ the desktop UI, and agents through the Model Context Protocol.
   before routes), duplicated and switched off, and each shows how many captured
   requests it matches. Right-click a captured request for _Mock This Response…_ or
   _Route Requests Like This…_. Saving applies to the running proxy at once; no restart.
+- **Record and replay** — _Record as mocks_ in the traffic toolbar (or _Record as
+  Mocks…_ on a row) saves captured responses as mock rules, so the proxy serves them
+  again with no upstream. The scope is all captured requests, the ones the filter
+  lists, or one request. One mock per method + URL (the latest response wins); a
+  recorded query string matches exactly unless _Match any query string_ is ticked.
+  Status, headers and body are kept, minus hop-by-hop headers, `content-length`,
+  `date`, and `content-encoding` (the stored body is decompressed); binary bodies are
+  stored as base64. In-flight, failed, already-mocked, WebSocket, gRPC, 304 and
+  truncated exchanges are skipped, with the reason shown before saving. A saved mock
+  for the same request is updated in place; new ones go after the existing mocks.
 - **Plain HTTP on an HTTPS listener** — a client that sends `http://` to an `https`
   listen port gets a 400 explaining to use `https://`, instead of a dropped connection.
 - **HAR** — export the listed requests to a HAR 1.2 file, or import one, from the
@@ -124,6 +134,7 @@ Agents drive the running app through the `reversee-mcp` stdio bridge. Setup is i
 | `set_breakpoints`      | Replace the breakpoint rules (request or response phase).                                            | **yes**   |
 | `list_rules`           | Mock and route rules in match order, with plain-language summaries.                                  | no        |
 | `add_mock`             | Answer matching requests with a canned response; applies at once.                                    | **yes**   |
+| `record_mocks`         | Turn captured traffic (all, filtered, or by id) into mocks: record and replay.                       | **yes**   |
 | `add_route`            | Send matching requests to a different upstream; applies at once.                                     | **yes**   |
 | `update_rule`          | Enable or disable one mock or route by id.                                                           | **yes**   |
 | `remove_rule`          | Delete one mock or route by id, or all of them.                                                      | **yes**   |

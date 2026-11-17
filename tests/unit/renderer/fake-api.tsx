@@ -66,6 +66,16 @@ export function installFakeApi() {
     replayRequest: vi.fn(() => Promise.resolve({ ok: true, trafficId: 999 })),
     exportHar: vi.fn(() => Promise.resolve({ ok: true, path: '/tmp/out.har', count: 2 })),
     importHar: vi.fn(() => Promise.resolve({ ok: true, count: 3 })),
+    recordMocks: vi.fn(() =>
+      Promise.resolve({
+        considered: 2,
+        created: 2,
+        replaced: 0,
+        overLimit: 0,
+        skipped: [],
+        mocks: [],
+      })
+    ),
     getCertStatus: vi.fn(() => Promise.resolve(certStatus)),
     regenerateRootCert: vi.fn(() => Promise.resolve(certStatus)),
     pickFile: vi.fn(() => Promise.resolve('/picked/file.pem')),
@@ -135,6 +145,7 @@ export function resetStores(): void {
     summaryOpen: false,
     preferencesOpen: false,
     rulesOpen: false,
+    recordMocks: null,
     replayEditorId: null,
     filterFocusRequest: 0,
     notice: null,

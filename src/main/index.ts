@@ -54,6 +54,7 @@ import { setupUpdater } from './updater';
 import { createMcpHandlers, MCP_MUTATING_METHODS } from './mcp/handlers';
 import { startControlServer, type ControlServer } from './mcp/control-server';
 import { parseCliFlags } from './cli-args';
+import { saveRecordedMocks } from './record-mocks';
 import iconAsset from '../../resources/icon.png?asset';
 
 log.transports.file.level = 'info';
@@ -359,6 +360,15 @@ function registerIpc(): void {
     )
   );
   ipcMain.handle(IPC.trafficImportHar, () => importHar());
+  ipcMain.handle(IPC.trafficRecordMocks, (_event, ids: unknown, options: unknown) => {
+    const wanted = Array.isArray(ids) ? new Set(ids.filter((id) => typeof id === 'number')) : null;
+    const all = trafficStore.getAll();
+    const o = (options ?? {}) as Record<string, unknown>;
+    return saveRecordedMocks(wanted ? all.filter((e) => wanted.has(e.trafficId)) : all, {
+      ignoreQuery: o['ignoreQuery'] === true,
+      enabled: o['enabled'] !== false,
+    });
+  });
   ipcMain.handle(IPC.clipboardWrite, (_event, text: unknown) => {
     if (typeof text === 'string') clipboard.writeText(text);
   });

@@ -15,6 +15,7 @@ Reversee sits between your client and a destination server. Point your client at
 - **Scripts (interceptors)** — JavaScript snippets that rewrite requests (`requestParams`: host, path, method, port, headers, body) or responses (`responseParams`: statusCode, headers, body) on the fly. The Scripts screen has one-click examples and a **Try it** button that shows what a script changes on a captured request before you turn it on; saving applies it to the running proxy without a restart. Errors and `console.log` output are shown on the request.
 - **Breakpoints** — hold requests, or responses, matching a URL regex + methods, edit them, then continue.
 - **Mocks and routes** — answer any request with a response you write (fake an endpoint, force a 500, add latency), or send some requests to a different upstream by path or Host. No code, plain "path starts with" matching, one click from a captured request, and changes apply while the proxy runs.
+- **Record and replay** — one click turns the captured session (or just the requests the filter lists) into mocks, so a frontend can run offline or a test can run against fixed responses. See [Record and replay](#record-and-replay).
 - **Replay and HAR** — re-send a captured request (as is, or edited), and export or import sessions as HAR files.
 - **gRPC** — proxy native gRPC over HTTP/2 (h2 via ALPN, or cleartext h2c) and decode every message — unary and server/client/bidi streaming — into readable JSON, using `.proto`/`.desc` definitions you import. See [gRPC](#grpc).
 - **Redirect & host rewriting** — keep redirect chains and Host headers pointed at the proxy.
@@ -49,6 +50,20 @@ Each request is listed under the host it went to. Mocks, routes, scripts, breakp
 - The servers' certificates are verified by default in this mode (Preferences has a switch for self-signed servers).
 - In this mode the proxy accepts connections from this machine only.
 - Only trust the root certificate on machines you control. Anyone holding its key can read that machine's HTTPS traffic.
+
+## Record and replay
+
+Capture a session through the proxy, then click **Record as mocks** in the traffic toolbar (or right-click a request → _Record as Mocks…_). Pick all captured requests, the ones the filter lists, or the single request, and Reversee saves each response as a mock rule. From then on the proxy answers those requests itself, with the upstream switched off if you like: run a frontend offline, or point a test at fixed responses.
+
+![Record as mocks: the requests the filter lists become two mocks, with a preview of what will be saved](docs/screenshots/record-mocks.png)
+
+- **One mock per method and URL.** When a URL was captured more than once, the latest response wins.
+- **Query strings.** A recorded `/search?q=a` answers only that exact URL, and is placed before any path-only mock. Tick _Match any query string_ to record one mock per path instead.
+- **Faithful responses.** The status, headers and body are kept. Hop-by-hop headers, `content-length` and `date` are dropped, and `content-encoding` too, since the stored body is the decompressed one. Binary bodies (images, protobuf) are stored as base64 and served byte for byte. When several `Set-Cookie` headers were sent, only the first is kept.
+- **What is skipped, and why.** Requests still in flight, failed ones, responses that were already mocks, WebSockets, gRPC, `304 Not Modified`, truncated bodies and bodies over 512 KB (8 MB per recording) are left out; the dialog says which and why before you save.
+- **Ordinary mocks.** Recordings are named `Recorded: GET /path` and show up in _Routes & Mocks_, where you can edit, reorder or switch them off. Recording the same request again updates its mock in place; new mocks go after your own, so hand-written mocks keep priority.
+
+Agents can do the same with the [`record_mocks`](docs/mcp-tools.md#record_mocks-) MCP tool, and a HAR file you import can be recorded like captured traffic.
 
 ## Install
 
@@ -143,13 +158,14 @@ The package is published as [`reversee-mcp`](https://www.npmjs.com/package/rever
 | `decode_jwt`                                                | Decode a JWT's header and claims (inspection only)                                                                            |
 | `list_breakpoints` / `set_breakpoints`                      | Read / replace the breakpoint rules (request or response phase)                                                               |
 | `list_held_requests` / `resume_held_request`                | See what is held at a breakpoint and resume it, optionally edited                                                             |
+| `record_mocks`                                              | Turn captured traffic (all, filtered, or by id) into mocks that serve it again without the upstream                           |
 | `export_har`                                                | Write captured traffic (optionally filtered) to a HAR file                                                                    |
 | `regenerate_root_cert`                                      | Replace the root CA behind the HTTPS listener (when it has expired)                                                           |
 | `list_proto_specs` / `add_proto_spec` / `remove_proto_spec` | Manage protobuf specs used to decode gRPC (add/remove gated)                                                                  |
 | `validate_setup`                                            | Setup checks (destination, ports, root cert, proxy process)                                                                   |
 | `export_diagnostics`                                        | Versions, platform, settings, state — for bug reports                                                                         |
 
-`replay_request`, `set_interceptor`, `try_interceptor`, `set_breakpoints`, `resume_held_request`, `export_har`, `regenerate_root_cert`, `update_config`, `add_proto_spec`, `remove_proto_spec`, and the start/stop/restart tools are gated behind _Allow MCP to Control the Proxy_ (or `--allow-mcp-control` headless); the rest are always available read-only.
+`replay_request`, `record_mocks`, `set_interceptor`, `try_interceptor`, `set_breakpoints`, `resume_held_request`, `export_har`, `regenerate_root_cert`, `update_config`, `add_proto_spec`, `remove_proto_spec`, and the start/stop/restart tools are gated behind _Allow MCP to Control the Proxy_ (or `--allow-mcp-control` headless); the rest are always available read-only.
 
 The app owns this list — it serves the catalog to the bridge at startup, so **tools added in an app update appear automatically** with no MCP-server reinstall (the bridge is a generic passthrough). When the app is not running, the bridge advertises a built-in fallback list and each call returns a "launch Reversee" message.
 
@@ -168,7 +184,7 @@ This touches only Reversee's `npx` cache; the next run pulls the latest publishe
 ### Security model
 
 - The bridge talks to the app over a **local socket** (unix domain socket / Windows named pipe), never a TCP port, with a per-boot token — only your user account can reach it.
-- It is **read-only by default**. The tools that change state or run code (start/stop/restart, the mock and route tools, `update_config`, `replay_request`, `set_interceptor`, `try_interceptor`, `set_breakpoints`, `resume_held_request`, `export_har`, `regenerate_root_cert`, `add_proto_spec`, `remove_proto_spec`) are rejected until you check _Proxy Settings → Allow MCP to Control the Proxy_ in the app.
+- It is **read-only by default**. The tools that change state or run code (start/stop/restart, the mock and route tools including `record_mocks`, `update_config`, `replay_request`, `set_interceptor`, `try_interceptor`, `set_breakpoints`, `resume_held_request`, `export_har`, `regenerate_root_cert`, `add_proto_spec`, `remove_proto_spec`) are rejected until you check _Proxy Settings → Allow MCP to Control the Proxy_ in the app.
 - _Proxy Settings → Enable MCP Integration_ turns the socket off entirely.
 
 ### Headless mode (for agents)

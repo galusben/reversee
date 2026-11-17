@@ -80,6 +80,8 @@ export interface MockRule {
   statusCode: number;
   headers: Record<string, string>;
   body: string;
+  /** "base64" when `body` holds binary bytes (recorded images, compressed data…). */
+  bodyEncoding?: 'base64';
   /** Artificial latency before responding. */
   delayMs?: number;
 }

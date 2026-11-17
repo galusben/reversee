@@ -23,6 +23,9 @@ interface UiStore {
   setRulesOpen(open: boolean, seed?: RuleSeed): void;
   scriptsOpen: boolean;
   setScriptsOpen(open: boolean): void;
+  /** The "Record as mocks" dialog; trafficId offers that one request as the scope. */
+  recordMocks: { trafficId?: number } | null;
+  setRecordMocks(open: boolean, trafficId?: number): void;
   /** trafficId of the request open in the "Edit and Replay" dialog, if any. */
   replayEditorId: number | null;
   setReplayEditorId(id: number | null): void;
@@ -52,6 +55,9 @@ export const useUiStore = create<UiStore>((set, get) => ({
   setRulesOpen: (rulesOpen, seed) => set({ rulesOpen, rulesSeed: (rulesOpen && seed) || null }),
   scriptsOpen: false,
   setScriptsOpen: (scriptsOpen) => set({ scriptsOpen }),
+  recordMocks: null,
+  setRecordMocks: (open, trafficId) =>
+    set({ recordMocks: open ? (trafficId === undefined ? {} : { trafficId }) : null }),
   replayEditorId: null,
   setReplayEditorId: (replayEditorId) => set({ replayEditorId }),
   filterFocusRequest: 0,
