@@ -256,6 +256,52 @@ answered by a mock rule.
 | ------- | ------ | -------- | ------------------------------------------------------------- |
 | `token` | string | yes      | The JWT string. A leading `Bearer ` is fine — pass the token. |
 
+### `compare_requests`
+
+> Diff two captured exchanges (A vs B) to answer "why did this call work and that
+> one fail": request line, status, request and response headers (by name,
+> case-insensitive) and bodies. JSON bodies are pretty-printed with sorted keys
+> before diffing, so key order does not count; binary bodies are compared by size
+> and fingerprint. Returns a plain-language summary of the differences first, then
+> per-field diffs and a unified diff of each body that differs. Read-only.
+
+| Param              | Type     | Required | Notes                                                            |
+| ------------------ | -------- | -------- | ---------------------------------------------------------------- |
+| `trafficIdA`       | integer  | yes      | The baseline exchange (e.g. the one that worked).                |
+| `trafficIdB`       | integer  | yes      | The exchange to compare against it.                              |
+| `ignoreHeaders`    | string[] | no       | Header names to leave out, e.g. `["date", "x-request-id"]`.      |
+| `includeUnchanged` | boolean  | no       | Also list fields that are equal on both sides (default `false`). |
+
+```jsonc
+// compare_requests({ trafficIdA: 12, trafficIdB: 15, ignoreHeaders: ["date"] })
+{
+  "a": { "trafficId": 12, "method": "GET", "url": "/me", "status": "200" },
+  "b": { "trafficId": 15, "method": "GET", "url": "/me", "status": "401" },
+  "identical": false,
+  "summary": [
+    "status: 200 → 401",
+    "request header authorization: \"Bearer eyJ…new\" → \"Bearer eyJ…old\"",
+    "response header www-authenticate only in B: \"Bearer\"",
+    "response body differs (40 → 36 bytes)",
+  ],
+  "requestHeaders": [{ "name": "authorization", "a": "…", "b": "…", "status": "changed" }],
+  "responseBody": {
+    "equal": false,
+    "a": { "kind": "json", "bytes": 40 },
+    "b": { "kind": "json", "bytes": 36 },
+    "diff": "@@ -1,7 +1,4 @@\n {\n-  \"ok\": true,\n…",
+  },
+  // also: requestLine, status, responseHeaders, requestBody
+}
+```
+
+Each field diff has a `status` of `changed`, `added` (only in B) or `removed` (only
+in A). Bodies are compared as stored, after content-encoding decoding, so a gzip
+response and an identical plain one compare equal (the `content-encoding` header
+still shows as a difference). A body `kind` is `empty`, `json`, `text` or `binary`;
+a JSON body cut at the capture cap is compared as text. The unified diff is capped
+at 400 lines (`diffTruncated: true`).
+
 ---
 
 ## Acting on traffic
@@ -567,6 +613,9 @@ A few end-to-end patterns these tools were designed for:
   on the interesting ids for full detail.
 - **Test a fix hypothesis.** Find the failing request, then `replay_request` with a
   changed header/body/url and compare the new entry — no client changes needed.
+- **Why did this one fail?** Find a working and a failing call to the same endpoint
+  (`search_traffic`), then `compare_requests` with the working one as A: the summary
+  names the differing status, headers and body fields.
 - **Mock or inject faults.** `set_interceptor` (`response`) to force a status/body,
   drive the client, then clear it by setting `enabled: false`.
 - **Debug auth.** `get_traffic_entry` surfaces decoded JWTs inline; `decode_jwt`

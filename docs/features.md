@@ -29,6 +29,15 @@ the desktop UI, and agents through the Model Context Protocol.
   syntax-highlighted bodies, a timing waterfall). Requests appear while still in
   flight. Copy-as-curl, replay, and edit-and-replay from the context menu; scroll
   lock to stop auto-follow; clear all. The history size is configurable.
+- **Compare two requests** — right-click a request and choose _Mark for Compare_ (the
+  row gets an **A** badge), then right-click another and choose _Compare with #N_. The
+  Compare screen lists what differs in plain language (status, method, URL, upstream,
+  each changed / added / removed header, bodies), then has tabs for the status and
+  header tables (identical fields hidden unless asked for) and a side-by-side diff of
+  the response and request bodies. JSON bodies are pretty-printed with sorted keys so
+  key order and whitespace do not count; bodies are compared as displayed, after
+  gzip / brotli / zstd decoding; binary bodies show their size, a fingerprint and a hex
+  preview. Swap A and B with the arrows button. Agents use `compare_requests`.
 - **Streaming and WebSockets** — responses are streamed, so Server-Sent Events and
   large downloads behave as they would without the proxy. WebSocket upgrades are
   tunnelled and their messages (including permessage-deflate) listed per connection.
@@ -126,6 +135,7 @@ Agents drive the running app through the `reversee-mcp` stdio bridge. Setup is i
 | `search_traffic`       | Filter requests server-side (method, status, URL/regex, content-type, header, body, timing, errors). | no        |
 | `summarize_session`    | Aggregate view: status classes, methods, content types, top hosts, errors, slowest.                  | no        |
 | `get_traffic_entry`    | One request in full: headers, bodies, timings, curl, upstream target, decoded JWTs, decoded gRPC.    | no        |
+| `compare_requests`     | Diff two exchanges: status, request line, headers, bodies (JSON normalized), plus a summary.         | no        |
 | `replay_request`       | Re-send a captured request with optional edits (method/url/headers/body).                            | **yes**   |
 | `set_interceptor`      | Install request/response interceptor JS for mocking / fault injection; applies live.                 | **yes**   |
 | `try_interceptor`      | Dry-run script code on a captured exchange: what it changes, errors, console output.                 | **yes**   |
@@ -148,7 +158,7 @@ Agents drive the running app through the `reversee-mcp` stdio bridge. Setup is i
 | `validate_setup`       | Setup checks: destination, ports, root cert, proxy process.                                          | no        |
 | `export_diagnostics`   | Versions, platform, settings, state, log location — for bug reports.                                 | no        |
 
-30 tools; the 17 marked mutating are gated.
+32 tools; the 18 marked mutating are gated.
 
 ### Headless mode
 

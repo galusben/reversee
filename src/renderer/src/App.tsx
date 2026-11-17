@@ -18,6 +18,7 @@ import { RulesDialog } from './components/RulesDialog';
 import { ScriptsDialog } from './components/ScriptsDialog';
 import { ReplayDialog } from './components/ReplayDialog';
 import { RecordMocksDialog } from './components/RecordMocksDialog';
+import { CompareDialog } from './components/CompareDialog';
 
 export default function App(): React.JSX.Element {
   const init = useProxyStore((s) => s.init);
@@ -83,6 +84,7 @@ export default function App(): React.JSX.Element {
       <ScriptsDialog />
       <ReplayDialog />
       <RecordMocksDialog />
+      <CompareDialog />
       {certProblem && (
         <div
           role="alert"

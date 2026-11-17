@@ -147,6 +147,8 @@ export function resetStores(): void {
     rulesOpen: false,
     recordMocks: null,
     replayEditorId: null,
+    compareBaseId: null,
+    compareIds: null,
     filterFocusRequest: 0,
     notice: null,
   });
@@ -192,6 +194,24 @@ export function FakeMonaco({
       defaultValue={value}
       onChange={(e) => onChange(e.target.value)}
     />
+  );
+}
+
+/** Stand-in for the lazily imported Monaco diff editor. */
+export function FakeMonacoDiff({
+  original,
+  modified,
+  language,
+}: {
+  original: string;
+  modified: string;
+  language: string;
+}) {
+  return (
+    <div data-testid="monaco-diff" data-language={language}>
+      <pre data-testid="diff-original">{original}</pre>
+      <pre data-testid="diff-modified">{modified}</pre>
+    </div>
   );
 }
 

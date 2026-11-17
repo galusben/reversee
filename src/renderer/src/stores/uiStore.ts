@@ -29,6 +29,13 @@ interface UiStore {
   /** trafficId of the request open in the "Edit and Replay" dialog, if any. */
   replayEditorId: number | null;
   setReplayEditorId(id: number | null): void;
+  /** trafficId marked as side A of a comparison ("Mark for Compare"). */
+  compareBaseId: number | null;
+  setCompareBaseId(id: number | null): void;
+  /** The two trafficIds open in the Compare screen (A, B), if any. */
+  compareIds: [number, number] | null;
+  openCompare(a: number, b: number): void;
+  closeCompare(): void;
   /** Bumped to ask the traffic table to focus its filter box. */
   filterFocusRequest: number;
   requestFilterFocus(): void;
@@ -60,6 +67,16 @@ export const useUiStore = create<UiStore>((set, get) => ({
     set({ recordMocks: open ? (trafficId === undefined ? {} : { trafficId }) : null }),
   replayEditorId: null,
   setReplayEditorId: (replayEditorId) => set({ replayEditorId }),
+  compareBaseId: null,
+  setCompareBaseId: (compareBaseId) => set({ compareBaseId }),
+  compareIds: null,
+  openCompare: (a, b) => {
+    // The "Marked #N as A" hint is done once the comparison is open.
+    if (noticeTimer) clearTimeout(noticeTimer);
+    noticeTimer = null;
+    set({ compareIds: [a, b], compareBaseId: null, notice: null });
+  },
+  closeCompare: () => set({ compareIds: null }),
   filterFocusRequest: 0,
   requestFilterFocus: () => set({ filterFocusRequest: get().filterFocusRequest + 1 }),
   notice: null,

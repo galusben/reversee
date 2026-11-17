@@ -19,6 +19,13 @@ import { saveRecordedMocks } from '../record-mocks';
 import { readClientCert } from '../client-cert';
 import { filterTraffic, summarizeTraffic, type TrafficFilter } from '../../shared/traffic-query';
 import { decodeJwt, findTokens } from '../../shared/decode';
+import {
+  compareExchanges,
+  unifiedDiff,
+  type BodyDiff,
+  type ExchangeComparison,
+  type FieldDiff,
+} from '../../shared/compare';
 import { runScriptTrial } from '../script-trial';
 import { replayEntry, type ReplayOverrides } from '../replay';
 import {
@@ -179,6 +186,38 @@ function fullEntry(entry: TrafficEntry): Record<string, unknown> {
       : undefined,
     timings: entry.timings,
     decoded: decoded.length ? decoded : undefined,
+  };
+}
+
+/** Agent-facing shape of a comparison: unchanged fields dropped by default,
+ * bodies as unified diffs rather than two full copies. */
+function comparisonView(c: ExchangeComparison, includeUnchanged: boolean): Record<string, unknown> {
+  const fields = (list: FieldDiff[]): FieldDiff[] =>
+    includeUnchanged ? list : list.filter((f) => f.status !== 'same');
+  const body = (d: BodyDiff): Record<string, unknown> => {
+    const out: Record<string, unknown> = {
+      equal: d.equal,
+      a: { kind: d.a.kind, bytes: d.a.bytes, truncated: d.a.truncated },
+      b: { kind: d.b.kind, bytes: d.b.bytes, truncated: d.b.truncated },
+    };
+    if (!d.equal) {
+      const { diff, truncated } = unifiedDiff(d.a.text, d.b.text);
+      out.diff = diff;
+      if (truncated) out.diffTruncated = true;
+    }
+    return out;
+  };
+  return {
+    a: c.a,
+    b: c.b,
+    identical: c.identical,
+    summary: c.summary,
+    requestLine: fields(c.requestLine),
+    status: c.status,
+    requestHeaders: fields(c.requestHeaders),
+    responseHeaders: fields(c.responseHeaders),
+    requestBody: body(c.requestBody),
+    responseBody: body(c.responseBody),
   };
 }
 
@@ -362,6 +401,29 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
       const entry = ctx.trafficStore.get(p.trafficId);
       if (!entry) throw new Error(`no traffic entry with id ${p.trafficId}`);
       return fullEntry(entry);
+    },
+
+    compare_requests: (params) => {
+      const p = (params ?? {}) as {
+        trafficIdA?: unknown;
+        trafficIdB?: unknown;
+        ignoreHeaders?: unknown;
+        includeUnchanged?: unknown;
+      };
+      if (typeof p.trafficIdA !== 'number' || typeof p.trafficIdB !== 'number') {
+        throw new Error('trafficIdA and trafficIdB (numbers) are required');
+      }
+      const a = ctx.trafficStore.get(p.trafficIdA);
+      if (!a) throw new Error(`no traffic entry with id ${p.trafficIdA}`);
+      const b = ctx.trafficStore.get(p.trafficIdB);
+      if (!b) throw new Error(`no traffic entry with id ${p.trafficIdB}`);
+      const ignore = Array.isArray(p.ignoreHeaders)
+        ? p.ignoreHeaders.filter((h): h is string => typeof h === 'string')
+        : [];
+      return comparisonView(
+        compareExchanges(a, b, { ignoreHeaders: ignore }),
+        p.includeUnchanged === true
+      );
     },
 
     replay_request: async (params) => {

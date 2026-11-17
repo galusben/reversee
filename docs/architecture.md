@@ -87,10 +87,12 @@ Entry: `src/renderer/src/main.tsx` → `App.tsx`.
   `uiStore.ts` (dialog state).
 - **Stores** also include `protoSpecStore.ts` (saved gRPC proto specs + compile errors).
 - **Components** (`src/renderer/src/components/`): `SettingsBar.tsx`,
-  `TrafficTable.tsx`, `DetailPanes.tsx`, `BreakpointsDialog.tsx`,
+  `TrafficTable.tsx`, `DetailPanes.tsx`, `CompareDialog.tsx` (two-exchange diff),
+  `BreakpointsDialog.tsx`,
   `BreakpointQueue.tsx`, `ScriptsDialog.tsx` (interceptor scripts), `ConnectAiDialog.tsx`,
   `ProtoSpecsDialog.tsx` (manage gRPC proto specs),
-  `MonacoView.tsx` / `MonacoViewImpl.tsx` (JS editor for interceptors), and `ui/`
+  `MonacoView.tsx` / `MonacoViewImpl.tsx` (JS editor for interceptors),
+  `MonacoDiffImpl.tsx` (lazy side-by-side diff editor), and `ui/`
   (Radix-based primitives).
 
 ## `src/proxy/` — the proxy core (Electron-free)
@@ -170,6 +172,8 @@ entry is true until the final one. A fast exchange is reported once, when it end
 - `record-mocks.ts` — record and replay: captured exchanges → mock rules (dedupe,
   header filtering, base64 for binary bodies, skip reasons) and the merge into the
   saved mocks; pure, so the dialog's preview and main's save run the same code.
+- `compare.ts` — the two-exchange diff (headers, status, normalized bodies, line /
+  unified diff) used by the Compare screen and `compare_requests`.
 - `har.ts` — HAR 1.2 export / import; `timings.ts` — timing phases for the waterfall
   and HAR; `breakpoint-id.ts` — rule ids shared by the UI and MCP.
 

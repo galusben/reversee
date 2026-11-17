@@ -134,11 +134,14 @@ function Badge({ children, tone }: { children: string; tone: string }): React.JS
 const Row = memo(function Row({
   entry,
   selected,
+  marked,
   onSelect,
   onMenu,
 }: {
   entry: TrafficEntry;
   selected: boolean;
+  /** Marked as side A of a comparison. */
+  marked: boolean;
   onSelect: (id: number) => void;
   onMenu: (entry: TrafficEntry) => void;
 }): React.JSX.Element {
@@ -169,6 +172,11 @@ const Row = memo(function Row({
         {hostLabel(entry)}
       </td>
       <td className="max-w-0 px-3" title={entry.request.url}>
+        {marked && (
+          <span title="Marked for compare (A)">
+            <Badge tone="bg-fuchsia-100 text-fuchsia-700">A</Badge>
+          </span>
+        )}
         {entry.ws && <Badge tone="bg-emerald-100 text-emerald-700">WS</Badge>}
         {entry.mocked && <Badge tone="bg-amber-100 text-amber-800">MOCK</Badge>}
         {entry.imported && <Badge tone="bg-neutral-200 text-neutral-600">HAR</Badge>}
@@ -220,6 +228,10 @@ export function TrafficTable(): React.JSX.Element {
   const openRules = useUiStore((s) => s.setRulesOpen);
   const openRecordMocks = useUiStore((s) => s.setRecordMocks);
   const filterFocusRequest = useUiStore((s) => s.filterFocusRequest);
+  const compareBaseId = useUiStore((s) => s.compareBaseId);
+  const setCompareBaseId = useUiStore((s) => s.setCompareBaseId);
+  const openCompare = useUiStore((s) => s.openCompare);
+  const showNotice = useUiStore((s) => s.showNotice);
 
   const traffic = useMemo(
     () => sortTraffic(listedTraffic(allTraffic, filterText, errorsOnly), sort),
@@ -473,6 +485,39 @@ export function TrafficTable(): React.JSX.Element {
                 label: 'Edit and Replay…',
                 onSelect: () => openReplayEditor(menuEntryRef.current?.trafficId ?? null),
               },
+              ...(compareBaseId !== null
+                ? [
+                    {
+                      label: `Compare with #${compareBaseId}`,
+                      onSelect: () => {
+                        const entry = menuEntryRef.current;
+                        if (!entry) return;
+                        if (entry.trafficId === compareBaseId) {
+                          showNotice({
+                            kind: 'info',
+                            text: `#${compareBaseId} is marked — right-click a different request to compare.`,
+                          });
+                        } else {
+                          openCompare(compareBaseId, entry.trafficId);
+                        }
+                      },
+                    },
+                    { label: 'Clear Compare Mark', onSelect: () => setCompareBaseId(null) },
+                  ]
+                : [
+                    {
+                      label: 'Mark for Compare',
+                      onSelect: () => {
+                        const entry = menuEntryRef.current;
+                        if (!entry) return;
+                        setCompareBaseId(entry.trafficId);
+                        showNotice({
+                          kind: 'info',
+                          text: `Marked #${entry.trafficId} as A — right-click another request and choose Compare with #${entry.trafficId}.`,
+                        });
+                      },
+                    },
+                  ]),
               {
                 label: 'Mock This Response…',
                 onSelect: () => {
@@ -521,6 +566,7 @@ export function TrafficTable(): React.JSX.Element {
                   key={entry.trafficId}
                   entry={entry}
                   selected={selectedId === entry.trafficId}
+                  marked={compareBaseId === entry.trafficId}
                   onSelect={select}
                   onMenu={onMenu}
                 />

@@ -17,6 +17,7 @@ Reversee sits between your client and a destination server. Point your client at
 - **Mocks and routes** — answer any request with a response you write (fake an endpoint, force a 500, add latency), or send some requests to a different upstream by path or Host. No code, plain "path starts with" matching, one click from a captured request, and changes apply while the proxy runs.
 - **Record and replay** — one click turns the captured session (or just the requests the filter lists) into mocks, so a frontend can run offline or a test can run against fixed responses. See [Record and replay](#record-and-replay).
 - **Replay and HAR** — re-send a captured request (as is, or edited), and export or import sessions as HAR files.
+- **Compare two requests** — right-click a request, _Mark for Compare_, then right-click another and _Compare with #N_: a side-by-side diff of the status, request line, headers and bodies (JSON pretty-printed with sorted keys, compressed bodies decoded) that answers "why did this call work and that one fail".
 - **gRPC** — proxy native gRPC over HTTP/2 (h2 via ALPN, or cleartext h2c) and decode every message — unary and server/client/bidi streaming — into readable JSON, using `.proto`/`.desc` definitions you import. See [gRPC](#grpc).
 - **Redirect & host rewriting** — keep redirect chains and Host headers pointed at the proxy.
 - **Upstream TLS options** — a client certificate for mutual TLS, optional certificate verification, and a response timeout.
@@ -152,6 +153,7 @@ The package is published as [`reversee-mcp`](https://www.npmjs.com/package/rever
 | `search_traffic`                                            | Filter requests server-side (method, status, URL/regex, content-type, header, body, timing, errors) — fetch only what matters |
 | `summarize_session`                                         | Aggregate view: status classes, methods, content types, top hosts, errors, slowest                                            |
 | `get_traffic_entry`                                         | One request in full: headers, bodies, timings, curl, upstream target, decoded JWTs, and decoded gRPC                          |
+| `compare_requests`                                          | Diff two captured exchanges: status, request line, headers and bodies (JSON normalized), with a plain-language summary        |
 | `replay_request`                                            | Re-send a captured request with optional edits (method/url/headers/body) to test a hypothesis                                 |
 | `set_interceptor`                                           | Install request/response interceptor JS for mocking or fault injection (applies live)                                         |
 | `try_interceptor`                                           | Dry-run a script on a captured request: what it changes, errors, console output                                               |
