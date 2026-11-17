@@ -3,7 +3,7 @@
 // and — most important — requests held at a breakpoint, which block a real
 // client even while the tab is in the background.
 import { useEffect, useRef, useState } from 'react';
-import { OctagonPause, Plus, X } from 'lucide-react';
+import { OctagonPause, Pencil, Plus, X } from 'lucide-react';
 import { WithContextMenu, type ContextMenuItem } from './ui/ContextMenu';
 import { useTabsStore } from '../stores/tabsStore';
 import { useUiStore } from '../stores/uiStore';
@@ -21,7 +21,7 @@ function tabTooltip(tab: TabSummary): string {
     : tab.running
       ? `running on port ${tab.port ?? tab.listenPort}`
       : 'stopped';
-  return `${tab.name} · ${tab.id}\n:${tab.listenPort} → ${target}\n${state}`;
+  return `${tab.name} · ${tab.id}\n:${tab.listenPort} → ${target}\n${state}\nDouble-click to rename`;
 }
 
 function StatusDot({ tab }: { tab: TabSummary }): React.JSX.Element {
@@ -188,7 +188,29 @@ function Tab({
         {renaming ? (
           <RenameInput tab={tab} onDone={onRenameDone} />
         ) : (
-          <span className={`truncate ${active ? 'font-medium' : ''}`}>{tab.name}</span>
+          <>
+            <span className={`truncate ${active ? 'font-medium' : ''}`}>{tab.name}</span>
+            {/*
+              Makes renaming discoverable. Only on the active tab: on a background
+              tab it would sit where people click to switch, and turn that click
+              into a rename.
+            */}
+            {active && (
+              <button
+                type="button"
+                aria-label={`Rename ${tab.name}`}
+                title="Rename tab (or double-click it)"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRename();
+                }}
+                onDoubleClick={(e) => e.stopPropagation()}
+                className="shrink-0 rounded p-0.5 text-neutral-400 opacity-70 hover:bg-neutral-200 hover:text-neutral-700 hover:opacity-100"
+              >
+                <Pencil className="h-3 w-3" aria-hidden />
+              </button>
+            )}
+          </>
         )}
         <span className="shrink-0 text-neutral-400">:{tab.port ?? tab.listenPort}</span>
         {tab.trafficCount > 0 && (

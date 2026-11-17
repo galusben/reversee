@@ -88,6 +88,20 @@ describe('tab strip', () => {
     expect(fake.api.renameTab).toHaveBeenLastCalledWith('t2', 'Mobile');
   });
 
+  it('offers a rename button on the active tab only', async () => {
+    await renderApp();
+    // A background tab has none: a click there must switch tabs, never start a rename.
+    expect(screen.queryByRole('button', { name: 'Rename auth.test' })).toBeNull();
+    switchTo('t2');
+    fireEvent.click(screen.getByRole('button', { name: 'Rename auth.test' }));
+    const input = screen.getByRole('textbox', { name: 'Tab name' });
+    fireEvent.change(input, { target: { value: 'Mobile' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => expect(fake.api.renameTab).toHaveBeenCalledWith('t2', 'Mobile'));
+    // The rename button does not also re-select the tab.
+    expect(fake.api.setActiveTab).not.toHaveBeenCalled();
+  });
+
   it('starts renaming the active tab from the menu', async () => {
     await renderApp();
     act(() => fake.emit('onRenameTab'));
