@@ -30,8 +30,8 @@ In the default mode Reversee stands in front of one destination. In **Capture an
 2. Point the program at the proxy:
 
    ```sh
-   export HTTP_PROXY=http://127.0.0.1:8000
-   export HTTPS_PROXY=http://127.0.0.1:8000
+   export HTTP_PROXY=http://127.0.0.1:8000 http_proxy=http://127.0.0.1:8000
+   export HTTPS_PROXY=http://127.0.0.1:8000 https_proxy=http://127.0.0.1:8000
    ```
 
 3. For HTTPS, make the program trust the Reversee root certificate. Save it with _Proxy Settings → Export Root Cert_, then for example:

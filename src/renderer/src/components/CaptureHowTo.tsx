@@ -36,16 +36,20 @@ export function CaptureHowTo({
 
           <div className="space-y-4 text-sm text-neutral-700">
             <CopyBlock
-              label="Try it with curl (plain HTTP)"
-              text={`curl -x ${address} http://example.com/`}
+              label="1. Set the proxy. Most command-line tools and SDKs read these variables (some, like curl, only the lowercase http_proxy)"
+              text={`export HTTP_PROXY=${address} http_proxy=${address}\nexport HTTPS_PROXY=${address} https_proxy=${address}`}
             />
             <CopyBlock
-              label="Most command-line tools and SDKs read these variables"
-              text={`export HTTP_PROXY=${address}\nexport HTTPS_PROXY=${address}`}
+              label="2. Try it. With the variables from step 1 set, curl uses the proxy on its own"
+              text="curl http://example.com/"
+            />
+            <CopyBlock
+              label="Or skip the variables: -x (short for --proxy) sets the proxy for that one command"
+              text={`curl -x ${address} http://example.com/`}
             />
 
             <div>
-              <div className="mb-1 font-medium">HTTPS needs one more step</div>
+              <div className="mb-1 font-medium">3. HTTPS needs one more step</div>
               <p className="text-neutral-600">
                 To show HTTPS traffic, Reversee answers with its own certificate, so the client has
                 to trust the Reversee root certificate. Save it with{' '}
