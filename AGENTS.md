@@ -1,6 +1,6 @@
 # Reversee — guide for AI agents
 
-Reverse-proxy web debugger. **Electron 42 + React 19 + TypeScript**, built with
+Reverse-proxy web debugger. **Electron 45 + React 19 + TypeScript**, built with
 electron-vite. It sits between a client and a destination server so you can see,
 intercept, and edit HTTP/HTTPS traffic. The proxy runs in a `utilityProcess`; an
 MCP server (`mcp/`) lets agents drive the running app.
