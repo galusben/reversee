@@ -30,6 +30,15 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - name: Failed unit tests (full messages)
+        if: failure()
+        run: npm run test:failures || true
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: unit-test-report
+          path: test-results/vitest/
+          retention-days: 7
 
   e2e:
     name: E2E (macOS)

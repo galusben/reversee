@@ -19,6 +19,7 @@
     "pack": "electron-vite build && electron-builder --dir",
     "dist": "electron-vite build && electron-builder",
     "test": "vitest run",
+    "test:failures": "node scripts/test-failures.mjs",
     "build:mcp": "npm run build -w reversee-mcp",
     "typecheck": "tsc --build && tsc -p mcp --noEmit",
     "lint": "eslint .",
