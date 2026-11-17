@@ -198,6 +198,8 @@ export interface Timings {
 
 export interface TrafficEntry {
   trafficId: number;
+  /** The tab (proxy session) that captured it; set by main. */
+  tabId?: string;
   request: RequestView;
   response: ResponseView;
   timings: Timings;

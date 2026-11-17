@@ -1,8 +1,8 @@
 // The MCP tool handlers (src/main/mcp/handlers.ts), exercised with the real
-// TrafficStore, ProtoStore, settings module (over an in-memory electron-store)
-// and replay path. Only ProxyHost is faked — it owns a utilityProcess. The
-// control-server tests cover transport and gating; this covers what each tool
-// actually does.
+// SessionManager (tabs), TrafficStore, ProtoStore, settings module (over an
+// in-memory electron-store) and replay path. Only ProxyHost is faked — it owns
+// a utilityProcess. The control-server tests cover transport and gating; this
+// covers what each tool actually does.
 import { tryScript } from '../../src/proxy/core/try-script';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs';
@@ -30,12 +30,13 @@ vi.mock('electron-store', () => ({
 vi.mock('electron', () => ({
   app: { getVersion: () => '9.9.9-test', getPath: () => '/tmp/reversee-logs' },
 }));
+vi.mock('electron-log', () => ({ default: { info() {}, warn() {}, error() {} } }));
 
 const { createMcpHandlers, MCP_MUTATING_METHODS } = await import('../../src/main/mcp/handlers');
 const { MCP_TOOL_CATALOG } = await import('../../src/main/mcp/catalog');
-const { TrafficStore } = await import('../../src/main/traffic-store');
 const { ProtoStore } = await import('../../src/main/proto/proto-store');
 const { setSettings } = await import('../../src/main/settings');
+const { SessionManager } = await import('../../src/main/session-manager');
 
 const PROTO = `syntax = "proto3";
 package demo;
@@ -46,8 +47,7 @@ let ctx;
 let handlers;
 let protoDir;
 let upstream;
-let rules;
-let held;
+let sessions;
 let certStatus;
 const VALID_CERT = {
   notAfter: '2036-05-01T00:00:00.000Z',
@@ -79,33 +79,80 @@ function entry({
   };
 }
 
+/**
+ * Stands in for ProxyHost (which owns a utilityProcess) and reports state
+ * changes back to the session the way the real worker does.
+ */
+function fakeProxyHost(events) {
+  const host = {
+    events,
+    isRunning: false,
+    start: vi.fn(async () => {
+      host.isRunning = true;
+      events.onStateChanged(true, 8000);
+      return 8000;
+    }),
+    stop: vi.fn(() => {
+      host.isRunning = false;
+      events.onStateChanged(false);
+    }),
+    restart: vi.fn(() => Promise.resolve(8123)),
+    kill: vi.fn(),
+    setBreakpoints: vi.fn(),
+    setRules: vi.fn(),
+    setScripts: vi.fn(),
+    setProtoSpecs: vi.fn(),
+    resumeBreakpoint: vi.fn(),
+    // The real host runs this in the worker; the engine is the same.
+    tryScript: vi.fn((input) => Promise.resolve(tryScript(input))),
+  };
+  return host;
+}
+
+const noEvents = {
+  traffic() {},
+  trafficCleared() {},
+  state() {},
+  error() {},
+  breakpointHit() {},
+  breakpointResumed() {},
+  breakpointsChanged() {},
+  breakpointErrors() {},
+  tabsChanged() {},
+};
+
+/** The proxy of the active tab reports that it is running. */
+function setRunning() {
+  ctx.proxyHost.events.onStateChanged(true, 8000);
+}
+
+/** The active tab's worker holds an exchange; returns its (cross-tab) id. */
+function hold(hit) {
+  ctx.proxyHost.events.onBreakpointHit(hit);
+  return sessions.active().heldHits.at(-1).id;
+}
+
 beforeEach(() => {
   backing.clear();
   protoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'reversee-handlers-'));
-  const trafficStore = new TrafficStore();
   const protoStore = new ProtoStore(protoDir);
-  rules = [{ id: 'GET /x', path: '/x', methods: ['GET'] }];
-  held = [];
   certStatus = undefined;
-  ctx = {
-    proxyHost: {
-      isRunning: false,
-      stop: vi.fn(function () {
-        ctx.proxyHost.isRunning = false;
-      }),
-      restart: vi.fn(() => Promise.resolve(8123)),
-      // The real host runs this in the worker; the engine is the same.
-      tryScript: vi.fn((input) => Promise.resolve(tryScript(input))),
+  const hosts = new Map();
+  sessions = new SessionManager({
+    getLeafCert: () => undefined,
+    issueCert: () => {
+      throw new Error('no CA in tests');
     },
-    trafficStore,
-    getBreakpointRules: () => rules,
-    setBreakpointRules: vi.fn((next) => {
-      rules = next;
-    }),
-    getHeldHits: () => held,
-    resumeHeld: vi.fn((id) => {
-      held = held.filter((h) => h.id !== id);
-    }),
+    createProxyHost: (events) => {
+      const host = fakeProxyHost(events);
+      hosts.set(events, host);
+      return host;
+    },
+    events: noEvents,
+    summaryDelayMs: 0,
+  });
+  ctx = {
+    sessions,
     getCertStatus: () => {
       if (!certStatus) throw new Error('no certificates');
       return certStatus;
@@ -114,18 +161,26 @@ beforeEach(() => {
       certStatus = { ...VALID_CERT };
       return Promise.resolve(certStatus);
     }),
-    startProxy: vi.fn(() => Promise.resolve({ ok: true, port: 8000 })),
     protoStore,
     syncProtoSpecs: vi.fn(() => {
       const { errors } = protoStore.compile();
       return { specs: protoStore.list(), errors };
     }),
-    recordTraffic: vi.fn((e) => trafficStore.add(e)),
+    // Test conveniences: the active tab's store and fake worker.
+    get trafficStore() {
+      return sessions.active().trafficStore;
+    },
+    get proxyHost() {
+      return sessions.active().proxyHost;
+    },
   };
+  sessions.active().setBreakpointRules([{ id: 'GET /x', path: '/x', methods: ['GET'] }]);
+  ctx.proxyHost.setBreakpoints.mockClear();
   handlers = createMcpHandlers(ctx);
 });
 
 afterEach(async () => {
+  sessions.dispose();
   fs.rmSync(protoDir, { recursive: true, force: true });
   await closeAll(upstream?.server);
   upstream = undefined;
@@ -170,11 +225,13 @@ describe('status and config', () => {
     const next = handlers.update_config({ dest: 'x.test', listenPort: -1, bogus: true });
     expect(next.dest).toBe('x.test');
     expect(next).not.toHaveProperty('bogus');
+    expect(next.tab).toEqual({ id: 't1', name: 'x.test' });
     expect(handlers.get_config()).toEqual(next);
   });
 
   it('set_interceptor writes the right fields per kind and validates kind', () => {
     expect(handlers.set_interceptor({ kind: 'request', code: 'a', enabled: true })).toEqual({
+      tab: { id: 't1', name: 'New tab' },
       kind: 'request',
       enabled: true,
       code: 'a',
@@ -184,7 +241,7 @@ describe('status and config', () => {
       requestInterceptor: 'a',
       interceptRequest: true,
     });
-    ctx.proxyHost.isRunning = true;
+    setRunning();
     expect(handlers.set_interceptor({ kind: 'response', enabled: true })).toMatchObject({
       kind: 'response',
       enabled: true,
@@ -233,23 +290,35 @@ describe('status and config', () => {
 });
 
 describe('proxy control', () => {
+  beforeEach(() => {
+    setSettings({ dest: 'api.test' });
+  });
+
   it('start_proxy returns the port, and surfaces start failures as errors', async () => {
-    await expect(handlers.start_proxy()).resolves.toEqual({ running: true, port: 8000 });
-    ctx.startProxy.mockResolvedValueOnce({ ok: false, error: { message: 'EADDRINUSE' } });
+    await expect(handlers.start_proxy()).resolves.toEqual({
+      running: true,
+      port: 8000,
+      tab: { id: 't1', name: 'api.test' },
+    });
+    ctx.proxyHost.start.mockRejectedValueOnce({ code: 'EADDRINUSE', message: 'EADDRINUSE' });
     await expect(handlers.start_proxy()).rejects.toThrow('EADDRINUSE');
   });
 
+  it('start_proxy needs a destination', async () => {
+    setSettings({ dest: '' });
+    await expect(handlers.start_proxy()).rejects.toThrow(/Destination host is required/);
+  });
+
   it('restart_proxy starts when stopped and restarts when running', async () => {
-    await expect(handlers.restart_proxy()).resolves.toEqual({ running: true, port: 8000 });
+    await expect(handlers.restart_proxy()).resolves.toMatchObject({ running: true, port: 8000 });
     expect(ctx.proxyHost.restart).not.toHaveBeenCalled();
-    ctx.proxyHost.isRunning = true;
-    await expect(handlers.restart_proxy()).resolves.toEqual({ running: true, port: 8123 });
+    await expect(handlers.restart_proxy()).resolves.toMatchObject({ running: true, port: 8123 });
     expect(ctx.proxyHost.restart).toHaveBeenCalledOnce();
   });
 
   it('stop_proxy stops the host', () => {
-    ctx.proxyHost.isRunning = true;
-    expect(handlers.stop_proxy()).toEqual({ running: false });
+    setRunning();
+    expect(handlers.stop_proxy()).toEqual({ running: false, tab: { id: 't1', name: 'api.test' } });
     expect(ctx.proxyHost.stop).toHaveBeenCalledOnce();
   });
 });
@@ -396,7 +465,8 @@ describe('replay_request', () => {
     expect(result.response.body).toBe('replayed DELETE /edited');
     expect(result.replay).toBe(true);
     expect(result.trafficId).not.toBe(original.trafficId);
-    expect(ctx.recordTraffic).toHaveBeenCalledOnce();
+    // Recorded in the tab the original came from.
+    expect(result.tabId).toBe('t1');
     expect(ctx.trafficStore.size).toBe(2);
   });
 
@@ -549,7 +619,7 @@ describe('breakpoint tools', () => {
         phase: 'response',
       },
     ]);
-    expect(ctx.setBreakpointRules).toHaveBeenCalledWith(result);
+    expect(ctx.proxyHost.setBreakpoints).toHaveBeenCalledWith(result);
     expect(handlers.list_breakpoints()).toEqual(result);
 
     expect(handlers.set_breakpoints({ rules: [] })).toEqual([]);
@@ -566,11 +636,11 @@ describe('breakpoint tools', () => {
     expect(() => handlers.set_breakpoints({ rules: [{ path: '/x', methods: [] }] })).toThrow(
       /must not be empty/
     );
-    expect(ctx.setBreakpointRules).not.toHaveBeenCalled();
+    expect(ctx.proxyHost.setBreakpoints).not.toHaveBeenCalled();
   });
 
-  it('lists held exchanges with readable bodies', () => {
-    held = [
+  it('lists held exchanges with readable bodies, numbered across tabs', () => {
+    [
       {
         id: 4,
         phase: 'request',
@@ -588,10 +658,11 @@ describe('breakpoint tools', () => {
         headers: { 'content-type': 'text/plain' },
         body: Buffer.from('res body'),
       },
-    ];
+    ].forEach(hold);
+    // The worker's own ids (4, 5) are replaced by ids unique across tabs.
     expect(handlers.list_held_requests()).toEqual([
       {
-        id: 4,
+        id: 1,
         phase: 'request',
         method: 'POST',
         url: '/a',
@@ -600,7 +671,7 @@ describe('breakpoint tools', () => {
         body: 'req body',
       },
       {
-        id: 5,
+        id: 2,
         phase: 'response',
         method: 'GET',
         url: '/b',
@@ -612,22 +683,21 @@ describe('breakpoint tools', () => {
   });
 
   it('resumes a held request with merged edits', () => {
-    held = [
-      {
-        id: 4,
-        phase: 'request',
-        url: '/a',
-        method: 'POST',
-        headers: { 'x-a': '1', 'x-drop': 'y' },
-        body: Buffer.from('orig'),
-      },
-    ];
-    const result = handlers.resume_held_request({
+    const id = hold({
       id: 4,
+      phase: 'request',
+      url: '/a',
+      method: 'POST',
+      headers: { 'x-a': '1', 'x-drop': 'y' },
+      body: Buffer.from('orig'),
+    });
+    const result = handlers.resume_held_request({
+      id,
       edits: { url: '/edited', headers: { 'x-new': '2', 'x-drop': null }, body: 'changed' },
     });
-    expect(result).toEqual({ resumed: 4, phase: 'request' });
-    expect(ctx.resumeHeld).toHaveBeenCalledWith(4, {
+    expect(result).toEqual({ resumed: id, phase: 'request' });
+    // The worker is told its own id.
+    expect(ctx.proxyHost.resumeBreakpoint).toHaveBeenCalledWith(4, {
       url: '/edited',
       method: 'POST',
       headers: { 'x-a': '1', 'x-new': '2' },
@@ -646,18 +716,17 @@ describe('breakpoint tools', () => {
       headers: {},
       body: Buffer.from('ok'),
     };
-    held = [hit];
-    handlers.resume_held_request({ id: 5 });
-    expect(ctx.resumeHeld).toHaveBeenLastCalledWith(5, {
+    handlers.resume_held_request({ id: hold(hit) });
+    expect(ctx.proxyHost.resumeBreakpoint).toHaveBeenLastCalledWith(5, {
       url: '/b',
       method: 'GET',
       headers: {},
       body: hit.body,
       statusCode: 200,
     });
-    held = [hit];
-    handlers.resume_held_request({ id: 5, edits: { statusCode: 503 } });
-    expect(ctx.resumeHeld.mock.lastCall[1].statusCode).toBe(503);
+    handlers.resume_held_request({ id: hold(hit), edits: { statusCode: 503 } });
+    expect(ctx.proxyHost.resumeBreakpoint.mock.lastCall[1].statusCode).toBe(503);
+    expect(handlers.list_held_requests()).toEqual([]);
   });
 
   it('rejects resuming something that is not held', () => {
@@ -673,13 +742,16 @@ describe('export_har', () => {
     );
     ctx.trafficStore.add(entry({ url: '/skip', status: 200 }));
     const file = path.join(protoDir, 'out.har');
-    expect(handlers.export_har({ path: file, hasError: true })).toEqual({ path: file, entries: 1 });
+    expect(handlers.export_har({ path: file, hasError: true })).toMatchObject({
+      path: file,
+      entries: 1,
+    });
     const har = JSON.parse(fs.readFileSync(file, 'utf8'));
     expect(har.log.version).toBe('1.2');
     expect(har.log.creator).toEqual({ name: 'Reversee', version: '9.9.9-test' });
     expect(har.log.entries.map((e) => e.request.url)).toEqual(['http://a.test/keep']);
 
-    expect(handlers.export_har({ path: file })).toEqual({ path: file, entries: 2 });
+    expect(handlers.export_har({ path: file })).toMatchObject({ path: file, entries: 2 });
   });
 
   it('requires an absolute path', () => {
@@ -749,7 +821,7 @@ describe('route and mock tools', () => {
       headers: { 'content-type': 'application/json' },
       summary: 'any method, path is "/api/flags" -> 200',
     });
-    ctx.proxyHost.isRunning = true;
+    setRunning();
     const second = handlers.add_mock({ path: '/pay', status: 500, name: 'Pay down' });
     expect(second.applied).toBe('active now on the running proxy');
     handlers.add_mock({ path: '/last', priority: 'last' });

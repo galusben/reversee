@@ -5,7 +5,7 @@ import type { ScriptTrialOutcome } from '../shared/ipc';
 import { describeTrialChanges, exchangeFromEntry } from '../shared/script-trial';
 import type { ProxyHost } from './proxy-host';
 import type { TrafficStore } from './traffic-store';
-import { getSettings } from './settings';
+import type { AppSettings } from '../shared/settings-schema';
 
 const MAX_CODE_LENGTH = 200_000;
 
@@ -14,7 +14,9 @@ export async function runScriptTrial(
   trafficStore: Pick<TrafficStore, 'get'>,
   kind: unknown,
   code: unknown,
-  trafficId: unknown
+  trafficId: unknown,
+  /** The settings of the tab the request belongs to. */
+  settings: AppSettings
 ): Promise<ScriptTrialOutcome> {
   if (kind !== 'request' && kind !== 'response') {
     return { ok: false, error: 'kind must be "request" or "response"' };
@@ -25,7 +27,7 @@ export async function runScriptTrial(
   const entry = typeof trafficId === 'number' ? trafficStore.get(trafficId) : undefined;
   if (!entry) return { ok: false, error: 'That request is no longer in the list.' };
 
-  const exchange = exchangeFromEntry(entry, getSettings());
+  const exchange = exchangeFromEntry(entry, settings);
   const before = kind === 'request' ? { request: exchange.request } : exchange;
   try {
     const { error, logs, ...after } = await proxyHost.tryScript({ kind, code, ...before });

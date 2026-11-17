@@ -56,6 +56,14 @@ const INVOKES = {
   regenerateRootCert: [IPC.certRegenerate, []],
   pickFile: [IPC.filePick, ['Choose']],
   tryScript: [IPC.scriptTry, ['request', 'code', 3]],
+  getProxyState: [IPC.proxyStateGet, []],
+  getHeldHits: [IPC.breakpointsHeld, []],
+  getTabs: [IPC.tabsGet, []],
+  createTab: [IPC.tabsCreate, ['t1']],
+  closeTab: [IPC.tabsClose, ['t2']],
+  renameTab: [IPC.tabsRename, ['t2', 'api']],
+  moveTab: [IPC.tabsMove, ['t2', 0]],
+  setActiveTab: [IPC.tabsSetActive, ['t2']],
 };
 
 const SUBSCRIPTIONS = {
@@ -77,6 +85,8 @@ const SUBSCRIPTIONS = {
   onProxyState: IPC.proxyStateEvent,
   onProxyError: IPC.proxyErrorEvent,
   onSettingsChanged: IPC.settingsChangedEvent,
+  onTabsChanged: IPC.tabsChangedEvent,
+  onRenameTab: IPC.renameTabEvent,
 };
 
 describe('preload bridge', () => {

@@ -14,7 +14,6 @@ import path from 'node:path';
 import log from 'electron-log';
 import {
   IPC,
-  type BreakpointHit,
   type BreakpointResume,
   type HarExportResult,
   type HarImportResult,
@@ -24,9 +23,8 @@ import {
   type RootCertStatus,
   type StartProxyResult,
 } from '../shared/ipc';
-import type { BreakpointRule, TrafficEntry } from '../shared/types';
+import type { BreakpointRule } from '../shared/types';
 import { ProtoStore } from './proto/proto-store';
-import { toProxySettings } from '../shared/settings-schema';
 import { fromHar, toHar } from '../shared/har';
 import {
   getSettings,
@@ -43,11 +41,10 @@ import {
   rootCertStatus,
   type Certificates,
 } from './certs/certs';
-import { readClientCert } from './client-cert';
 import { replayEntry } from './replay';
 import { runScriptTrial } from './script-trial';
-import { ProxyHost } from './proxy-host';
-import { TrafficStore } from './traffic-store';
+import { SessionManager } from './session-manager';
+import type { Session } from './session';
 import { createMainWindow } from './windows';
 import { createMenu } from './menu';
 import { setupUpdater } from './updater';
@@ -77,108 +74,7 @@ function sendToRenderer(channel: string, payload: unknown): void {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
 }
 
-const trafficStore = new TrafficStore();
 const protoStore = new ProtoStore(path.join(app.getPath('userData'), 'proto'));
-
-// Correlates a worker streamId to the main-assigned trafficId so the repeated
-// notifies of one exchange update the same entry instead of appending. Only
-// in-flight exchanges are tracked: the mapping is dropped with the final notify.
-const streamToTrafficId = new Map<string, number>();
-
-/**
- * Store an entry and push it to the renderer. With a `streamId` (an exchange
- * the worker reports more than once: pending, streaming, gRPC, WebSocket) the
- * first notify appends a new entry and later ones update it in place; without
- * one (replays, imports) it always appends.
- */
-function recordTraffic(entry: TrafficEntry, streamId?: string): TrafficEntry {
-  if (streamId !== undefined) {
-    const existing = streamToTrafficId.get(streamId);
-    if (existing !== undefined) {
-      entry.trafficId = existing;
-      if (!entry.pending) streamToTrafficId.delete(streamId);
-      const updated = trafficStore.update(entry);
-      // An evicted or cleared entry is not resurrected by a late update.
-      if (updated) sendToRenderer(IPC.trafficEvent, updated);
-      return updated ?? entry;
-    }
-  }
-  const stored = trafficStore.add(entry);
-  if (streamId !== undefined && entry.pending) streamToTrafficId.set(streamId, stored.trafficId);
-  sendToRenderer(IPC.trafficEvent, stored);
-  return stored;
-}
-
-/**
- * The proxy went away (stopped, killed, crashed): nothing will complete the
- * exchanges still marked in flight, so settle them instead of leaving rows
- * that look like they are loading forever.
- */
-function settlePendingTraffic(): void {
-  streamToTrafficId.clear();
-  for (const entry of trafficStore.getAll()) {
-    if (!entry.pending) continue;
-    delete entry.pending;
-    if (entry.ws) entry.ws.closed = true;
-    else if (entry.response.statusCode === undefined) {
-      entry.connectorError ??= 'the proxy stopped before a response arrived';
-    }
-    sendToRenderer(IPC.trafficEvent, entry);
-  }
-}
-
-function clearTraffic(): void {
-  trafficStore.clear();
-  streamToTrafficId.clear();
-  sendToRenderer(IPC.trafficClearedEvent, undefined);
-}
-
-// Breakpoint rules are session-scoped (as in 1.x — they were never persisted).
-let breakpointRules: BreakpointRule[] = [];
-// Requests/responses currently held at a breakpoint. Main keeps them so an
-// agent can list and resume them too, not only the window.
-const heldHits = new Map<number, BreakpointHit>();
-
-function setBreakpointRules(rules: BreakpointRule[]): void {
-  breakpointRules = rules;
-  proxyHost.setBreakpoints(rules);
-  sendToRenderer(IPC.breakpointsChangedEvent, rules);
-}
-
-function resumeHeld(id: number, params: BreakpointResume): void {
-  proxyHost.resumeBreakpoint(id, params);
-  heldHits.delete(id);
-  sendToRenderer(IPC.breakpointResumedEvent, id);
-}
-
-const proxyHost = new ProxyHost({
-  onTraffic: (entry, streamId) => recordTraffic(entry, streamId),
-  onStateChanged: (running, port) => {
-    if (!running) {
-      // Stopping closes every held connection; their hits are void.
-      heldHits.clear();
-      settlePendingTraffic();
-    }
-    sendToRenderer(IPC.proxyStateEvent, { running, port });
-  },
-  onServerError: (error) => sendToRenderer(IPC.proxyErrorEvent, error),
-  onBreakpointHit: (hit) => {
-    heldHits.set(hit.id, hit);
-    sendToRenderer(IPC.breakpointHitEvent, hit);
-  },
-  onBreakpointErrors: (errors) => {
-    log.warn('invalid breakpoint patterns', errors);
-    sendToRenderer(IPC.breakpointErrorsEvent, errors);
-  },
-  issueCert: (host) => {
-    if (!certs) throw new Error('certificates are not initialised yet');
-    if (!hostCerts || hostCerts.root !== certs.root) {
-      hostCerts = { root: certs.root, issue: createHostCertIssuer(certs.root) };
-    }
-    const leaf = hostCerts.issue(host);
-    return { key: leaf.privateKey, cert: leaf.certificate };
-  },
-});
 
 /** Signs per-host certificates for capture-anything mode; rebuilt when the root changes. */
 let hostCerts: {
@@ -186,27 +82,103 @@ let hostCerts: {
   issue: ReturnType<typeof createHostCertIssuer>;
 } | null = null;
 
+// Created once the app is ready (it reads the saved tabs from settings).
+let sessions: SessionManager;
+
+/**
+ * The window shows one tab at a time. Its proxy, traffic and breakpoint
+ * events go to the renderer; every tab's counters reach the tab strip
+ * through the tabs summary.
+ */
+function sendForTab(session: Session, channel: string, payload: unknown): void {
+  if (session.id === sessions.activeTabId) sendToRenderer(channel, payload);
+}
+
+function createSessions(): SessionManager {
+  return new SessionManager({
+    getLeafCert: () => {
+      const leaf = certs?.leaf;
+      return leaf ? { key: leaf.privateKey, cert: leaf.certificate } : undefined;
+    },
+    issueCert: (host) => {
+      if (!certs) throw new Error('certificates are not initialised yet');
+      if (!hostCerts || hostCerts.root !== certs.root) {
+        hostCerts = { root: certs.root, issue: createHostCertIssuer(certs.root) };
+      }
+      const leaf = hostCerts.issue(host);
+      return { key: leaf.privateKey, cert: leaf.certificate };
+    },
+    events: {
+      traffic: (session, entry) => sendForTab(session, IPC.trafficEvent, entry),
+      trafficCleared: (session) => sendForTab(session, IPC.trafficClearedEvent, session.id),
+      state: (session) =>
+        sendForTab(session, IPC.proxyStateEvent, {
+          running: session.isRunning,
+          port: session.boundPort,
+          tabId: session.id,
+        }),
+      error: (session, error) => sendForTab(session, IPC.proxyErrorEvent, error),
+      breakpointHit: (session, hit) => sendForTab(session, IPC.breakpointHitEvent, hit),
+      breakpointResumed: (session, id) => sendForTab(session, IPC.breakpointResumedEvent, id),
+      breakpointsChanged: (session, rules) =>
+        sendForTab(session, IPC.breakpointsChangedEvent, rules),
+      breakpointErrors: (session, errors) => sendForTab(session, IPC.breakpointErrorsEvent, errors),
+      tabsChanged: (snapshot) => sendToRenderer(IPC.tabsChangedEvent, snapshot),
+    },
+  });
+}
+
 /** Shared by the renderer IPC handler and the MCP start_proxy tool. */
-async function startProxyFromSettings(): Promise<StartProxyResult> {
-  const settings = getSettings();
-  if (!settings.dest && !settings.captureAll) {
-    return { ok: false, error: { message: 'Destination host is required' } };
+function startProxy(session: Session = sessions.active()): Promise<StartProxyResult> {
+  return session.start();
+}
+
+/**
+ * Closes a tab from the window (strip or menu). A running proxy or a held
+ * request is live work, so that asks first.
+ */
+async function closeTabInteractive(tabId: string): Promise<boolean> {
+  const session = sessions.get(tabId);
+  if (!session) return false;
+  if (session.isRunning || session.heldHits.length) {
+    const name = sessions.snapshot().tabs.find((t) => t.id === tabId)?.name ?? tabId;
+    const options = {
+      type: 'question' as const,
+      buttons: ['Close Tab', 'Cancel'],
+      defaultId: 0,
+      cancelId: 1,
+      message: `Close "${name}"?`,
+      detail: session.heldHits.length
+        ? 'Its proxy is holding requests at a breakpoint. Closing the tab stops the proxy and drops them.'
+        : 'Its proxy is running. Closing the tab stops it.',
+    };
+    const { response } = win
+      ? await dialog.showMessageBox(win, options)
+      : await dialog.showMessageBox(options);
+    if (response !== 0) return false;
   }
-  try {
-    const leaf = certs?.leaf;
-    const sslOptions =
-      settings.listenProtocol === 'https' && !settings.captureAll && leaf
-        ? { key: leaf.privateKey, cert: leaf.certificate }
-        : undefined;
-    const port = await proxyHost.start({
-      settings: toProxySettings(settings, readClientCert(settings)),
-      sslOptions,
-    });
-    return { ok: true, port };
-  } catch (error) {
-    const e = error as { code?: string; message?: string };
-    return { ok: false, error: { code: e.code, message: e.message ?? String(error) } };
+  return sessions.close(tabId);
+}
+
+function newTab(duplicateOf?: string): void {
+  const result = sessions.create(duplicateOf ? { duplicateOf } : {});
+  if (!result.ok) dialog.showErrorBox('Could not open a tab', result.error);
+}
+
+/** Moves to the tab `offset` places away in the strip (wrapping), or to index `at`. */
+function selectTab(target: { offset: number } | { at: number }): void {
+  const tabs = sessions.snapshot().tabs;
+  if (tabs.length === 0) return;
+  let index: number;
+  if ('at' in target) {
+    // Like browsers: ⌘9 is always the last tab.
+    index = target.at >= 8 ? tabs.length - 1 : target.at;
+    if (index >= tabs.length) return;
+  } else {
+    const current = tabs.findIndex((t) => t.id === sessions.activeTabId);
+    index = (current + target.offset + tabs.length) % tabs.length;
   }
+  sessions.setActive((tabs[index] as { id: string }).id);
 }
 
 /**
@@ -216,7 +188,7 @@ async function startProxyFromSettings(): Promise<StartProxyResult> {
  */
 function syncProtoSpecs(): ProtoSpecsResult {
   const { specs, methodMap, errors } = protoStore.compile();
-  proxyHost.setProtoSpecs({ specs, methodMap });
+  sessions.setProtoSpecs({ specs, methodMap });
   return { specs: protoStore.list(), errors };
 }
 
@@ -239,9 +211,11 @@ async function regenerateRootCert(): Promise<RootCertStatus> {
   log.info('root CA regenerated');
   const status = certStatus();
   sendToRenderer(IPC.certStatusEvent, status);
-  const settings = getSettings();
-  if (proxyHost.isRunning && (settings.listenProtocol === 'https' || settings.captureAll)) {
-    await startProxyFromSettings();
+  for (const session of sessions.all()) {
+    const settings = session.settings;
+    if (session.isRunning && (settings.listenProtocol === 'https' || settings.captureAll)) {
+      await session.start();
+    }
   }
   return status;
 }
@@ -267,7 +241,7 @@ async function regenerateRootCertInteractive(): Promise<RootCertStatus> {
 // ---- HAR export / import ----
 
 async function exportHar(ids?: number[]): Promise<HarExportResult> {
-  const all = trafficStore.getAll();
+  const all = sessions.active().trafficStore.getAll();
   const wanted = ids ? new Set(ids) : null;
   const entries = wanted ? all.filter((e) => wanted.has(e.trafficId)) : all;
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -307,8 +281,9 @@ async function importHar(): Promise<HarImportResult> {
   try {
     const entries = fromHar(JSON.parse(await fs.readFile(filePaths[0], 'utf8')));
     // Only the newest entries can fit; skip the ones that would be evicted at once.
-    const kept = entries.slice(-getSettings().trafficCap);
-    for (const entry of kept) recordTraffic(entry);
+    const session = sessions.active();
+    const kept = entries.slice(-session.settings.trafficCap);
+    for (const entry of kept) session.recordTraffic(entry);
     return { ok: true, count: kept.length };
   } catch (error) {
     return { ok: false, error: `Could not import: ${(error as Error).message}` };
@@ -325,21 +300,30 @@ async function reportingErrors(
 }
 
 async function replayFromUi(trafficId: unknown, overrides: unknown): Promise<ReplayResult> {
-  const entry = typeof trafficId === 'number' ? trafficStore.get(trafficId) : undefined;
-  if (!entry) return { ok: false, error: 'That request is no longer in the list.' };
+  const found = typeof trafficId === 'number' ? sessions.findTraffic(trafficId) : undefined;
+  if (!found) return { ok: false, error: 'That request is no longer in the list.' };
+  const { session, entry } = found;
   try {
-    const replayed = await replayEntry(entry, (overrides ?? {}) as ReplayOverrides, getSettings());
-    return { ok: true, trafficId: recordTraffic(replayed).trafficId };
+    const replayed = await replayEntry(
+      entry,
+      (overrides ?? {}) as ReplayOverrides,
+      session.settings
+    );
+    return { ok: true, trafficId: session.recordTraffic(replayed).trafficId };
   } catch (error) {
     return { ok: false, error: (error as Error).message };
   }
 }
 
 function registerIpc(): void {
-  ipcMain.handle(IPC.proxyStart, () => startProxyFromSettings());
+  ipcMain.handle(IPC.proxyStart, () => startProxy());
 
   ipcMain.handle(IPC.proxyStop, () => {
-    proxyHost.stop();
+    sessions.active().stop();
+  });
+  ipcMain.handle(IPC.proxyStateGet, () => {
+    const session = sessions.active();
+    return { running: session.isRunning, port: session.boundPort, tabId: session.id };
   });
 
   ipcMain.handle(IPC.settingsGet, () => getSettings());
@@ -349,8 +333,8 @@ function registerIpc(): void {
   });
   ipcMain.handle(IPC.appVersion, () => app.getVersion());
 
-  ipcMain.handle(IPC.trafficGetAll, () => trafficStore.getAll());
-  ipcMain.handle(IPC.trafficClear, () => clearTraffic());
+  ipcMain.handle(IPC.trafficGetAll, () => sessions.active().trafficStore.getAll());
+  ipcMain.handle(IPC.trafficClear, () => sessions.active().clearTraffic());
   ipcMain.handle(IPC.trafficReplay, (_event, trafficId: unknown, overrides: unknown) =>
     replayFromUi(trafficId, overrides)
   );
@@ -362,28 +346,62 @@ function registerIpc(): void {
   ipcMain.handle(IPC.trafficImportHar, () => importHar());
   ipcMain.handle(IPC.trafficRecordMocks, (_event, ids: unknown, options: unknown) => {
     const wanted = Array.isArray(ids) ? new Set(ids.filter((id) => typeof id === 'number')) : null;
-    const all = trafficStore.getAll();
+    const session = sessions.active();
+    const all = session.trafficStore.getAll();
     const o = (options ?? {}) as Record<string, unknown>;
-    return saveRecordedMocks(wanted ? all.filter((e) => wanted.has(e.trafficId)) : all, {
-      ignoreQuery: o['ignoreQuery'] === true,
-      enabled: o['enabled'] !== false,
-    });
+    return saveRecordedMocks(
+      wanted ? all.filter((e) => wanted.has(e.trafficId)) : all,
+      { ignoreQuery: o['ignoreQuery'] === true, enabled: o['enabled'] !== false },
+      session.id
+    );
   });
   ipcMain.handle(IPC.clipboardWrite, (_event, text: unknown) => {
     if (typeof text === 'string') clipboard.writeText(text);
   });
 
-  ipcMain.handle(IPC.breakpointsGet, () => breakpointRules);
+  ipcMain.handle(IPC.breakpointsGet, () => sessions.active().rules);
   ipcMain.handle(IPC.breakpointsSet, (_event, rules: BreakpointRule[]) => {
-    setBreakpointRules(rules);
+    sessions.active().setBreakpointRules(rules);
   });
+  ipcMain.handle(IPC.breakpointsHeld, () => sessions.active().heldHits);
   ipcMain.handle(IPC.breakpointResume, (_event, id: number, params: BreakpointResume) => {
-    resumeHeld(id, params);
+    sessions.findHeld(id)?.resumeHeld(id, params);
   });
 
-  ipcMain.handle(IPC.scriptTry, (_event, kind: unknown, code: unknown, trafficId: unknown) =>
-    runScriptTrial(proxyHost, trafficStore, kind, code, trafficId)
+  ipcMain.handle(IPC.scriptTry, (_event, kind: unknown, code: unknown, trafficId: unknown) => {
+    const found = typeof trafficId === 'number' ? sessions.findTraffic(trafficId) : undefined;
+    const session = found?.session ?? sessions.active();
+    return runScriptTrial(
+      session.proxyHost,
+      session.trafficStore,
+      kind,
+      code,
+      trafficId,
+      session.settings
+    );
+  });
+
+  ipcMain.handle(IPC.tabsGet, () => sessions.snapshot());
+  ipcMain.handle(IPC.tabsCreate, (_event, duplicateOf: unknown) => {
+    const result = sessions.create(typeof duplicateOf === 'string' ? { duplicateOf } : {});
+    return result.ok ? { ok: true, tabId: result.tab.id } : result;
+  });
+  ipcMain.handle(IPC.tabsClose, (_event, tabId: unknown) =>
+    typeof tabId === 'string' ? closeTabInteractive(tabId) : false
   );
+  ipcMain.handle(IPC.tabsRename, (_event, tabId: unknown, name: unknown) => {
+    if (typeof tabId !== 'string' || typeof name !== 'string') {
+      return { ok: false, error: 'tabId and name are required' };
+    }
+    const result = sessions.rename(tabId, name);
+    return result.ok ? { ok: true, tabId: result.tab.id } : result;
+  });
+  ipcMain.handle(IPC.tabsMove, (_event, tabId: unknown, toIndex: unknown) => {
+    if (typeof tabId === 'string' && typeof toIndex === 'number') sessions.move(tabId, toIndex);
+  });
+  ipcMain.handle(IPC.tabsSetActive, (_event, tabId: unknown) => {
+    if (typeof tabId === 'string' && sessions.get(tabId)) sessions.setActive(tabId);
+  });
   ipcMain.handle(IPC.certStatusGet, () => certStatus());
   ipcMain.handle(IPC.certRegenerate, () => regenerateRootCertInteractive());
   ipcMain.handle(IPC.filePick, async (_event, title: unknown): Promise<string | null> => {
@@ -427,24 +445,15 @@ function registerIpc(): void {
     return syncProtoSpecs();
   });
 
-  onSettingsChanged((settings) => sendToRenderer(IPC.settingsChangedEvent, settings));
+  onSettingsChanged((settings, tabId) => {
+    if (tabId === sessions.activeTabId) sendToRenderer(IPC.settingsChangedEvent, settings);
+  });
 }
 
-/** Settings that main itself acts on (the rest are read when the proxy starts). */
+/** App-wide settings main acts on (each tab applies its own; see Session.applySettings). */
 function applyAppSettings(): void {
-  const settings = getSettings();
-  trafficStore.setCap(settings.trafficCap);
   // Keeps native chrome (title bar, menus, dialogs) in step with the UI theme.
-  nativeTheme.themeSource = settings.theme;
-  // Routes and mocks apply to the running proxy at once; no restart needed.
-  proxyHost.setRules({ routes: settings.routes, mocks: settings.mocks });
-  // So do the interceptor scripts.
-  proxyHost.setScripts({
-    interceptRequest: settings.interceptRequest,
-    requestInterceptor: settings.requestInterceptor,
-    interceptResponse: settings.interceptResponse,
-    responseInterceptor: settings.responseInterceptor,
-  });
+  nativeTheme.themeSource = getSettings().theme;
 }
 
 /**
@@ -486,16 +495,9 @@ async function syncControlServer(): Promise<void> {
         isControlAllowed: () => flags.allowMcpControl || getSettings().mcpAllowControl,
         mutatingMethods: MCP_MUTATING_METHODS,
         handlers: createMcpHandlers({
-          proxyHost,
-          trafficStore,
-          getBreakpointRules: () => breakpointRules,
-          setBreakpointRules,
-          getHeldHits: () => [...heldHits.values()],
-          resumeHeld,
-          startProxy: startProxyFromSettings,
+          sessions,
           protoStore,
           syncProtoSpecs,
-          recordTraffic,
           getCertStatus: certStatus,
           regenerateRootCert,
         }),
@@ -527,6 +529,7 @@ if (!gotLock) {
   app.whenReady().then(() => {
     setupSecretStorage();
     certs = ensureCertificates();
+    sessions = createSessions();
     registerIpc();
     applyAppSettings();
     onSettingsChanged(applyAppSettings);
@@ -543,7 +546,7 @@ if (!gotLock) {
           `control ${flags.allowMcpControl ? 'ALLOWED' : 'read-only'}.`
       );
       const shutdown = (): void => {
-        proxyHost.kill();
+        sessions.dispose();
         void controlServer?.close();
         app.quit();
       };
@@ -566,9 +569,12 @@ if (!gotLock) {
       getRoot: () => (certs as Certificates).root,
       onResetCache: (): void => {
         resetCache();
-        clearTraffic();
       },
-      onClearTraffic: clearTraffic,
+      onClearTraffic: (): void => sessions.active().clearTraffic(),
+      onNewTab: (): void => newTab(),
+      onDuplicateTab: (): void => newTab(sessions.activeTabId),
+      onCloseTab: (): void => void closeTabInteractive(sessions.activeTabId),
+      onSelectTab: selectTab,
       onExportHar: (): void => void reportingErrors(() => exportHar(), 'HAR export failed'),
       onImportHar: (): void => void reportingErrors(importHar, 'HAR import failed'),
       onRegenerateRootCert: (): void => void regenerateRootCertInteractive(),
@@ -587,7 +593,7 @@ if (!gotLock) {
   // control socket until it receives a termination signal.
   if (!flags.headless) {
     app.on('window-all-closed', () => {
-      proxyHost.kill();
+      sessions.dispose();
       void controlServer?.close();
       app.quit();
     });

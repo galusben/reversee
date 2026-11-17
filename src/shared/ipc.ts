@@ -3,6 +3,7 @@
 // domain:action. This module must stay platform-neutral.
 import type { AppSettings } from './settings-schema';
 import type { RecordOptions, SkipGroup, StoredMock } from './record-mocks';
+import type { TabsSnapshot } from './tabs';
 import type {
   BreakpointCompileError,
   BreakpointPhase,
@@ -45,6 +46,14 @@ export const IPC = {
   certRegenerate: 'cert:regenerate',
   filePick: 'file:pick',
   scriptTry: 'script:try',
+  proxyStateGet: 'proxy:state-get',
+  breakpointsHeld: 'breakpoints:held',
+  tabsGet: 'tabs:get',
+  tabsCreate: 'tabs:create',
+  tabsClose: 'tabs:close',
+  tabsRename: 'tabs:rename',
+  tabsMove: 'tabs:move',
+  tabsSetActive: 'tabs:set-active',
   // main -> renderer events
   trafficEvent: 'proxy:traffic',
   trafficClearedEvent: 'proxy:traffic-cleared',
@@ -64,7 +73,12 @@ export const IPC = {
   openScriptsEvent: 'ui:open-scripts',
   focusFilterEvent: 'ui:focus-filter',
   toggleProxyEvent: 'ui:toggle-proxy',
+  tabsChangedEvent: 'tabs:changed',
+  renameTabEvent: 'ui:rename-tab',
 } as const;
+
+/** Outcome of creating or renaming a tab. */
+export type TabResult = { ok: true; tabId: string } | { ok: false; error: string };
 
 /** What "Record as mocks" saved, and what it left out and why. */
 export interface RecordMocksResult {
@@ -88,17 +102,24 @@ export interface ProtoSpecsResult {
 export interface ProxyState {
   running: boolean;
   port?: number;
+  /** The tab whose proxy this is (events from main always carry it). */
+  tabId?: string;
 }
 
 export interface ProxyErrorInfo {
   code?: string;
   message: string;
+  /** The tab whose proxy failed (events from main always carry it). */
+  tabId?: string;
 }
 
 export type StartProxyResult = { ok: true; port: number } | { ok: false; error: ProxyErrorInfo };
 
 export interface BreakpointHit {
+  /** Unique across tabs (main renumbers the worker's ids). */
   id: number;
+  /** The tab whose proxy is holding it. */
+  tabId?: string;
   /** 'request' = held before forwarding; 'response' = held before reaching the client. */
   phase: BreakpointPhase;
   /** The request URL and method (for a response hit: the request it answers). */
@@ -171,7 +192,11 @@ export interface RootCertStatus {
   temporaryReason?: string;
 }
 
-/** The API exposed to the renderer as window.reversee. */
+/**
+ * The API exposed to the renderer as window.reversee. Proxy, settings,
+ * traffic and breakpoint calls act on the active tab (main owns which tab
+ * that is); calls naming a request or held exchange by id act on its tab.
+ */
 export interface RevAPI {
   startProxy(): Promise<StartProxyResult>;
   stopProxy(): Promise<void>;
@@ -225,6 +250,22 @@ export interface RevAPI {
   onProxyState(cb: (state: ProxyState) => void): () => void;
   onProxyError(cb: (error: ProxyErrorInfo) => void): () => void;
   onSettingsChanged(cb: (settings: AppSettings) => void): () => void;
+  /** Running state of the active tab's proxy. */
+  getProxyState(): Promise<ProxyState>;
+  /** Requests/responses the active tab holds at a breakpoint. */
+  getHeldHits(): Promise<BreakpointHit[]>;
+  getTabs(): Promise<TabsSnapshot>;
+  /** Opens a new tab (a copy of `duplicateOf` when given) and makes it active. */
+  createTab(duplicateOf?: string): Promise<TabResult>;
+  /** Closes a tab, asking first when its proxy is running. Resolves false if kept. */
+  closeTab(tabId: string): Promise<boolean>;
+  /** Names a tab; an empty name restores the automatic one. Names are unique. */
+  renameTab(tabId: string, name: string): Promise<TabResult>;
+  moveTab(tabId: string, toIndex: number): Promise<void>;
+  setActiveTab(tabId: string): Promise<void>;
+  onTabsChanged(cb: (snapshot: TabsSnapshot) => void): () => void;
+  /** The menu asked to rename the active tab. */
+  onRenameTab(cb: () => void): () => void;
 }
 
 // ---- main <-> proxy worker (utilityProcess) ----

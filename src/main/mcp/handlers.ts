@@ -3,8 +3,8 @@
 import { app } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getSettings, setSettings } from '../settings';
-import { isValidPort, regexError } from '../../shared/settings-schema';
+import { setSettings } from '../settings';
+import { isValidPort, regexError, type AppSettings } from '../../shared/settings-schema';
 import { ruleId } from '../../shared/breakpoint-id';
 import {
   buildMockRule,
@@ -35,57 +35,62 @@ import {
   buildBridgeAdvisory,
 } from './catalog';
 import type { ControlHandler } from './control-server';
-import type { ProxyHost } from '../proxy-host';
-import type { TrafficStore } from '../traffic-store';
 import type { ProtoStore } from '../proto/proto-store';
-import type {
-  BreakpointHit,
-  BreakpointResume,
-  ProtoSpecsResult,
-  RootCertStatus,
-  StartProxyResult,
-} from '../../shared/ipc';
+import type { Session } from '../session';
+import type { SessionManager } from '../session-manager';
+import type { BreakpointHit, ProtoSpecsResult, RootCertStatus } from '../../shared/ipc';
 import type { BreakpointRule, GrpcMessage, Headers, TrafficEntry } from '../../shared/types';
+import type { TabSettings } from '../../shared/tabs';
 
 export { MCP_MUTATING_METHODS };
 
 export interface McpHandlerContext {
-  proxyHost: ProxyHost;
-  trafficStore: TrafficStore;
-  getBreakpointRules(): BreakpointRule[];
-  /** Replaces the rules everywhere: the proxy worker and the window. */
-  setBreakpointRules(rules: BreakpointRule[]): void;
-  /** Requests/responses currently held at a breakpoint. */
-  getHeldHits(): BreakpointHit[];
-  resumeHeld(id: number, params: BreakpointResume): void;
+  /** Every tab's proxy session; tools act on the tab named by `tab`, else the active one. */
+  sessions: Pick<
+    SessionManager,
+    | 'resolve'
+    | 'findTraffic'
+    | 'findHeld'
+    | 'allHeldHits'
+    | 'snapshot'
+    | 'summary'
+    | 'create'
+    | 'close'
+    | 'rename'
+    | 'activeTabId'
+  >;
   getCertStatus(): RootCertStatus;
   regenerateRootCert(): Promise<RootCertStatus>;
-  startProxy(): Promise<StartProxyResult>;
   protoStore: ProtoStore;
-  /** Recompiles specs, pushes the bundle to the worker, and returns the new state. */
+  /** Recompiles specs, pushes the bundle to every tab's worker, and returns the new state. */
   syncProtoSpecs(): ProtoSpecsResult;
-  /** Store an entry and push it to the renderer (used by replay). */
-  recordTraffic(entry: TrafficEntry): TrafficEntry;
+}
+
+/** Which tab a tool acted on — agents relying on the active-tab default need to know. */
+function tabRef(ctx: McpHandlerContext, session: Session): { id: string; name: string } {
+  const { id, name } = ctx.sessions.summary(session);
+  return { id, name };
 }
 
 /** Routes and mocks in match order, each with a plain-language summary. */
-function rulesView(running: boolean): Record<string, unknown> {
-  const { routes, mocks, dest, destProtocol, destPort } = getSettings();
+function rulesView(ctx: McpHandlerContext, session: Session): Record<string, unknown> {
+  const { routes, mocks, dest, destProtocol, destPort } = session.settings;
   return {
+    tab: tabRef(ctx, session),
     note:
       'Per request the first enabled mock that matches answers it; otherwise the first enabled ' +
       'route that matches picks the upstream; otherwise the default destination is used. ' +
       'Rules apply to HTTP/1.1 requests (not HTTP/2 gRPC streams).',
-    proxyRunning: running,
+    proxyRunning: session.isRunning,
     defaultDestination: dest ? `${destProtocol}://${dest}:${destPort}` : null,
     mocks: mocks.map((m) => ({ ...m, summary: describeMock(m) })),
     routes: routes.map((r) => ({ ...r, summary: describeRoute(r) })),
   };
 }
 
-function appliedNote(ctx: McpHandlerContext): { applied: string } {
+function appliedNote(session: Session): { applied: string } {
   return {
-    applied: ctx.proxyHost.isRunning
+    applied: session.isRunning
       ? 'active now on the running proxy'
       : 'saved; takes effect when the proxy starts (start_proxy)',
   };
@@ -105,6 +110,7 @@ function trafficSummary(entry: TrafficEntry): Record<string, unknown> {
   const contentType = entry.response.headers['content-type'];
   return {
     trafficId: entry.trafficId,
+    tabId: entry.tabId,
     method: entry.request.method,
     host: entry.request.target?.host,
     url: entry.request.url,
@@ -262,7 +268,7 @@ function rootCertCheck(ctx: McpHandlerContext): SetupCheck {
   };
 }
 
-function clientCertCheck(settings: ReturnType<typeof getSettings>): SetupCheck {
+function clientCertCheck(settings: AppSettings): SetupCheck {
   const name = 'upstream-client-certificate';
   try {
     return {
@@ -273,6 +279,11 @@ function clientCertCheck(settings: ReturnType<typeof getSettings>): SetupCheck {
   } catch (e) {
     return { name, ok: false, detail: (e as Error).message };
   }
+}
+
+/** The optional `tab` argument of a tab-scoped tool. */
+function tabParam(params: unknown): unknown {
+  return (params as { tab?: unknown } | undefined)?.tab;
 }
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
@@ -319,12 +330,18 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
       recommendedBridge: RECOMMENDED_BRIDGE_VERSION,
     }),
 
-    get_status: (_params, conn) => {
-      const settings = getSettings();
+    get_status: (params, conn) => {
+      const session = ctx.sessions.resolve(tabParam(params));
+      const settings = session.settings;
+      const snapshot = ctx.sessions.snapshot();
       return {
         bridge: buildBridgeAdvisory(conn.bridgeVersion),
         appVersion: app.getVersion(),
-        running: ctx.proxyHost.isRunning,
+        tab: tabRef(ctx, session),
+        activeTabId: snapshot.activeTabId,
+        // Other tabs at a glance; list_tabs has the details.
+        tabCount: snapshot.tabs.length,
+        running: session.isRunning,
         listenProtocol: settings.listenProtocol,
         listenPort: settings.listenPort,
         // 'capture-anything': an HTTP/HTTPS proxy for any server; 'forward': one destination.
@@ -332,42 +349,103 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
         ...(settings.captureAll
           ? { proxyUrl: `http://127.0.0.1:${settings.listenPort}` }
           : { destination: `${settings.destProtocol}://${settings.dest}:${settings.destPort}` }),
-        trafficCount: ctx.trafficStore.size,
-        breakpointCount: ctx.getBreakpointRules().length,
+        trafficCount: session.trafficStore.size,
+        breakpointCount: session.rules.length,
       };
     },
 
-    get_config: () => getSettings(),
+    get_config: (params) => {
+      const session = ctx.sessions.resolve(tabParam(params));
+      return { ...session.settings, tab: tabRef(ctx, session) };
+    },
 
-    update_config: (params) => setSettings(params),
+    update_config: (params) => {
+      const p = (params ?? {}) as Record<string, unknown>;
+      const session = ctx.sessions.resolve(p['tab']);
+      return { ...setSettings(p, session.id), tab: tabRef(ctx, session) };
+    },
 
-    start_proxy: async () => {
-      const result = await ctx.startProxy();
+    start_proxy: async (params) => {
+      const session = ctx.sessions.resolve(tabParam(params));
+      const result = await session.start();
       if (!result.ok) throw new Error(result.error.message);
-      return { running: true, port: result.port };
+      return { running: true, port: result.port, tab: tabRef(ctx, session) };
     },
 
-    stop_proxy: () => {
-      ctx.proxyHost.stop();
-      return { running: false };
+    stop_proxy: (params) => {
+      const session = ctx.sessions.resolve(tabParam(params));
+      session.stop();
+      return { running: false, tab: tabRef(ctx, session) };
     },
 
-    restart_proxy: async () => {
-      if (!ctx.proxyHost.isRunning) {
-        const result = await ctx.startProxy();
+    restart_proxy: async (params) => {
+      const session = ctx.sessions.resolve(tabParam(params));
+      if (!session.isRunning) {
+        const result = await session.start();
         if (!result.ok) throw new Error(result.error.message);
-        return { running: true, port: result.port };
+        return { running: true, port: result.port, tab: tabRef(ctx, session) };
       }
-      const port = await ctx.proxyHost.restart();
-      return { running: true, port };
+      const port = await session.restart();
+      return { running: true, port, tab: tabRef(ctx, session) };
+    },
+
+    list_tabs: () => {
+      const { activeTabId, tabs } = ctx.sessions.snapshot();
+      return {
+        activeTabId,
+        note:
+          'Each tab is its own proxy (listen port, destination, rules, scripts, breakpoints, traffic). ' +
+          'Tools act on the active tab unless you pass tab (an id like "t2" — prefer ids, the user can rename tabs).',
+        tabs: tabs.map((t) => ({ ...t, active: t.id === activeTabId })),
+      };
+    },
+
+    create_tab: (params) => {
+      const p = (params ?? {}) as Record<string, unknown>;
+      const { tab: _tab, name, activate, ...settings } = p;
+      void _tab;
+      const result = ctx.sessions.create({
+        settings: settings as Partial<TabSettings>,
+        ...(typeof name === 'string' ? { name } : {}),
+        // An agent's own tab stays in the background unless asked: the user keeps their view.
+        activate: activate === true,
+      });
+      if (!result.ok) throw new Error(result.error);
+      const session = ctx.sessions.resolve(result.tab.id);
+      return {
+        ...ctx.sessions.summary(session),
+        note: `Created; pass tab: "${result.tab.id}" to the other tools. Start it with start_proxy.`,
+      };
+    },
+
+    close_tab: (params) => {
+      const p = (params ?? {}) as { tab?: unknown };
+      if (typeof p.tab !== 'string' || !p.tab) {
+        throw new Error('tab (id or name) is required (see list_tabs)');
+      }
+      const session = ctx.sessions.resolve(p.tab);
+      const closed = tabRef(ctx, session);
+      ctx.sessions.close(session.id);
+      return { closed, activeTabId: ctx.sessions.activeTabId };
+    },
+
+    rename_tab: (params) => {
+      const p = (params ?? {}) as { tab?: unknown; name?: unknown };
+      if (typeof p.name !== 'string') throw new Error('name (string) is required');
+      const session = ctx.sessions.resolve(p.tab);
+      const result = ctx.sessions.rename(session.id, p.name);
+      if (!result.ok) throw new Error(result.error);
+      return { id: result.tab.id, name: result.tab.name };
     },
 
     list_traffic: (params) => {
-      const p = (params ?? {}) as { offset?: number; limit?: number };
-      const all = ctx.trafficStore.getAll();
+      const p = (params ?? {}) as { offset?: number; limit?: number; tab?: unknown };
+      const session = ctx.sessions.resolve(p.tab);
+      const all = session.trafficStore.getAll();
       const offset = Math.max(0, p.offset ?? 0);
       const limit = Math.min(200, Math.max(1, p.limit ?? 50));
       return {
+        tab: tabRef(ctx, session),
         total: all.length,
         offset,
         entries: all.slice(offset, offset + limit).map(trafficSummary),
@@ -376,13 +454,15 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
 
     search_traffic: (params) => {
       const p = (params ?? {}) as Record<string, unknown>;
-      const matched = filterTraffic(ctx.trafficStore.getAll(), pickFilter(p));
+      const session = ctx.sessions.resolve(p['tab']);
+      const matched = filterTraffic(session.trafficStore.getAll(), pickFilter(p));
       const offset = Math.max(0, typeof p['offset'] === 'number' ? (p['offset'] as number) : 0);
       const limit = Math.min(
         200,
         Math.max(1, typeof p['limit'] === 'number' ? (p['limit'] as number) : 50)
       );
       return {
+        tab: tabRef(ctx, session),
         matched: matched.length,
         offset,
         entries: matched.slice(offset, offset + limit).map(trafficSummary),
@@ -390,17 +470,18 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
     },
 
     summarize_session: (params) => {
-      const p = (params ?? {}) as { slowest?: number };
+      const p = (params ?? {}) as { slowest?: number; tab?: unknown };
+      const session = ctx.sessions.resolve(p.tab);
       const n = typeof p.slowest === 'number' ? Math.min(50, Math.max(1, p.slowest)) : 5;
-      return summarizeTraffic(ctx.trafficStore.getAll(), n);
+      return { tab: tabRef(ctx, session), ...summarizeTraffic(session.trafficStore.getAll(), n) };
     },
 
     get_traffic_entry: (params) => {
       const p = (params ?? {}) as { trafficId?: number };
       if (typeof p.trafficId !== 'number') throw new Error('trafficId (number) is required');
-      const entry = ctx.trafficStore.get(p.trafficId);
-      if (!entry) throw new Error(`no traffic entry with id ${p.trafficId}`);
-      return fullEntry(entry);
+      const found = ctx.sessions.findTraffic(p.trafficId);
+      if (!found) throw new Error(`no traffic entry with id ${p.trafficId}`);
+      return fullEntry(found.entry);
     },
 
     compare_requests: (params) => {
@@ -413,9 +494,10 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
       if (typeof p.trafficIdA !== 'number' || typeof p.trafficIdB !== 'number') {
         throw new Error('trafficIdA and trafficIdB (numbers) are required');
       }
-      const a = ctx.trafficStore.get(p.trafficIdA);
+      // Ids are unique across tabs, so two tabs' requests can be compared too.
+      const a = ctx.sessions.findTraffic(p.trafficIdA)?.entry;
       if (!a) throw new Error(`no traffic entry with id ${p.trafficIdA}`);
-      const b = ctx.trafficStore.get(p.trafficIdB);
+      const b = ctx.sessions.findTraffic(p.trafficIdB)?.entry;
       if (!b) throw new Error(`no traffic entry with id ${p.trafficIdB}`);
       const ignore = Array.isArray(p.ignoreHeaders)
         ? p.ignoreHeaders.filter((h): h is string => typeof h === 'string')
@@ -429,14 +511,21 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
     replay_request: async (params) => {
       const p = (params ?? {}) as { trafficId?: number; overrides?: ReplayOverrides };
       if (typeof p.trafficId !== 'number') throw new Error('trafficId (number) is required');
-      const entry = ctx.trafficStore.get(p.trafficId);
-      if (!entry) throw new Error(`no traffic entry with id ${p.trafficId}`);
-      const replayed = await replayEntry(entry, p.overrides ?? {}, getSettings());
-      return fullEntry(ctx.recordTraffic(replayed));
+      const found = ctx.sessions.findTraffic(p.trafficId);
+      if (!found) throw new Error(`no traffic entry with id ${p.trafficId}`);
+      const { session, entry } = found;
+      const replayed = await replayEntry(entry, p.overrides ?? {}, session.settings);
+      return fullEntry(session.recordTraffic(replayed));
     },
 
     set_interceptor: (params) => {
-      const p = (params ?? {}) as { kind?: string; code?: string; enabled?: boolean };
+      const p = (params ?? {}) as {
+        kind?: string;
+        code?: string;
+        enabled?: boolean;
+        tab?: unknown;
+      };
+      const session = ctx.sessions.resolve(p.tab);
       if (p.kind !== 'request' && p.kind !== 'response') {
         throw new Error('kind must be "request" or "response"');
       }
@@ -447,28 +536,34 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
       if (typeof p.enabled === 'boolean') {
         patch[p.kind === 'request' ? 'interceptRequest' : 'interceptResponse'] = p.enabled;
       }
-      const saved = setSettings(patch);
+      const saved = setSettings(patch, session.id);
       return {
+        tab: tabRef(ctx, session),
         kind: p.kind,
         enabled: p.kind === 'request' ? saved.interceptRequest : saved.interceptResponse,
         code: p.kind === 'request' ? saved.requestInterceptor : saved.responseInterceptor,
-        ...appliedNote(ctx),
+        ...appliedNote(session),
       };
     },
 
     try_interceptor: async (params) => {
       const p = (params ?? {}) as { kind?: unknown; code?: unknown; trafficId?: unknown };
       if (typeof p.trafficId !== 'number') throw new Error('trafficId (number) is required');
-      const settings = getSettings();
+      const found = ctx.sessions.findTraffic(p.trafficId);
+      if (!found) throw new Error('That request is no longer in the list.');
+      // The request's own tab: its scripts and its worker.
+      const { session } = found;
+      const settings = session.settings;
       const code =
         p.code ??
         (p.kind === 'response' ? settings.responseInterceptor : settings.requestInterceptor);
       const outcome = await runScriptTrial(
-        ctx.proxyHost,
-        ctx.trafficStore,
+        session.proxyHost,
+        session.trafficStore,
         p.kind,
         code,
-        p.trafficId
+        p.trafficId,
+        settings
       );
       if (!outcome.ok) throw new Error(outcome.error);
       return {
@@ -487,25 +582,34 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
       return decoded;
     },
 
-    list_breakpoints: () => ctx.getBreakpointRules(),
+    list_breakpoints: (params) => ctx.sessions.resolve(tabParam(params)).rules,
 
     set_breakpoints: (params) => {
-      const p = (params ?? {}) as { rules?: unknown };
+      const p = (params ?? {}) as { rules?: unknown; tab?: unknown };
+      const session = ctx.sessions.resolve(p.tab);
       const rules = parseBreakpointRules(p.rules);
       // Same id = same rule: keep the first.
       const unique = rules.filter((r, i) => rules.findIndex((x) => x.id === r.id) === i);
-      ctx.setBreakpointRules(unique);
+      session.setBreakpointRules(unique);
       return unique;
     },
 
-    list_rules: () => rulesView(ctx.proxyHost.isRunning),
+    list_rules: (params) => rulesView(ctx, ctx.sessions.resolve(tabParam(params))),
 
     add_mock: (params) => {
-      const p = (params ?? {}) as MockInput & { priority?: unknown };
+      const p = (params ?? {}) as MockInput & { priority?: unknown; tab?: unknown };
+      const session = ctx.sessions.resolve(p.tab);
       const rule = buildMockRule(p);
-      const { mocks } = getSettings();
-      setSettings({ mocks: p.priority === 'last' ? [...mocks, rule] : [rule, ...mocks] });
-      return { added: { ...rule, summary: describeMock(rule) }, ...appliedNote(ctx) };
+      const { mocks } = session.settings;
+      setSettings(
+        { mocks: p.priority === 'last' ? [...mocks, rule] : [rule, ...mocks] },
+        session.id
+      );
+      return {
+        tab: tabRef(ctx, session),
+        added: { ...rule, summary: describeMock(rule) },
+        ...appliedNote(session),
+      };
     },
 
     record_mocks: (params) => {
@@ -514,17 +618,20 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
       if (ids !== undefined && !(Array.isArray(ids) && ids.every((id) => typeof id === 'number'))) {
         throw new Error('trafficIds must be an array of request ids');
       }
-      let entries = filterTraffic(ctx.trafficStore.getAll(), pickFilter(p));
+      const session = ctx.sessions.resolve(p['tab']);
+      let entries = filterTraffic(session.trafficStore.getAll(), pickFilter(p));
       if (Array.isArray(ids)) {
         const wanted = new Set(ids as number[]);
         entries = entries.filter((e) => wanted.has(e.trafficId));
       }
       if (entries.length === 0) throw new Error('no captured requests match (see search_traffic)');
-      const result = saveRecordedMocks(entries, {
-        ignoreQuery: p['ignoreQuery'] === true,
-        enabled: p['enabled'] !== false,
-      });
+      const result = saveRecordedMocks(
+        entries,
+        { ignoreQuery: p['ignoreQuery'] === true, enabled: p['enabled'] !== false },
+        session.id
+      );
       return {
+        tab: tabRef(ctx, session),
         ...result,
         // Bodies can be large: list each mock by what it matches instead.
         mocks: result.mocks.map(({ rule, trafficId }) => ({
@@ -534,51 +641,66 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
           bodyBytes: Buffer.byteLength(rule.body, rule.bodyEncoding ?? 'utf8'),
           ...(rule.bodyEncoding ? { bodyEncoding: rule.bodyEncoding } : {}),
         })),
-        ...appliedNote(ctx),
+        ...appliedNote(session),
       };
     },
 
     add_route: (params) => {
-      const p = (params ?? {}) as RouteInput & { priority?: unknown };
+      const p = (params ?? {}) as RouteInput & { priority?: unknown; tab?: unknown };
+      const session = ctx.sessions.resolve(p.tab);
       const rule = buildRouteRule(p);
-      const { routes } = getSettings();
-      setSettings({ routes: p.priority === 'last' ? [...routes, rule] : [rule, ...routes] });
-      return { added: { ...rule, summary: describeRoute(rule) }, ...appliedNote(ctx) };
+      const { routes } = session.settings;
+      setSettings(
+        { routes: p.priority === 'last' ? [...routes, rule] : [rule, ...routes] },
+        session.id
+      );
+      return {
+        tab: tabRef(ctx, session),
+        added: { ...rule, summary: describeRoute(rule) },
+        ...appliedNote(session),
+      };
     },
 
     update_rule: (params) => {
-      const p = (params ?? {}) as { id?: unknown; enabled?: unknown };
+      const p = (params ?? {}) as { id?: unknown; enabled?: unknown; tab?: unknown };
+      const session = ctx.sessions.resolve(p.tab);
       if (typeof p.id !== 'string') throw new Error('id (string) is required (see list_rules)');
       if (typeof p.enabled !== 'boolean') throw new Error('enabled (boolean) is required');
-      const { routes, mocks } = getSettings();
+      const { routes, mocks } = session.settings;
       if (![...routes, ...mocks].some((r) => r.id === p.id)) {
         throw new Error(`no route or mock has id ${p.id} (see list_rules)`);
       }
       const toggle = <T extends { id: string; enabled: boolean }>(list: T[]): T[] =>
         list.map((r) => (r.id === p.id ? { ...r, enabled: p.enabled as boolean } : r));
-      setSettings({ routes: toggle(routes), mocks: toggle(mocks) });
-      return rulesView(ctx.proxyHost.isRunning);
+      setSettings({ routes: toggle(routes), mocks: toggle(mocks) }, session.id);
+      return rulesView(ctx, session);
     },
 
     remove_rule: (params) => {
-      const p = (params ?? {}) as { id?: unknown; all?: unknown };
-      const { routes, mocks } = getSettings();
+      const p = (params ?? {}) as { id?: unknown; all?: unknown; tab?: unknown };
+      const session = ctx.sessions.resolve(p.tab);
+      const { routes, mocks } = session.settings;
       if (p.all === true) {
-        setSettings({ routes: [], mocks: [] });
-        return { removed: routes.length + mocks.length, ...rulesView(ctx.proxyHost.isRunning) };
+        setSettings({ routes: [], mocks: [] }, session.id);
+        return { removed: routes.length + mocks.length, ...rulesView(ctx, session) };
       }
       if (typeof p.id !== 'string') throw new Error('id (string) is required (see list_rules)');
       if (![...routes, ...mocks].some((r) => r.id === p.id)) {
         throw new Error(`no route or mock has id ${p.id} (see list_rules)`);
       }
-      setSettings({
-        routes: routes.filter((r) => r.id !== p.id),
-        mocks: mocks.filter((m) => m.id !== p.id),
-      });
-      return { removed: 1, ...rulesView(ctx.proxyHost.isRunning) };
+      setSettings(
+        { routes: routes.filter((r) => r.id !== p.id), mocks: mocks.filter((m) => m.id !== p.id) },
+        session.id
+      );
+      return { removed: 1, ...rulesView(ctx, session) };
     },
 
-    list_held_requests: () => ctx.getHeldHits().map(heldView),
+    // Held requests block real clients wherever they are, so with no tab every tab's are listed.
+    list_held_requests: (params) => {
+      const tab = tabParam(params);
+      const hits = tab ? ctx.sessions.resolve(tab).heldHits : ctx.sessions.allHeldHits();
+      return hits.map(heldView);
+    },
 
     resume_held_request: (params) => {
       const p = (params ?? {}) as {
@@ -592,15 +714,18 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
         };
       };
       if (typeof p.id !== 'number') throw new Error('id (number) is required');
-      const hit = ctx.getHeldHits().find((h) => h.id === p.id);
-      if (!hit) throw new Error(`nothing is held with id ${p.id} (see list_held_requests)`);
+      const session = ctx.sessions.findHeld(p.id);
+      const hit = session?.heldHits.find((h) => h.id === p.id);
+      if (!session || !hit) {
+        throw new Error(`nothing is held with id ${p.id} (see list_held_requests)`);
+      }
       const edits = p.edits ?? {};
       const headers: Headers = { ...hit.headers };
       for (const [k, v] of Object.entries(edits.headers ?? {})) {
         if (v === null) delete headers[k];
         else headers[k] = v;
       }
-      ctx.resumeHeld(hit.id, {
+      session.resumeHeld(hit.id, {
         url: edits.url ?? hit.url,
         method: edits.method ?? hit.method,
         headers,
@@ -616,9 +741,10 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
       if (typeof file !== 'string' || !path.isAbsolute(file)) {
         throw new Error('path (absolute file path) is required');
       }
-      const entries = filterTraffic(ctx.trafficStore.getAll(), pickFilter(p));
+      const session = ctx.sessions.resolve(p['tab']);
+      const entries = filterTraffic(session.trafficStore.getAll(), pickFilter(p));
       fs.writeFileSync(file, JSON.stringify(toHar(entries, app.getVersion()), null, 2), 'utf8');
-      return { path: file, entries: entries.length };
+      return { tab: tabRef(ctx, session), path: file, entries: entries.length };
     },
 
     regenerate_root_cert: () => ctx.regenerateRootCert(),
@@ -652,8 +778,9 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
       return ctx.syncProtoSpecs();
     },
 
-    validate_setup: () => {
-      const settings = getSettings();
+    validate_setup: (params) => {
+      const session = ctx.sessions.resolve(tabParam(params));
+      const settings = session.settings;
       const checks = [
         {
           name: 'destination-configured',
@@ -677,23 +804,28 @@ export function createMcpHandlers(ctx: McpHandlerContext): Record<string, Contro
         {
           name: 'proxy-process',
           ok: true,
-          detail: ctx.proxyHost.isRunning ? 'running' : 'stopped (start with start_proxy)',
+          detail: session.isRunning ? 'running' : 'stopped (start with start_proxy)',
         },
       ];
-      return { ok: checks.every((c) => c.ok), checks };
+      return { tab: tabRef(ctx, session), ok: checks.every((c) => c.ok), checks };
     },
 
-    export_diagnostics: () => ({
-      appVersion: app.getVersion(),
-      electron: process.versions.electron,
-      node: process.versions.node,
-      platform: `${process.platform}-${process.arch}`,
-      settings: getSettings(),
-      proxyRunning: ctx.proxyHost.isRunning,
-      trafficCount: ctx.trafficStore.size,
-      breakpoints: ctx.getBreakpointRules(),
-      heldAtBreakpoints: ctx.getHeldHits().length,
-      logFile: app.getPath('logs'),
-    }),
+    export_diagnostics: (params) => {
+      const session = ctx.sessions.resolve(tabParam(params));
+      return {
+        appVersion: app.getVersion(),
+        electron: process.versions.electron,
+        node: process.versions.node,
+        platform: `${process.platform}-${process.arch}`,
+        tab: tabRef(ctx, session),
+        tabs: ctx.sessions.snapshot(),
+        settings: session.settings,
+        proxyRunning: session.isRunning,
+        trafficCount: session.trafficStore.size,
+        breakpoints: session.rules,
+        heldAtBreakpoints: session.heldHits.length,
+        logFile: app.getPath('logs'),
+      };
+    },
   };
 }

@@ -55,6 +55,16 @@ const api: RevAPI = {
   onProxyState: subscribe(IPC.proxyStateEvent),
   onProxyError: subscribe(IPC.proxyErrorEvent),
   onSettingsChanged: subscribe(IPC.settingsChangedEvent),
+  getProxyState: () => ipcRenderer.invoke(IPC.proxyStateGet),
+  getHeldHits: () => ipcRenderer.invoke(IPC.breakpointsHeld),
+  getTabs: () => ipcRenderer.invoke(IPC.tabsGet),
+  createTab: (duplicateOf) => ipcRenderer.invoke(IPC.tabsCreate, duplicateOf),
+  closeTab: (tabId) => ipcRenderer.invoke(IPC.tabsClose, tabId),
+  renameTab: (tabId, name) => ipcRenderer.invoke(IPC.tabsRename, tabId, name),
+  moveTab: (tabId, toIndex) => ipcRenderer.invoke(IPC.tabsMove, tabId, toIndex),
+  setActiveTab: (tabId) => ipcRenderer.invoke(IPC.tabsSetActive, tabId),
+  onTabsChanged: subscribe(IPC.tabsChangedEvent),
+  onRenameTab: subscribe(IPC.renameTabEvent),
 };
 
 contextBridge.exposeInMainWorld('reversee', api);

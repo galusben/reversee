@@ -88,7 +88,7 @@ export function buildBridgeAdvisory(bridgeVersion: string | undefined): BridgeAd
   };
 }
 
-export const MCP_TOOL_CATALOG: McpToolDef[] = [
+const BASE_CATALOG: McpToolDef[] = [
   {
     name: 'get_status',
     description:
@@ -124,11 +124,82 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
       "(a client that does not shows up as a failed CONNECT entry); servers' certificates are verified unless " +
       'captureVerifyUpstream is false. Routes, mocks, scripts and breakpoints still apply; gRPC mode does not. ' +
       'Proxy-behavior keys take effect the next time the proxy starts, except routes and mocks, which apply at once. ' +
-      'Requires "Allow MCP to Control the Proxy" enabled in the app. Returns the resulting config.',
+      'Requires "Allow MCP to Control the Proxy" enabled in the app. Returns the resulting config. ' +
+      'Each tab has its own proxy settings; theme, trafficCap and the MCP switches are shared by all tabs. ' +
+      'To change a tab other than the active one, put its id in the patch: {"tab": "t2", "dest": "…"}.',
     inputSchema: {
       type: 'object',
-      properties: { patch: { type: 'object', description: 'Partial settings object' } },
+      properties: {
+        patch: {
+          type: 'object',
+          description:
+            'Partial settings object; may include "tab" (a tab id or name, see list_tabs)',
+        },
+      },
       required: ['patch'],
+      additionalProperties: false,
+    },
+    mutating: true,
+  },
+  {
+    name: 'list_tabs',
+    description:
+      'List the open tabs. Each tab is an independent proxy session with its own listen port, destination, ' +
+      'routes/mocks, scripts, breakpoints and captured traffic, so several tools can be debugged at once. ' +
+      'Returns each tab\'s id ("t1", "t2", …; stable — prefer it over the name, which the user can change), ' +
+      'unique name, running state, port, destination, request/in-flight/held counts, and which tab is active ' +
+      '(shown in the window). Every tab-scoped tool takes an optional tab (id or name) and defaults to the active tab.',
+    inputSchema: noInput,
+  },
+  {
+    name: 'create_tab',
+    description:
+      'Open a new tab: a separate proxy session, so you can debug something without changing the tab the user is on. ' +
+      'Takes any per-tab setting from update_config (dest, destProtocol, destPort, listenProtocol, listenPort, captureAll, …); ' +
+      'listenPort defaults to the next port no other tab uses. The tab opens stopped and in the background unless ' +
+      'activate is true. Names must be unique; by default the tab is named after its destination ("api.example.com", ' +
+      'or "api.example.com #2" if that name is taken). Returns the tab summary, including its id. Requires control to be enabled.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Unique tab name (optional)' },
+        activate: { type: 'boolean', description: 'Show the tab in the window (default false)' },
+        dest: { type: 'string' },
+        destProtocol: { type: 'string', enum: ['http', 'https'] },
+        destPort: { type: 'number' },
+        listenProtocol: { type: 'string', enum: ['http', 'https'] },
+        listenPort: { type: 'number' },
+        captureAll: { type: 'boolean' },
+      },
+      additionalProperties: true,
+    },
+    mutating: true,
+  },
+  {
+    name: 'rename_tab',
+    description:
+      'Rename a tab. Names are unique (case-insensitive) and cannot look like a tab id; an empty name restores the ' +
+      'automatic name (from the destination). Requires control to be enabled.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tab: { type: 'string', description: 'Tab id or current name; default: the active tab' },
+        name: { type: 'string' },
+      },
+      required: ['name'],
+      additionalProperties: false,
+    },
+    mutating: true,
+  },
+  {
+    name: 'close_tab',
+    description:
+      'Close a tab: its proxy stops, its held requests are dropped and its captured traffic is discarded. ' +
+      'Closing the last tab leaves one empty tab. Requires control to be enabled.',
+    inputSchema: {
+      type: 'object',
+      properties: { tab: { type: 'string', description: 'Tab id (preferred) or name' } },
+      required: ['tab'],
       additionalProperties: false,
     },
     mutating: true,
@@ -585,7 +656,8 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
     name: 'list_held_requests',
     description:
       'List the requests/responses currently held at a breakpoint: id, phase, method, URL, headers, body, and ' +
-      '(for a held response) status code.',
+      "(for a held response) status code. Without tab, every tab's held requests are listed (a held request " +
+      'blocks a real client wherever it is); held ids are unique across tabs, so resume_held_request needs no tab.',
     inputSchema: noInput,
   },
   {
@@ -706,6 +778,55 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
     inputSchema: noInput,
   },
 ];
+
+/**
+ * Tools that act on one tab. They take an optional `tab` (id or name) and
+ * default to the active tab. update_config is tab-scoped too, but its `tab`
+ * travels inside `patch` (the bridge forwards only the patch).
+ */
+export const TAB_SCOPED_TOOLS: ReadonlySet<string> = new Set([
+  'get_status',
+  'get_config',
+  'start_proxy',
+  'stop_proxy',
+  'restart_proxy',
+  'list_traffic',
+  'search_traffic',
+  'summarize_session',
+  'set_interceptor',
+  'list_breakpoints',
+  'set_breakpoints',
+  'list_rules',
+  'add_mock',
+  'record_mocks',
+  'add_route',
+  'update_rule',
+  'remove_rule',
+  'list_held_requests',
+  'export_har',
+  'validate_setup',
+  'export_diagnostics',
+]);
+
+const TAB_PARAM = {
+  type: 'string',
+  description:
+    'Tab to act on: a tab id like "t2" (preferred) or a tab name. Default: the active tab (see list_tabs).',
+};
+
+function withTabParam(tool: McpToolDef): McpToolDef {
+  if (!TAB_SCOPED_TOOLS.has(tool.name)) return tool;
+  const schema = tool.inputSchema as { properties?: Record<string, unknown> };
+  return {
+    ...tool,
+    inputSchema: {
+      ...tool.inputSchema,
+      properties: { ...schema.properties, tab: TAB_PARAM },
+    },
+  };
+}
+
+export const MCP_TOOL_CATALOG: McpToolDef[] = BASE_CATALOG.map(withTabParam);
 
 /** Tools rejected unless the user enables "Allow MCP to Control the Proxy". Derived from the catalog. */
 export const MCP_MUTATING_METHODS: ReadonlySet<string> = new Set(
