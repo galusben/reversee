@@ -8,6 +8,8 @@ import { useProxyStore } from '../../../src/renderer/src/stores/proxyStore';
 import { useBreakpointStore } from '../../../src/renderer/src/stores/breakpointStore';
 import { useProtoSpecStore } from '../../../src/renderer/src/stores/protoSpecStore';
 import { useUiStore } from '../../../src/renderer/src/stores/uiStore';
+import { useTabsStore } from '../../../src/renderer/src/stores/tabsStore';
+import type { TabSummary, TabsSnapshot } from '../../../src/shared/tabs';
 
 type Listener = (payload?: unknown) => void;
 
@@ -30,13 +32,34 @@ const SUBSCRIPTIONS = [
   'onProxyState',
   'onProxyError',
   'onSettingsChanged',
+  'onTabsChanged',
+  'onRenameTab',
 ] as const;
 
 export type Subscription = (typeof SUBSCRIPTIONS)[number];
 
+/** A tab summary for tests (one stopped tab named after api.test by default). */
+export function tabSummary(patch: Partial<TabSummary> = {}): TabSummary {
+  return {
+    id: 't1',
+    name: 'api.test',
+    nameIsCustom: false,
+    running: false,
+    listenProtocol: 'http',
+    listenPort: 8000,
+    captureAll: false,
+    destination: 'https://api.test:443',
+    trafficCount: 0,
+    pendingCount: 0,
+    heldCount: 0,
+    ...patch,
+  };
+}
+
 export function installFakeApi() {
   const listeners = new Map<Subscription, Set<Listener>>();
   let settings = { ...defaultSettings, dest: 'api.test' };
+  let tabs: TabsSnapshot = { activeTabId: 't1', tabs: [tabSummary()] };
   let certStatus = {
     notAfter: '2036-01-01T00:00:00.000Z',
     daysLeft: 3000,
@@ -92,6 +115,14 @@ export function installFakeApi() {
         logs: ['GET /'],
       })
     ),
+    getProxyState: vi.fn(() => Promise.resolve({ running: false })),
+    getHeldHits: vi.fn(() => Promise.resolve([])),
+    getTabs: vi.fn(() => Promise.resolve(tabs)),
+    createTab: vi.fn(() => Promise.resolve({ ok: true, tabId: 't2' })),
+    closeTab: vi.fn(() => Promise.resolve(true)),
+    renameTab: vi.fn(() => Promise.resolve({ ok: true, tabId: 't1' })),
+    moveTab: vi.fn(() => Promise.resolve()),
+    setActiveTab: vi.fn(() => Promise.resolve()),
     ...Object.fromEntries(
       SUBSCRIPTIONS.map((name) => [
         name,
@@ -114,6 +145,10 @@ export function installFakeApi() {
     setStoredSettings(patch: Record<string, unknown>) {
       settings = { ...settings, ...patch };
     },
+    /** What getTabs resolves with (before init); emit 'onTabsChanged' to push a change. */
+    setTabs(next: TabsSnapshot) {
+      tabs = next;
+    },
     /** Simulate a main -> renderer event. */
     emit(name: Subscription, payload?: unknown) {
       for (const cb of listeners.get(name) ?? []) cb(payload);
@@ -126,6 +161,7 @@ export function installFakeApi() {
 
 export function resetStores(): void {
   useProxyStore.setState({
+    tabId: null,
     settings: null,
     running: false,
     port: undefined,
@@ -138,7 +174,14 @@ export function resetStores(): void {
     sort: { key: 'id', dir: 'asc' },
     certStatus: null,
   });
-  useBreakpointStore.setState({ rules: [], hits: [], compileErrors: [], editorOpen: false });
+  useBreakpointStore.setState({
+    tabId: null,
+    rules: [],
+    hits: [],
+    compileErrors: [],
+    editorOpen: false,
+  });
+  useTabsStore.setState({ tabs: [], activeTabId: null, renameRequest: 0, seen: {} });
   useProtoSpecStore.setState({ specs: [], compileErrors: [], editorOpen: false, importing: false });
   useUiStore.setState({
     connectAiOpen: false,

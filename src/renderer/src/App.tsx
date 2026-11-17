@@ -17,6 +17,8 @@ import { PreferencesDialog } from './components/PreferencesDialog';
 import { RulesDialog } from './components/RulesDialog';
 import { ScriptsDialog } from './components/ScriptsDialog';
 import { ReplayDialog } from './components/ReplayDialog';
+import { TabStrip, showNoticeTab } from './components/TabStrip';
+import { useTabsStore } from './stores/tabsStore';
 import { RecordMocksDialog } from './components/RecordMocksDialog';
 import { CompareDialog } from './components/CompareDialog';
 
@@ -24,6 +26,9 @@ export default function App(): React.JSX.Element {
   const init = useProxyStore((s) => s.init);
   const initBreakpoints = useBreakpointStore((s) => s.init);
   const initProtoSpecs = useProtoSpecStore((s) => s.init);
+  const initTabs = useTabsStore((s) => s.init);
+  const activeTabId = useTabsStore((s) => s.activeTabId);
+  const runningTabs = useTabsStore((s) => s.tabs.filter((t) => t.running).length);
   const error = useProxyStore((s) => s.error);
   const dismissError = useProxyStore((s) => s.dismissError);
   const running = useProxyStore((s) => s.running);
@@ -44,6 +49,7 @@ export default function App(): React.JSX.Element {
     void init();
     void initBreakpoints();
     void initProtoSpecs();
+    void initTabs();
     const ui = useUiStore.getState();
     // Menu items drive the same state as the on-screen controls.
     const unsubscribe = [
@@ -59,7 +65,7 @@ export default function App(): React.JSX.Element {
       }),
     ];
     return () => unsubscribe.forEach((off) => off());
-  }, [init, initBreakpoints, initProtoSpecs, openConnectAi]);
+  }, [init, initBreakpoints, initProtoSpecs, initTabs, openConnectAi]);
 
   // Only worth interrupting for when HTTPS clients are (about to be) affected.
   const certProblem =
@@ -73,8 +79,10 @@ export default function App(): React.JSX.Element {
 
   return (
     <div className="flex h-screen flex-col bg-neutral-100">
-      <SettingsBar />
-      <BreakpointQueue />
+      <TabStrip />
+      {/* Remounted per tab so no half-typed input carries over to another tab. */}
+      <SettingsBar key={`settings-${activeTabId ?? ''}`} />
+      <BreakpointQueue key={`queue-${activeTabId ?? ''}`} />
       <BreakpointsDialog />
       <ProtoSpecsDialog />
       <ConnectAiDialog />
@@ -126,6 +134,7 @@ export default function App(): React.JSX.Element {
       </Group>
       <div className="flex items-center gap-4 border-t border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-500">
         <span>{running ? `Proxy running on port ${port}` : 'Proxy stopped'}</span>
+        {runningTabs > 1 && <span aria-label="Running tabs">{runningTabs} tabs running</span>}
         <span aria-label="Request count">
           {trafficCount} request{trafficCount === 1 ? '' : 's'}
           {pendingCount > 0 ? `, ${pendingCount} in flight` : ''}
@@ -135,8 +144,8 @@ export default function App(): React.JSX.Element {
           <button
             type="button"
             role="status"
-            onClick={clearNotice}
-            title="Dismiss"
+            onClick={notice.tabId ? showNoticeTab : clearNotice}
+            title={notice.tabId ? 'Show that tab' : 'Dismiss'}
             className={`max-w-[60%] truncate ${notice.kind === 'error' ? 'text-red-600' : 'text-emerald-700'}`}
           >
             {notice.text}

@@ -9,6 +9,7 @@ Reversee sits between your client and a destination server. Point your client at
 ## Features
 
 - **HTTP and HTTPS** on both sides — listen on either protocol, forward to either protocol. HTTPS listening uses a locally generated root CA you can trust once (macOS: _Proxy Settings → Manage Root Cert_).
+- **Tabs: debug several tools at once** — each tab is its own proxy with its own listen port, destination, mocks, scripts, breakpoints and traffic, and every tab keeps running in the background. A tab that holds a request at a breakpoint is flagged so a blocked client never goes unnoticed. ⌘T opens a tab, ⌘1…9 switches. See [Tabs](#tabs).
 - **Capture anything** — switch from "Forward to one server" to "Capture anything" and Reversee becomes a regular HTTP/HTTPS proxy: set `HTTP_PROXY` / `HTTPS_PROXY` to its address and every request a program makes is captured, whichever server it goes to. HTTPS is decrypted with certificates signed by the Reversee root CA. See [Capture anything](#capture-anything).
 - **Traffic inspection** — a sortable table (method, host, path, status, content type, size, duration) with headers, request/response bodies (plain and formatted), and a per-request timing waterfall (DNS, TCP, TLS, first byte, download). Requests show up while they are still in flight.
 - **Streaming and WebSockets** — responses are streamed through, so Server-Sent Events and large downloads work as they would without the proxy. WebSocket connections are tunnelled and their messages listed.
@@ -23,6 +24,20 @@ Reversee sits between your client and a destination server. Point your client at
 - **Upstream TLS options** — a client certificate for mutual TLS, optional certificate verification, and a response timeout.
 - **Light and dark themes**, keyboard navigation, and a configurable history size.
 - **MCP integration** — let Claude Code, Cursor, or any MCP client inspect and (optionally) control the proxy. See below.
+
+## Tabs
+
+Debugging a mobile app against one API and a CLI against another? Open a tab per tool (**+** in the tab strip, or ⌘T / Ctrl+T). Each tab is an independent proxy:
+
+- its own **listen port and destination** (or capture-anything mode), **routes and mocks**, **scripts**, **breakpoints** and **captured traffic**;
+- its own worker process, so a script that hangs in one tab never stalls the others;
+- shared across tabs: the root certificate, proto specs, theme, history size and the MCP switches.
+
+All tabs keep proxying while you look at another one. The strip shows each tab's state (● running, ○ stopped, red on error), its port and request count, a blue dot for traffic you have not looked at, and an amber ⏸ with a count when the tab is **holding requests at a breakpoint**. A notice offers to take you there, because a held request blocks a real client.
+
+A new tab opens stopped on the next free port. Tabs are named after their destination (`api.example.com`; a second tab on the same host becomes `api.example.com #2`). Double-click a tab to rename it. Names are unique, so you and an agent can refer to a tab by name. Starting a tab on a port another tab is using says which tab that is. Tabs and their settings are restored when Reversee starts, stopped as before. Shortcuts: ⌘T new, ⌘⇧D duplicate, ⌘W close (⌘⇧W closes the window), ⌘1…⌘9 and ⌃Tab / ⌃⇧Tab to switch; use Ctrl instead of ⌘ on Windows and Linux.
+
+Agents see tabs too: `list_tabs` lists them, and every tab-scoped tool takes an optional `tab` (an id like `t2`, or a name) that defaults to the tab on screen. With control enabled, an agent can open a tab of its own with `create_tab`, so it can debug something without touching yours.
 
 ## Capture anything
 
@@ -146,6 +161,8 @@ The package is published as [`reversee-mcp`](https://www.npmjs.com/package/rever
 
 | Tool                                                        | Description                                                                                                                   |
 | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `list_tabs`                                                 | The open tabs (each its own proxy): id, unique name, port, destination, running state, request and held counts                |
+| `create_tab` / `rename_tab` / `close_tab`                   | Open a background tab for the agent's own work, rename one, or close one                                                      |
 | `get_status`                                                | App version, proxy state, listen/destination config, traffic count                                                            |
 | `get_config` / `update_config`                              | Read / change the proxy configuration                                                                                         |
 | `start_proxy` / `stop_proxy` / `restart_proxy`              | Control the proxy process                                                                                                     |
@@ -167,7 +184,9 @@ The package is published as [`reversee-mcp`](https://www.npmjs.com/package/rever
 | `validate_setup`                                            | Setup checks (destination, ports, root cert, proxy process)                                                                   |
 | `export_diagnostics`                                        | Versions, platform, settings, state — for bug reports                                                                         |
 
-`replay_request`, `record_mocks`, `set_interceptor`, `try_interceptor`, `set_breakpoints`, `resume_held_request`, `export_har`, `regenerate_root_cert`, `update_config`, `add_proto_spec`, `remove_proto_spec`, and the start/stop/restart tools are gated behind _Allow MCP to Control the Proxy_ (or `--allow-mcp-control` headless); the rest are always available read-only.
+Tools that act on one tab take an optional `tab` (an id such as `t2`, preferred, or the tab's name) and default to the tab shown in the window. `update_config` takes it inside `patch`. Tools that take a `trafficId` or held-request id find the tab themselves, because those ids are unique across tabs.
+
+`create_tab`, `rename_tab`, `close_tab`, `replay_request`, `record_mocks`, `set_interceptor`, `try_interceptor`, `set_breakpoints`, `resume_held_request`, `export_har`, `regenerate_root_cert`, `update_config`, `add_proto_spec`, `remove_proto_spec`, and the start/stop/restart tools are gated behind _Allow MCP to Control the Proxy_ (or `--allow-mcp-control` headless); the rest are always available read-only.
 
 The app owns this list — it serves the catalog to the bridge at startup, so **tools added in an app update appear automatically** with no MCP-server reinstall (the bridge is a generic passthrough). When the app is not running, the bridge advertises a built-in fallback list and each call returns a "launch Reversee" message.
 

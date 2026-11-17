@@ -231,7 +231,8 @@ export interface RevAPI {
   /** Dry-runs script code against a captured exchange; nothing is sent or saved. */
   tryScript(kind: ScriptKind, code: string, trafficId: number): Promise<ScriptTrialOutcome>;
   onTraffic(cb: (entry: TrafficEntry) => void): () => void;
-  onTrafficCleared(cb: () => void): () => void;
+  /** The active tab's traffic was cleared (the payload is its tab id). */
+  onTrafficCleared(cb: (tabId?: string) => void): () => void;
   onBreakpointHit(cb: (hit: BreakpointHit) => void): () => void;
   onBreakpointErrors(cb: (errors: BreakpointCompileError[]) => void): () => void;
   onOpenBreakpoints(cb: () => void): () => void;

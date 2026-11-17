@@ -1,7 +1,7 @@
 # Architecture — where to find what
 
-Reversee is an Electron app whose job is to run a reverse proxy and let both
-humans (the UI) and agents (MCP) inspect and control it. The design keeps the
+Reversee is an Electron app whose job is to run reverse proxies (one per tab) and
+let both humans (the UI) and agents (MCP) inspect and control them. The design keeps the
 proxy logic isolated and headless-testable, and exposes a small, audited surface
 to the renderer and to agents.
 
@@ -38,8 +38,9 @@ Four boundaries, each typed:
 - **Renderer ⇄ Main** — allowlisted IPC channels exposed through the preload bridge
   as `window.reversee` (typed `RevAPI`). The renderer never touches `ipcRenderer`.
 - **Main ⇄ Proxy worker** — `parentPort.postMessage` with typed
-  `WorkerInbound`/`WorkerOutbound` messages. The worker is a `utilityProcess` that
-  can be killed and respawned to recover a wedged interceptor.
+  `WorkerInbound`/`WorkerOutbound` messages. Each tab has its own worker, a
+  `utilityProcess` that can be killed and respawned to recover a wedged interceptor
+  without affecting other tabs.
 - **Main ⇄ MCP bridge** — a token-authenticated local Unix socket / Windows named
   pipe (never TCP). See [ADR 0003](adr/0003-gated-mcp-mutations-over-local-socket.md).
 - **Bridge ⇄ agent** — stdio MCP.
@@ -51,8 +52,10 @@ System integration, state, and the MCP control surface.
 | File                   | Responsibility                                                                                                                                                           |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `index.ts`             | App lifecycle, IPC registration, proxy startup, MCP socket init, headless mode (`--headless`).                                                                           |
-| `proxy-host.ts`        | Owns the proxy `utilityProcess`: spawn, message routing, restart, teardown.                                                                                              |
-| `settings.ts`          | Persistence via electron-store; validation and change listeners.                                                                                                         |
+| `proxy-host.ts`        | Owns one proxy `utilityProcess`: spawn, message routing, restart, teardown.                                                                                              |
+| `session.ts`           | One tab's proxy session: its `ProxyHost`, `TrafficStore`, breakpoint rules and held exchanges; `recordTraffic`, start (with the cross-tab port check), live settings.    |
+| `session-manager.ts`   | One `Session` per saved tab, kept in step with the tabs in settings; shared id counters (traffic and held ids are unique across tabs), proto bundle, tab summaries.      |
+| `settings.ts`          | Persistence via electron-store: global settings + the tabs (`tabs` key; per-tab settings, names, active tab); validation and change listeners.                           |
 | `traffic-store.ts`     | Ring buffer of captured traffic entries; the cap follows the `trafficCap` setting.                                                                                       |
 | `replay.ts`            | Re-sends a stored request (optionally edited) to its upstream; used by the UI and the `replay_request` tool.                                                             |
 | `record-mocks.ts`      | Record and replay: saves captured entries as mock rules (merged into settings); used by the UI and the `record_mocks` tool.                                              |
@@ -82,11 +85,12 @@ subscriptions). Raw `ipcRenderer` is never exposed.
 
 Entry: `src/renderer/src/main.tsx` → `App.tsx`.
 
-- **Stores** (`src/renderer/src/stores/`): `proxyStore.ts` (traffic mirror, proxy
-  state, settings), `breakpointStore.ts` (rules, FIFO hit queue, compile errors),
+- **Stores** (`src/renderer/src/stores/`): `tabsStore.ts` (tab strip; on a switch
+  it reloads the stores below for the new tab and restores its table view),
+  `proxyStore.ts` (the active tab's traffic mirror, proxy state, settings), `breakpointStore.ts` (rules, FIFO hit queue, compile errors),
   `uiStore.ts` (dialog state).
 - **Stores** also include `protoSpecStore.ts` (saved gRPC proto specs + compile errors).
-- **Components** (`src/renderer/src/components/`): `SettingsBar.tsx`,
+- **Components** (`src/renderer/src/components/`): `TabStrip.tsx`, `SettingsBar.tsx`,
   `TrafficTable.tsx`, `DetailPanes.tsx`, `CompareDialog.tsx` (two-exchange diff),
   `BreakpointsDialog.tsx`,
   `BreakpointQueue.tsx`, `ScriptsDialog.tsx` (interceptor scripts), `ConnectAiDialog.tsx`,
@@ -153,10 +157,27 @@ Electron-free:
 bundles deps). Interceptors, breakpoints and mocks apply to HTTP/1.1 exchanges only;
 HTTP/2 streams are passed through unmodified.
 
+## Tabs
+
+A tab is an independent proxy session. The tab list (ids, unique names, per-tab
+settings, the active tab) lives in `settings.ts` and is persisted. The settings
+keys are split in `src/shared/tabs.ts`: theme, MCP switches and `trafficCap` are
+global, and everything else belongs to a tab. `SessionManager` follows that list
+and creates or disposes a `Session` (and its worker) per tab.
+
+- **Main owns the active tab.** The renderer's existing `RevAPI` calls (start, stop,
+  settings, traffic, breakpoints) act on it. Calls that name a `trafficId` or held
+  id resolve that item's tab. Only the active tab's events go to the window; every
+  tab's counters arrive as a `tabs:changed` summary.
+- **MCP tools** resolve an optional `tab` (id, then name) through
+  `SessionManager.resolve()` and default to the active tab.
+- **Ids.** Traffic ids and held-request ids come from shared counters, so they are
+  unique across tabs. The worker's own hit ids are mapped back on resume.
+
 ## Traffic entries over time
 
 The worker reports one exchange more than once — pending, streaming progress, done —
-tagged with a `streamId`. Main (`recordTraffic` in `index.ts`) maps that id to the
+tagged with a `streamId`. Main (`Session.recordTraffic`) maps that id to the
 `trafficId` it assigned, so later notifies update the same entry; `pending` on the
 entry is true until the final one. A fast exchange is reported once, when it ends.
 
