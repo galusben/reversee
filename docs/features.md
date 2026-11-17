@@ -158,7 +158,7 @@ Agents drive the running app through the `reversee-mcp` stdio bridge. Setup is i
 | `validate_setup`       | Setup checks: destination, ports, root cert, proxy process.                                          | no        |
 | `export_diagnostics`   | Versions, platform, settings, state, log location — for bug reports.                                 | no        |
 
-31 tools; the 17 marked mutating are gated.
+32 tools; the 18 marked mutating are gated.
 
 ### Headless mode
 

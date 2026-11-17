@@ -414,8 +414,10 @@ test('compare two requests: mark one, compare with another, see the diff', async
   await dialog.getByRole('tab', { name: /Response Body/ }).click();
   const diff = dialog.locator('.monaco-diff-editor');
   await expect(diff).toBeVisible({ timeout: 15_000 });
-  await expect(diff.locator('.editor.original .view-lines')).toContainText('"name": "Ada"');
-  await expect(diff.locator('.editor.modified .view-lines')).toContainText(
+  await expect(diff.locator('.editor.original .view-lines:not(.line-delete)')).toContainText(
+    '"name": "Ada"'
+  );
+  await expect(diff.locator('.editor.modified .view-lines:not(.line-delete)')).toContainText(
     '"error": "token expired"'
   );
   await expect(dialog.getByText('Different (JSON, keys sorted)')).toBeVisible();
