@@ -6,7 +6,7 @@
     <title>Reversee MCP tools — control an HTTP proxy from Claude Code &amp; Cursor</title>
     <meta
       name="description"
-      content="The full Reversee MCP tool reference: 30 tools that let AI agents (Claude Code, Cursor, any MCP client) inspect and control a reverse proxy — search traffic, replay requests, mock endpoints, inject faults, decode JWTs and gRPC. Read-only by default, one-line setup."
+      content="The full Reversee MCP tool reference: 31 tools that let AI agents (Claude Code, Cursor, any MCP client) inspect and control a reverse proxy — search traffic, replay requests, mock endpoints, inject faults, decode JWTs and gRPC. Read-only by default, one-line setup."
     />
     <link rel="canonical" href="https://galusben.github.io/reversee/mcp.html" />
     <link rel="icon" type="image/png" href="./logo.png" />
@@ -16,7 +16,7 @@
     <meta property="og:title" content="Reversee MCP tools — drive an HTTP proxy from AI agents" />
     <meta
       property="og:description"
-      content="30 MCP tools for AI agents to inspect and control Reversee's reverse proxy: search & summarize traffic, replay requests, install interceptors, decode JWTs and gRPC. Read-only by default."
+      content="31 MCP tools for AI agents to inspect and control Reversee's reverse proxy: search & summarize traffic, replay requests, install interceptors, decode JWTs and gRPC. Read-only by default."
     />
     <meta property="og:url" content="https://galusben.github.io/reversee/mcp.html" />
     <meta
@@ -54,7 +54,7 @@
         "mainEntity": {
           "@type": "ItemList",
           "name": "Reversee MCP tools",
-          "numberOfItems": 30,
+          "numberOfItems": 31,
           "itemListElement": [
             { "@type": "ListItem", "position": 1, "name": "get_status" },
             { "@type": "ListItem", "position": 2, "name": "validate_setup" },
@@ -85,7 +85,8 @@
             { "@type": "ListItem", "position": 27, "name": "add_route" },
             { "@type": "ListItem", "position": 28, "name": "update_rule" },
             { "@type": "ListItem", "position": 29, "name": "remove_rule" },
-            { "@type": "ListItem", "position": 30, "name": "try_interceptor" }
+            { "@type": "ListItem", "position": 30, "name": "try_interceptor" },
+            { "@type": "ListItem", "position": 31, "name": "compare_requests" }
           ]
         }
       }
@@ -433,7 +434,7 @@
           <div class="crumbs"><a href="./">Reversee</a> → MCP tools</div>
           <h1>Reversee <span class="grad-text">MCP tools</span></h1>
           <p class="lede">
-            Reversee exposes <strong>30 Model Context Protocol tools</strong> so AI agents — Claude
+            Reversee exposes <strong>31 Model Context Protocol tools</strong> so AI agents — Claude
             Code, Cursor, or any MCP client — can inspect and control its reverse proxy: search and
             summarize captured traffic, replay requests, mock endpoints and reroute paths, install
             interceptors for fault injection, and decode JWTs and gRPC. Read-only by default; the
@@ -499,7 +500,7 @@
 
       <section class="section-soft">
         <div class="wrap">
-          <h2 class="section-title">The 30 tools</h2>
+          <h2 class="section-title">The 31 tools</h2>
           <p class="section-sub">
             Descriptions below are verbatim — this is exactly what an agent reads in the
             <code>tools/list</code> response. The app owns this catalog and serves it to the bridge
@@ -674,6 +675,24 @@
               </p>
               <p class="params">
                 <code>token</code> (string, required) — a leading <code>Bearer </code> is fine.
+              </p>
+            </div>
+            <div class="tool">
+              <div class="tool-head">
+                <span class="tool-name">compare_requests</span
+                ><span class="tag tag-read">READ</span>
+              </div>
+              <p class="desc">
+                Diff two captured exchanges (A vs B) to answer "why did this call work and that one
+                fail": request line, status, request and response headers (by name,
+                case-insensitive) and bodies. JSON bodies are pretty-printed with sorted keys before
+                diffing, so key order does not count; binary bodies are compared by size and
+                fingerprint. Returns a plain-language summary of the differences first, then
+                per-field diffs and a unified diff of each body that differs. Read-only.
+              </p>
+              <p class="params">
+                <code>trafficIdA</code>, <code>trafficIdB</code> (integers, required);
+                <code>ignoreHeaders</code> (string[]); <code>includeUnchanged</code> (boolean).
               </p>
             </div>
           </div>

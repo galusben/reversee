@@ -308,6 +308,81 @@ describe('get_traffic_entry', () => {
   });
 });
 
+describe('compare_requests', () => {
+  it('summarizes what differs and returns a unified diff of the bodies', () => {
+    const ok = ctx.trafficStore.add({
+      ...entry({ contentType: 'application/json', body: '{"user":{"id":1,"name":"a"},"ok":true}' }),
+      request: {
+        method: 'GET',
+        url: '/me',
+        headers: { authorization: 'Bearer good', date: 'Mon', accept: '*/*' },
+      },
+    });
+    const bad = ctx.trafficStore.add({
+      ...entry({
+        status: 401,
+        contentType: 'application/json',
+        body: '{"ok":false,"error":"expired"}',
+      }),
+      request: {
+        method: 'GET',
+        url: '/me',
+        headers: { Authorization: 'Bearer old', date: 'Tue', accept: '*/*' },
+      },
+    });
+    const c = handlers.compare_requests({
+      trafficIdA: ok.trafficId,
+      trafficIdB: bad.trafficId,
+      ignoreHeaders: ['Date'],
+    });
+    expect(c.identical).toBe(false);
+    expect(c.summary[0]).toBe('status: 200 → 401');
+    expect(c.summary).toContain('request header authorization: "Bearer good" → "Bearer old"');
+    // Unchanged fields (accept, method, url) are left out by default; ignored ones always.
+    expect(c.requestHeaders.map((h) => h.name)).toEqual(['authorization']);
+    expect(c.requestLine).toEqual([]);
+    expect(c.status).toMatchObject({ a: '200', b: '401', status: 'changed' });
+    expect(c.requestBody).toEqual({
+      equal: true,
+      a: { kind: 'empty', bytes: 0 },
+      b: { kind: 'empty', bytes: 0 },
+    });
+    expect(c.responseBody.equal).toBe(false);
+    expect(c.responseBody.a.kind).toBe('json');
+    expect(c.responseBody.diff).toContain('-  "ok": true,');
+    expect(c.responseBody.diff).toContain('+  "error": "expired",');
+    expect(c.responseBody.diff.startsWith('@@ ')).toBe(true);
+
+    const all = handlers.compare_requests({
+      trafficIdA: ok.trafficId,
+      trafficIdB: bad.trafficId,
+      includeUnchanged: true,
+    });
+    expect(all.requestHeaders.map((h) => h.name)).toEqual(['accept', 'authorization', 'date']);
+    expect(all.requestLine.map((f) => f.name)).toEqual(['method', 'url']);
+  });
+
+  it('reports identical exchanges', () => {
+    const a = ctx.trafficStore.add(entry({ body: 'same' }));
+    const b = ctx.trafficStore.add(entry({ body: 'same' }));
+    const c = handlers.compare_requests({ trafficIdA: a.trafficId, trafficIdB: b.trafficId });
+    expect(c.identical).toBe(true);
+    expect(c.summary).toEqual([]);
+    expect(c.responseBody.diff).toBeUndefined();
+  });
+
+  it('validates both ids', () => {
+    const a = ctx.trafficStore.add(entry());
+    expect(() => handlers.compare_requests({ trafficIdA: a.trafficId })).toThrow(/trafficIdB/);
+    expect(() => handlers.compare_requests({ trafficIdA: a.trafficId, trafficIdB: 999 })).toThrow(
+      /no traffic entry with id 999/
+    );
+    expect(() => handlers.compare_requests({ trafficIdA: 998, trafficIdB: a.trafficId })).toThrow(
+      /no traffic entry with id 998/
+    );
+  });
+});
+
 describe('replay_request', () => {
   it('replays against the recorded target and records the result', async () => {
     upstream = await startUpstream((req, res) => res.end(`replayed ${req.method} ${req.url}`));

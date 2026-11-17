@@ -22,3 +22,18 @@ export function MonacoView(props: {
     </Suspense>
   );
 }
+
+const DiffImpl = lazy(() => import('./MonacoDiffImpl'));
+
+/** Lazily loaded side-by-side diff editor (read-only). */
+export function MonacoDiffView(props: {
+  original: string;
+  modified: string;
+  language: string;
+}): React.JSX.Element {
+  return (
+    <Suspense fallback={<div className="p-3 text-xs text-neutral-400">Loading editor…</div>}>
+      <DiffImpl {...props} />
+    </Suspense>
+  );
+}

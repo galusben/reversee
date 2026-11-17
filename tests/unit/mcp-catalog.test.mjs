@@ -18,6 +18,7 @@ describe('MCP tool catalog', () => {
         'add_mock',
         'add_proto_spec',
         'add_route',
+        'compare_requests',
         'decode_jwt',
         'export_diagnostics',
         'export_har',
@@ -90,6 +91,7 @@ describe('MCP tool catalog', () => {
     expect(MCP_MUTATING_METHODS.has('search_traffic')).toBe(false);
     expect(MCP_MUTATING_METHODS.has('summarize_session')).toBe(false);
     expect(MCP_MUTATING_METHODS.has('decode_jwt')).toBe(false);
+    expect(MCP_MUTATING_METHODS.has('compare_requests')).toBe(false);
     expect(MCP_MUTATING_METHODS.has('list_held_requests')).toBe(false);
   });
 

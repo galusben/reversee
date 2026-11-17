@@ -249,6 +249,36 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
     },
   },
   {
+    name: 'compare_requests',
+    description:
+      'Diff two captured exchanges (A vs B) to answer "why did this call work and that one fail": request line, ' +
+      'status, request and response headers (by name, case-insensitive) and bodies. JSON bodies are pretty-printed ' +
+      'with sorted keys before diffing, so key order does not count; binary bodies are compared by size and ' +
+      'fingerprint. Returns a plain-language summary of the differences first, then per-field diffs and a unified ' +
+      'diff of each body that differs. Read-only.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        trafficIdA: {
+          type: 'integer',
+          description: 'The baseline exchange (e.g. the one that worked)',
+        },
+        trafficIdB: { type: 'integer', description: 'The exchange to compare against it' },
+        ignoreHeaders: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Header names to leave out, e.g. ["date", "x-request-id"]',
+        },
+        includeUnchanged: {
+          type: 'boolean',
+          description: 'Also list headers that are equal on both sides (default false)',
+        },
+      },
+      required: ['trafficIdA', 'trafficIdB'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'replay_request',
     description:
       'Re-send a captured request to its upstream, optionally with edits — the agent way to test a hypothesis ' +

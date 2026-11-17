@@ -9,6 +9,7 @@ import path from 'node:path';
 import http from 'node:http';
 import https from 'node:https';
 import tls from 'node:tls';
+import zlib from 'node:zlib';
 import forge from 'node-forge';
 import {
   launchApp,
@@ -369,6 +370,63 @@ test('replay from the context menu, and edit-and-replay', async () => {
   await expect(page.getByText('DELETE /orders/2 tag=edited').first()).toBeVisible({
     timeout: 15_000,
   });
+});
+
+test('compare two requests: mark one, compare with another, see the diff', async () => {
+  const upstream = await upstreamOf((req, res) => {
+    const ok = req.headers['authorization'] === 'Bearer good';
+    const body = JSON.stringify(
+      ok ? { user: { id: 7, name: 'Ada' }, ok: true } : { ok: false, error: 'token expired' }
+    );
+    if (ok) {
+      // gzip on one side only: the diff works on the decompressed body.
+      res.writeHead(200, { 'content-type': 'application/json', 'content-encoding': 'gzip' });
+      res.end(zlib.gzipSync(body));
+    } else {
+      res.writeHead(401, { 'content-type': 'application/json', 'www-authenticate': 'Bearer' });
+      res.end(body);
+    }
+  });
+  const { page, listenPort } = await startProxied(upstream.port);
+  await fetchViaProxy(listenPort, '/me', { headers: { authorization: 'Bearer good' } });
+  await fetchViaProxy(listenPort, '/me', { headers: { authorization: 'Bearer stale' } });
+  await expect(row(page, '/me')).toHaveCount(2);
+
+  await row(page, '/me').nth(0).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Mark for Compare' }).click();
+  await expect(row(page, '/me').nth(0).getByTitle('Marked for compare (A)')).toBeVisible();
+  await row(page, '/me').nth(1).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: /^Compare with #\d+$/ }).click();
+
+  const dialog = page.getByRole('dialog', { name: 'Compare requests' });
+  const summary = dialog.getByRole('list');
+  await expect(summary).toContainText('status: 200 → 401');
+  await expect(summary).toContainText(
+    'request header authorization: "Bearer good" → "Bearer stale"'
+  );
+  await expect(summary).toContainText('response header www-authenticate only in B');
+  await expect(
+    dialog.getByRole('table', { name: 'Response headers' }).getByRole('row', {
+      name: /content-encoding/,
+    })
+  ).toContainText('only A');
+  // The real Monaco diff editor, with the decompressed, normalized JSON on both sides.
+  await dialog.getByRole('tab', { name: /Response Body/ }).click();
+  const diff = dialog.locator('.monaco-diff-editor');
+  await expect(diff).toBeVisible({ timeout: 15_000 });
+  await expect(diff.locator('.editor.original .view-lines')).toContainText('"name": "Ada"');
+  await expect(diff.locator('.editor.modified .view-lines')).toContainText(
+    '"error": "token expired"'
+  );
+  await expect(dialog.getByText('Different (JSON, keys sorted)')).toBeVisible();
+  if (process.env['CAPTURE_SCREENSHOTS']) {
+    await page.screenshot({ path: 'docs/screenshots/compare.png' });
+  }
+  // Switching tabs unmounts one diff editor and mounts another.
+  await dialog.getByRole('tab', { name: /Request Body/ }).click();
+  await expect(dialog.getByText('Identical', { exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Close' }).last().click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
 test('HAR export writes a valid archive and import loads it back', async () => {
