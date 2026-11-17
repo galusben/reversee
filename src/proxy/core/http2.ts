@@ -234,6 +234,9 @@ class UpstreamSessions {
   }
 }
 
+/** Minimum gap between updates of an open HTTP/2 call (messages, headers). */
+const STREAM_NOTIFY_INTERVAL_MS = 250;
+
 interface ForwardContext {
   settings: ProxySettings;
   notify: (entry: TrafficEntry, streamId?: string) => void;
@@ -292,9 +295,21 @@ function forwardStream(
   notify(entry); // surface the row immediately; re-emitted as frames/trailers arrive
 
   let finalized = false;
+  // Updates while the call is open are coalesced: notifying per DATA frame
+  // cloned the whole entry (every decoded message so far) to main each time,
+  // which is quadratic for a busy streaming call.
+  let progressTimer: NodeJS.Timeout | null = null;
+  const scheduleNotify = (): void => {
+    if (finalized || progressTimer) return;
+    progressTimer = setTimeout(() => {
+      progressTimer = null;
+      if (!finalized) notify(entry);
+    }, STREAM_NOTIFY_INTERVAL_MS);
+  };
   const finalize = (): void => {
     if (finalized) return;
     finalized = true;
+    if (progressTimer) clearTimeout(progressTimer);
     timings.total ??= Number(process.hrtime.bigint() - startAt);
     delete entry.pending;
     notify(entry);
@@ -337,14 +352,17 @@ function forwardStream(
   const reqRaw: Buffer[] = [];
   let reqBytes = 0;
   clientStream.on('data', (chunk: Buffer) => {
-    upstream.write(chunk);
+    if (!upstream.write(chunk)) {
+      clientStream.pause();
+      upstream.once('drain', () => clientStream.resume());
+    }
     reqBytes += chunk.length;
     if (reqBytes <= CAPTURE_LIMIT) reqRaw.push(chunk);
     if (grpc) {
       for (const frame of reqAcc.push(chunk)) {
         grpc.requestMessages.push(decodeFrame(frame, resolved?.requestType));
       }
-      notify(entry);
+      scheduleNotify();
     }
   });
   clientStream.on('end', () => {
@@ -383,7 +401,7 @@ function forwardStream(
 
     if (clientStream.closed) return;
     clientStream.respond(downstreamHeaders(respHeaders), { waitForTrailers: !trailersOnly });
-    notify(entry);
+    scheduleNotify();
   });
 
   clientStream.on('wantTrailers', () => {
@@ -391,14 +409,17 @@ function forwardStream(
   });
 
   upstream.on('data', (chunk: Buffer) => {
-    if (!clientStream.closed) clientStream.write(chunk);
+    if (!clientStream.closed && !clientStream.write(chunk)) {
+      upstream.pause();
+      clientStream.once('drain', () => upstream.resume());
+    }
     respBytes += chunk.length;
     if (respBytes <= CAPTURE_LIMIT) respRaw.push(chunk);
     if (grpc) {
       for (const frame of respAcc.push(chunk)) {
         grpc.responseMessages.push(decodeFrame(frame, resolved?.responseType));
       }
-      notify(entry);
+      scheduleNotify();
     }
   });
   upstream.on('trailers', (t) => {

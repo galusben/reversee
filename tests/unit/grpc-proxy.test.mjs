@@ -71,6 +71,16 @@ function startGrpcUpstream() {
 
       if (path === '/test.Echo/ServerStream') {
         for (let i = 1; i <= 3; i++) stream.write(replyFrame(`${name} #${i}`));
+      } else if (path === '/test.Echo/ManyStream') {
+        // Many messages, each in its own DATA frame on its own tick.
+        let i = 0;
+        const next = () => {
+          if (++i > 300) return stream.end();
+          stream.write(replyFrame(`${name} #${i}`));
+          setImmediate(next);
+        };
+        next();
+        return;
       } else {
         stream.write(replyFrame(`hello ${name}`));
       }
@@ -123,6 +133,7 @@ let upstream;
 let proxy;
 let proxyPort;
 const entries = new Map(); // trafficId -> latest entry (the store upserts the same way)
+const notifyCounts = new Map(); // trafficId -> how many times it was reported
 
 beforeAll(async () => {
   upstream = await startGrpcUpstream();
@@ -136,7 +147,10 @@ beforeAll(async () => {
       allowSelfSignedUpstream: true,
       enableGrpc: true,
     },
-    notify: (entry) => entries.set(entry.trafficId, entry),
+    notify: (entry) => {
+      entries.set(entry.trafficId, entry);
+      notifyCounts.set(entry.trafficId, (notifyCounts.get(entry.trafficId) ?? 0) + 1);
+    },
     resolveMethod,
   });
   proxyPort = await proxy.listen();
@@ -183,6 +197,18 @@ describe('gRPC over the HTTP/2 proxy', () => {
       replyFrame('bob #3'),
     ]);
     expect(Buffer.compare(res.raw, reframed)).toBe(0);
+  });
+
+  it('coalesces the updates of a busy streaming call instead of reporting every frame', async () => {
+    const res = await grpcCall(proxyPort, '/test.Echo/ManyStream', 'eve');
+    expect(res.messages).toHaveLength(300);
+
+    const entry = latestFor('/test.Echo/ManyStream');
+    expect(entry.pending).toBeUndefined();
+    expect(entry.grpc.responseMessages).toHaveLength(300);
+    expect(entry.grpc.responseMessages.at(-1).json.text).toBe('eve #300');
+    // First sight + a few throttled progress updates + the final one — not 300+.
+    expect(notifyCounts.get(entry.trafficId)).toBeLessThan(20);
   });
 
   it('captures a non-OK grpc-status (Trailers-Only)', async () => {

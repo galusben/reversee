@@ -78,4 +78,16 @@ describe('curl builder', () => {
     });
     expect(cmd).not.toContain('--data-binary');
   });
+
+  it('does not inline a body larger than the capture cap', () => {
+    const cmd = curl.build('http', {
+      host: 'h',
+      port: 80,
+      path: '/upload',
+      method: 'POST',
+      body: Buffer.alloc(3 * 1024 * 1024, 'a'),
+    });
+    expect(cmd.length).toBeLessThan(200);
+    expect(cmd).toContain("--data-binary '@request-body.bin'");
+  });
 });

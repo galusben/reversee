@@ -74,7 +74,10 @@ the desktop UI, and agents through the Model Context Protocol.
   examples. **Try it** dry-runs the draft on a captured request in the proxy
   worker and lists what changed, the error if it threw, and its `console.log`
   output; nothing is sent. Saving applies the scripts to the running proxy at
-  once. Each run has a one-second budget. A compressed response body reaches the
+  once. Each run has a one-second budget. Variables a script declares
+  (`const`, `let`, `var`) are fresh on every request; the script's global
+  object is reused while the script is unchanged, so only a deliberate
+  assignment to an undeclared global carries over. A compressed response body reaches the
   response script decompressed, and is then sent on without `content-encoding`.
   User-code errors and console output
   are recorded on the traffic entry (the request's Interceptor tab), and the

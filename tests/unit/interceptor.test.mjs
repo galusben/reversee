@@ -100,4 +100,37 @@ describe('interceptor engine', () => {
     });
     expect(params.headers.ok).toBe('1');
   });
+
+  it('runs a script with top-level declarations on every request (the context is reused)', () => {
+    const code = `const tag = 'v' + requestParams.n;
+let count = 0;
+var seen = requestParams.n;
+function stamp() { return tag; }
+requestParams.headers.tag = stamp();`;
+    for (const n of [1, 2, 3]) {
+      const params = { n, headers: {} };
+      expect(interceptor.interceptRequest(params, code)).toEqual({ logs: [] });
+      expect(params.headers.tag).toBe('v' + n);
+    }
+  });
+
+  it('does not leak declared variables from one request into the next', () => {
+    const code =
+      "var last; if (requestParams.first) last = 'first'; requestParams.headers.last = String(last);";
+    const a = { first: true, headers: {} };
+    const b = { headers: {} };
+    interceptor.interceptRequest(a, code);
+    interceptor.interceptRequest(b, code);
+    expect(a.headers.last).toBe('first');
+    expect(b.headers.last).toBe('undefined');
+  });
+
+  it('keeps the top-level this, return and syntax-error behaviour of a plain script', () => {
+    const params = { headers: {} };
+    interceptor.interceptRequest(params, 'requestParams.headers.g = typeof this.Array');
+    expect(params.headers.g).toBe('function');
+    expect(
+      interceptor.interceptRequest({ headers: {} }, 'const a = 1;\nconst a = 2;').error
+    ).toMatch(/already been declared/);
+  });
 });
