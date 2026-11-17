@@ -33,6 +33,7 @@ MCP tools:
 - `get_traffic_entry`: one request in full — headers, bodies, timings, curl command, upstream target, and any JWTs decoded from its Authorization header or cookies.
 - `replay_request`: re-send a captured request to its upstream with optional edits (method/url/headers/body) — agent hypothesis testing; records a new entry (gated).
 - `set_interceptor`: install/toggle a request or response interceptor (arbitrary JavaScript that rewrites traffic) for mocking and fault injection; applies to the running proxy at once (gated).
+- `record_mocks`: record and replay — turn captured traffic (all, a search_traffic filter, or trafficIds) into mock rules that serve the same responses with no upstream; one mock per method + URL, latest wins, skipped entries reported with reasons (gated).
 - `try_interceptor`: dry-run interceptor JavaScript on a captured exchange and get back what it changed, any error, and console output; nothing is sent or saved (gated).
 - `decode_jwt`: decode a JWT's header and claims (inspection only; signature not verified).
 - `list_breakpoints`: configured breakpoint rules.

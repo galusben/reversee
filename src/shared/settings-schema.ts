@@ -54,7 +54,7 @@ export interface AppSettings {
 export const TRAFFIC_CAP_MIN = 100;
 export const TRAFFIC_CAP_MAX = 20_000;
 export const UPSTREAM_TIMEOUT_MAX_SEC = 3600;
-const MAX_RULES = 200;
+export const MAX_RULES = 200;
 
 export const defaultSettings: AppSettings = {
   listenProtocol: 'http',
@@ -174,6 +174,7 @@ export function sanitizeMockRule(raw: unknown): MockRule | null {
     statusCode: r['statusCode'],
     headers,
     body: typeof r['body'] === 'string' ? r['body'] : '',
+    ...(r['bodyEncoding'] === 'base64' ? { bodyEncoding: 'base64' as const } : {}),
     ...(isIntInRange(r['delayMs'], 1, 600_000) ? { delayMs: r['delayMs'] } : {}),
   };
 }

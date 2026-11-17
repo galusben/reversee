@@ -113,7 +113,7 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
       'upstreamClientCertPath/upstreamClientKeyPath (PEM files for mutual TLS to the upstream), ' +
       'routes (array of {id, enabled, hostPattern?, pathPattern?, destProtocol, dest, destPort}: regex rules ' +
       'that send matching requests to a different upstream; first match wins), and ' +
-      'mocks (array of {id, enabled, method?, pathPattern, statusCode, headers, body, delayMs?}: canned responses ' +
+      'mocks (array of {id, enabled, method?, pathPattern, statusCode, headers, body, bodyEncoding? ("base64" for binary), delayMs?}: canned responses ' +
       'served without contacting the upstream). routes and mocks replace the whole list and invalid rules are dropped; ' +
       'prefer add_mock / add_route / remove_rule, which take plain paths and apply at once. ' +
       'enableGrpc runs an HTTP/2 listener so native gRPC is proxied and decoded (against saved proto specs); ' +
@@ -400,6 +400,47 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
         },
       },
       required: ['path'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'record_mocks',
+    description:
+      'Record and replay: turn captured traffic into mock rules, so the same responses are served again with no ' +
+      'upstream (run a frontend offline, or a test against fixed responses). One mock per method + URL; when a URL ' +
+      'was captured more than once the latest response wins. A recorded URL with a query string matches only that ' +
+      'query unless ignoreQuery is true. Headers are kept except hop-by-hop ones, content-length and date (and ' +
+      'content-encoding, since the stored body is decompressed); binary bodies are kept as base64. Pending, failed, ' +
+      'already-mocked, WebSocket, gRPC and truncated exchanges are skipped and reported. A saved mock for the same ' +
+      'method and URL is updated in place; new ones go after the existing mocks. Takes effect immediately. ' +
+      'Select entries with trafficIds and/or the search_traffic filters (none = all captured traffic). ' +
+      'Undo with remove_rule. Requires control to be enabled in the app.',
+    mutating: true,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        trafficIds: {
+          type: 'array',
+          items: { type: 'integer' },
+          description: 'Only these captured requests (ids from search_traffic)',
+        },
+        ignoreQuery: {
+          type: 'boolean',
+          description: 'Match the recorded path with any query string (default false)',
+        },
+        enabled: { type: 'boolean', description: 'Save the mocks switched on (default true)' },
+        text: { type: 'string' },
+        method: { type: 'string' },
+        status: { anyOf: [{ type: 'integer' }, { type: 'string' }] },
+        host: { type: 'string' },
+        urlContains: { type: 'string' },
+        urlRegex: { type: 'string' },
+        contentType: { type: 'string' },
+        header: { type: 'string' },
+        bodyContains: { type: 'string' },
+        minTotalMs: { type: 'number' },
+        hasError: { type: 'boolean' },
+      },
       additionalProperties: false,
     },
   },

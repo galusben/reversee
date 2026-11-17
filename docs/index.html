@@ -612,7 +612,8 @@
               <h3>Mocks &amp; routes</h3>
               <p>
                 Answer any request with a response you write, or send part of the traffic to a
-                different server. No code, and changes apply while the proxy runs.
+                different server. Record a whole session as mocks in one click. No code, and
+                changes apply while the proxy runs.
               </p>
             </div>
             <div class="card">
@@ -715,6 +716,24 @@
         </div>
       </section>
 
+      <section id="record">
+        <div class="wrap">
+          <h2 class="section-title">Record a session, replay it offline</h2>
+          <p class="section-sub">
+            Click <b>Record as mocks</b> and every captured response becomes a mock: one per method
+            and URL, with its status, headers and body, binary bodies included. Turn the backend off
+            and the frontend keeps working; point a test at the proxy and it gets the same answers
+            every time. Record everything, only what the filter lists, or a single request.
+          </p>
+          <div class="shot">
+            <img
+              src="./screenshots/record-mocks.png"
+              alt="Reversee's Record as mocks dialog: the requests the filter lists become two new mocks, one per URL, previewed before saving."
+            />
+          </div>
+        </div>
+      </section>
+
       <section id="scripts">
         <div class="wrap">
           <h2 class="section-title">Rewrite traffic with a few lines of code</h2>
@@ -807,7 +826,8 @@
                 ><span
                   ><b>Mock by asking.</b> “Make <code>/api/flags</code> return this JSON” becomes
                   one <code>add_mock</code> call, live on the running proxy.
-                  <code>add_route</code> redirects a path to another server.</span
+                  <code>add_route</code> redirects a path to another server, and
+                  <code>record_mocks</code> turns captured traffic into mocks.</span
                 >
               </div>
               <div class="feat">

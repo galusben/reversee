@@ -43,6 +43,7 @@ const EXPECTED_API = [
   'onTraffic',
   'onTrafficCleared',
   'pickFile',
+  'recordMocks',
   'regenerateRootCert',
   'removeProtoSpec',
   'replayRequest',

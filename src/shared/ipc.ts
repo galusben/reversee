@@ -2,6 +2,7 @@
 // bridge) and main <-> proxy utilityProcess messages. Channel names follow
 // domain:action. This module must stay platform-neutral.
 import type { AppSettings } from './settings-schema';
+import type { RecordOptions, SkipGroup, StoredMock } from './record-mocks';
 import type {
   BreakpointCompileError,
   BreakpointPhase,
@@ -39,6 +40,7 @@ export const IPC = {
   trafficReplay: 'traffic:replay',
   trafficExportHar: 'traffic:export-har',
   trafficImportHar: 'traffic:import-har',
+  trafficRecordMocks: 'traffic:record-mocks',
   certStatusGet: 'cert:status',
   certRegenerate: 'cert:regenerate',
   filePick: 'file:pick',
@@ -63,6 +65,19 @@ export const IPC = {
   focusFilterEvent: 'ui:focus-filter',
   toggleProxyEvent: 'ui:toggle-proxy',
 } as const;
+
+/** What "Record as mocks" saved, and what it left out and why. */
+export interface RecordMocksResult {
+  /** Captured exchanges looked at. */
+  considered: number;
+  created: number;
+  /** Saved mocks for the same method and URL that were updated in place. */
+  replaced: number;
+  /** Left out because the rule list is full. */
+  overLimit: number;
+  skipped: SkipGroup[];
+  mocks: StoredMock[];
+}
 
 /** Saved proto specs plus the latest compile errors, returned after each mutation. */
 export interface ProtoSpecsResult {
@@ -181,6 +196,8 @@ export interface RevAPI {
   exportHar(ids?: number[]): Promise<HarExportResult>;
   /** Loads a HAR file via a native open dialog and appends its entries to the table. */
   importHar(): Promise<HarImportResult>;
+  /** Saves captured exchanges as mock rules (all traffic, or just `ids`). */
+  recordMocks(ids?: number[], options?: RecordOptions): Promise<RecordMocksResult>;
   getCertStatus(): Promise<RootCertStatus>;
   /** Asks for confirmation, then replaces the root CA. Resolves with the resulting status. */
   regenerateRootCert(): Promise<RootCertStatus>;

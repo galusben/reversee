@@ -3,6 +3,7 @@ import {
   ArrowDown,
   ArrowUp,
   BarChart3,
+  Clapperboard,
   Download,
   Lock,
   LockOpen,
@@ -94,6 +95,19 @@ function sortValue(entry: TrafficEntry, key: SortKey): number | string {
     case 'duration':
       return totalMs(entry.timings) ?? -1;
   }
+}
+
+/** The entries the table lists under the current filter (unsorted). */
+export function listedTraffic(
+  all: TrafficEntry[],
+  filterText: string,
+  errorsOnly: boolean
+): TrafficEntry[] {
+  if (!filterText && !errorsOnly) return all;
+  return filterTraffic(all, {
+    ...(filterText ? { text: filterText } : {}),
+    ...(errorsOnly ? { hasError: true } : {}),
+  });
 }
 
 function sortTraffic(entries: TrafficEntry[], sort: SortState): TrafficEntry[] {
@@ -204,18 +218,13 @@ export function TrafficTable(): React.JSX.Element {
   const openSummary = useUiStore((s) => s.setSummaryOpen);
   const openReplayEditor = useUiStore((s) => s.setReplayEditorId);
   const openRules = useUiStore((s) => s.setRulesOpen);
+  const openRecordMocks = useUiStore((s) => s.setRecordMocks);
   const filterFocusRequest = useUiStore((s) => s.filterFocusRequest);
 
-  const traffic = useMemo(() => {
-    const filtered =
-      filterText || errorsOnly
-        ? filterTraffic(allTraffic, {
-            ...(filterText ? { text: filterText } : {}),
-            ...(errorsOnly ? { hasError: true } : {}),
-          })
-        : allTraffic;
-    return sortTraffic(filtered, sort);
-  }, [allTraffic, filterText, errorsOnly, sort]);
+  const traffic = useMemo(
+    () => sortTraffic(listedTraffic(allTraffic, filterText, errorsOnly), sort),
+    [allTraffic, filterText, errorsOnly, sort]
+  );
 
   const containerRef = useRef<HTMLDivElement>(null);
   const filterRef = useRef<HTMLInputElement>(null);
@@ -376,6 +385,16 @@ export function TrafficTable(): React.JSX.Element {
         </button>
         <button
           type="button"
+          onClick={() => openRecordMocks(true)}
+          disabled={allTraffic.length === 0}
+          title="Record as mocks: serve these responses again without the upstream"
+          aria-label="Record as mocks"
+          className={`${toolButton} disabled:opacity-40 disabled:hover:bg-transparent`}
+        >
+          <Clapperboard className="h-4 w-4" aria-hidden />
+        </button>
+        <button
+          type="button"
           onClick={() => openSummary(true)}
           title="Session summary"
           aria-label="Session summary"
@@ -460,6 +479,10 @@ export function TrafficTable(): React.JSX.Element {
                   const entry = menuEntryRef.current;
                   if (entry) openRules(true, { kind: 'mock', rule: mockFromEntry(entry) });
                 },
+              },
+              {
+                label: 'Record as Mocks…',
+                onSelect: () => openRecordMocks(true, menuEntryRef.current?.trafficId),
               },
               {
                 label: 'Route Requests Like This…',

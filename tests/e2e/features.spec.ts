@@ -241,6 +241,62 @@ test('a mock rule added in the Rules dialog answers without the upstream; a rout
   expect(main.requests).toHaveLength(before);
 });
 
+test('record and replay: captured traffic becomes mocks that answer with the upstream gone', async () => {
+  const upstream = await upstreamOf((req, res) => {
+    if (req.url?.startsWith('/api/users')) {
+      res.writeHead(200, { 'content-type': 'application/json', 'x-source': 'live' });
+      res.end(JSON.stringify({ users: ['ada'], url: req.url }));
+    } else {
+      res.writeHead(404, { 'content-type': 'text/plain' });
+      res.end('nope');
+    }
+  });
+  const { page, listenPort } = await startProxied(upstream.port);
+  await fetchViaProxy(listenPort, '/api/users');
+  await fetchViaProxy(listenPort, '/api/users?page=2');
+  await fetchViaProxy(listenPort, '/missing');
+  await expect(row(page, '/missing')).toContainText('404');
+
+  // Narrow to the API calls, then record them in one click.
+  await page.getByLabel('Filter traffic').fill('/api');
+  await page.getByRole('button', { name: 'Record as mocks' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Record as mocks' });
+  await expect(dialog.getByLabel('The 2 requests the filter lists')).toBeChecked();
+  const preview = dialog.getByLabel('Recording preview');
+  await expect(preview).toContainText('2 new mocks');
+  await expect(preview).toContainText('URL is exactly "/api/users?page=2"');
+  await expect(dialog).toContainText('They answer at once.');
+  if (process.env['CAPTURE_SCREENSHOTS']) {
+    await page.screenshot({ path: 'docs/screenshots/record-mocks.png' });
+  }
+  await dialog.getByRole('button', { name: 'Record 2 mocks' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByText(/Recorded 2 new mocks/)).toBeVisible();
+  await expect(page.getByRole('button', { name: /Routes and mocks/ })).toHaveAccessibleName(
+    'Routes and mocks, 2 active'
+  );
+
+  // The upstream goes away; the recorded responses are still served.
+  await upstream.close();
+  const hits = upstream.requests.length;
+  const users = await fetchViaProxy(listenPort, '/api/users');
+  expect(users.statusCode).toBe(200);
+  expect(users.headers['content-type']).toBe('application/json');
+  expect(users.headers['x-source']).toBe('live');
+  expect(JSON.parse(users.body)).toEqual({ users: ['ada'], url: '/api/users' });
+  const page2 = await fetchViaProxy(listenPort, '/api/users?page=2');
+  expect(JSON.parse(page2.body)).toEqual({ users: ['ada'], url: '/api/users?page=2' });
+  expect(upstream.requests).toHaveLength(hits);
+  await page.getByLabel('Filter traffic').fill('');
+  await expect(row(page, 'MOCK')).toHaveCount(2);
+
+  // The recordings are ordinary mocks: listed, named, and editable.
+  await page.getByRole('button', { name: /Routes and mocks/ }).click();
+  const rules = page.getByRole('dialog', { name: 'Routes and mocks' });
+  await expect(rules.getByLabel('Mock 1 name')).toHaveValue('Recorded: GET /api/users?page=2');
+  await expect(rules.getByLabel('Mock 2 name')).toHaveValue('Recorded: GET /api/users');
+});
+
 test('a response breakpoint holds the response until it is edited and continued', async () => {
   const upstream = await upstreamOf((_req, res) => {
     res.writeHead(200, { 'content-type': 'application/json' });
