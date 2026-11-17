@@ -64,6 +64,49 @@ function makeConsole(logs: string[]): Record<string, (...args: unknown[]) => voi
   };
 }
 
+/**
+ * Creating a V8 context is by far the most expensive part of running a script
+ * (~0.1 ms, more than the proxying itself), so each script keeps one context
+ * that is reused for every request. The user code is wrapped in a function
+ * so its `const`/`let`/`var` declarations stay local to one run: a script
+ * that declares `const data = ...` runs again on the next request instead of
+ * failing with "already declared". (Only a deliberate assignment to an
+ * undeclared global now survives between requests.)
+ */
+interface CompiledScript {
+  script: vm.Script;
+  context: vm.Context;
+}
+
+/** Slot on the context's global that carries one run's arguments into the wrapper. */
+const ARGS = '__reverseeArgs';
+const WRAP_PREFIX = '(function (requestParams, responseParams, console) {\n';
+const WRAP_SUFFIX = `\n}).call(this, ${ARGS}.requestParams, ${ARGS}.responseParams, ${ARGS}.console);`;
+/** Request + response interceptor, plus room for a few dry runs. */
+const MAX_CACHED_SCRIPTS = 8;
+const compiled = new Map<string, CompiledScript>();
+
+function compile(code: string): CompiledScript {
+  const hit = compiled.get(code);
+  if (hit) {
+    // Map order is insertion order: re-insert so eviction drops the least recently used.
+    compiled.delete(code);
+    compiled.set(code, hit);
+    return hit;
+  }
+  // lineOffset keeps reported line numbers matching the user's own code.
+  const script = new vm.Script(WRAP_PREFIX + code + WRAP_SUFFIX, { lineOffset: -1 });
+  // afterEvaluate drains the context's microtasks inside runInContext, so
+  // the timeout also covers promise chains the script starts.
+  const context = vm.createContext({}, { microtaskMode: 'afterEvaluate' });
+  const entry = { script, context };
+  compiled.set(code, entry);
+  if (compiled.size > MAX_CACHED_SCRIPTS) {
+    compiled.delete(compiled.keys().next().value as string);
+  }
+  return entry;
+}
+
 function intercept(
   requestParams: RequestParams | null,
   responseParams: ResponseParams | null,
@@ -72,15 +115,17 @@ function intercept(
   timeoutMs: number
 ): InterceptResult {
   const logs: string[] = [];
+  let context: vm.Context | undefined;
   try {
-    const sandbox = { requestParams, responseParams, console: makeConsole(logs) };
-    const script = new vm.Script(code);
-    // afterEvaluate drains the context's microtasks inside runInContext, so
-    // the timeout also covers promise chains the script starts.
-    const context = vm.createContext(sandbox, { microtaskMode: 'afterEvaluate' });
-    script.runInContext(context, { timeout: timeoutMs });
+    const entry = compile(code);
+    context = entry.context;
+    context[ARGS] = { requestParams, responseParams, console: makeConsole(logs) };
+    entry.script.runInContext(context, { timeout: timeoutMs });
     return { logs };
   } catch (e) {
+    // A run that threw or was cut off may have left the context half-changed:
+    // the next request starts from a clean one.
+    compiled.delete(code);
     logger.warn('interceptor error', e);
     const err = e as { code?: string; message?: string };
     const message =
@@ -88,6 +133,9 @@ function intercept(
         ? `interceptor timed out after ${timeoutMs} ms`
         : String(err?.message ?? e);
     return { error: message, logs };
+  } finally {
+    // Do not keep this exchange's bodies alive until the next request.
+    if (context) context[ARGS] = undefined;
   }
 }
 

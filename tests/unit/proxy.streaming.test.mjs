@@ -172,6 +172,32 @@ describe('response streaming', () => {
     expect(traffic.request.size).toBe(3);
     expect(traffic.response.size).toBe(5);
   });
+
+  it('forwards a large upload whole but keeps only a bounded copy for the view', async () => {
+    const upload = crypto.randomBytes(300 * 1024);
+    let received;
+    const { proxyServer } = await setup(
+      (req, res) => {
+        const chunks = [];
+        req.on('data', (c) => chunks.push(c));
+        req.on('end', () => {
+          received = Buffer.concat(chunks);
+          res.end('ok');
+        });
+      },
+      { captureLimit: 64 * 1024 }
+    );
+    const trafficPromise = proxyServer.nextTraffic();
+    await request({ port: proxyServer.port, method: 'POST', body: upload });
+    const traffic = await trafficPromise;
+    expect(Buffer.compare(received, upload)).toBe(0);
+    expect(traffic.request.size).toBe(upload.length);
+    expect(traffic.request.body.length).toBe(64 * 1024);
+    expect(traffic.request.truncated).toBe(true);
+    expect(Buffer.compare(Buffer.from(traffic.request.body), upload.subarray(0, 64 * 1024))).toBe(
+      0
+    );
+  });
 });
 
 describe('upstream failures', () => {

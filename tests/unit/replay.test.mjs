@@ -2,7 +2,8 @@
 // agent-facing "resend with edits" path behind the replay_request MCP tool.
 import { describe, it, expect, afterEach } from 'vitest';
 import zlib from 'node:zlib';
-import { replayRequest } from '../../src/main/replay';
+import { replayEntry, replayRequest } from '../../src/main/replay';
+import { defaultSettings } from '../../src/shared/settings-schema';
 import { startUpstream, closeAll } from './helpers.mjs';
 
 let upstream;
@@ -127,5 +128,43 @@ describe('replayRequest', () => {
     const rejected = await replayRequest(tlsSource, {}, true);
     expect(rejected.response.statusCode).toBe(502);
     expect(rejected.connectorError).toBeTruthy();
+  });
+});
+
+describe('replayEntry', () => {
+  const entry = (port, request = {}) => ({
+    trafficId: 1,
+    request: {
+      url: '/upload',
+      method: 'POST',
+      headers: { 'content-length': '5000000' },
+      body: Buffer.alloc(2 * 1024 * 1024, 'a'),
+      size: 5_000_000,
+      truncated: true,
+      target: { protocol: 'http', host: '127.0.0.1', port },
+      ...request,
+    },
+    response: { headers: {} },
+    timings: { start: new Date() },
+  });
+
+  it('refuses to resend a request whose captured body was truncated', async () => {
+    upstream = await recordingUpstream((req, res) => res.end('ok'));
+    await expect(replayEntry(entry(upstream.port), {}, defaultSettings)).rejects.toThrow(
+      /cannot be replayed/
+    );
+    expect(upstream.seen).toHaveLength(0);
+  });
+
+  it('replays a truncated request when the caller supplies the body', async () => {
+    upstream = await recordingUpstream((req, res) => res.end('ok'));
+    const result = await replayEntry(
+      entry(upstream.port),
+      { body: 'replacement' },
+      defaultSettings
+    );
+    expect(result.response.statusCode).toBe(200);
+    expect(upstream.seen[0].body).toBe('replacement');
+    expect(upstream.seen[0].headers['content-length']).toBe('11');
   });
 });

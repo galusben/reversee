@@ -5,6 +5,16 @@ function shellQuote(value: unknown): string {
   return "'" + String(value).replace(/'/g, "'\\''") + "'";
 }
 
+/**
+ * Bodies above this are not inlined: the command is recorded with every
+ * exchange (and copied to the window), so a large upload must not turn into a
+ * string of the same size. Matches the traffic view's capture cap.
+ */
+export const CURL_INLINE_BODY_LIMIT = 2 * 1024 * 1024;
+
+/** Where a too-large body is read from in the generated command. */
+export const CURL_BODY_FILE = 'request-body.bin';
+
 export function buildCurl(protocol: Protocol, requestParams: RequestParams): string {
   const defaultPort = protocol === 'https' ? 443 : 80;
   const port = requestParams.port;
@@ -20,8 +30,16 @@ export function buildCurl(protocol: Protocol, requestParams: RequestParams): str
       parts.push('-H', shellQuote(`${key}: ${value}`));
     }
   }
-  if (requestParams.body && requestParams.body.length) {
-    parts.push('--data-binary', shellQuote(Buffer.from(requestParams.body).toString()));
+  const body = requestParams.body;
+  if (body && body.length) {
+    const bytes = typeof body === 'string' ? Buffer.byteLength(body) : body.length;
+    if (bytes > CURL_INLINE_BODY_LIMIT) {
+      // A truncated inline body would be a silently wrong command; point at a
+      // file the user saves the real body to instead.
+      parts.push('--data-binary', shellQuote('@' + CURL_BODY_FILE));
+    } else {
+      parts.push('--data-binary', shellQuote(Buffer.from(body).toString()));
+    }
   }
   return parts.join(' ');
 }

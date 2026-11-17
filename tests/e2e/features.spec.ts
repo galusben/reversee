@@ -562,9 +562,12 @@ test('the table stays light with thousands of rows and honours the history size'
     await Promise.all(Array.from({ length: 10 }, (_, i) => get(batch * 10 + i)));
   }
   // 130 sent, 100 kept (the oldest evicted) — in main and in the window.
+  // "100 requests" is also true mid-stream (ids 2..101): the window applies
+  // traffic in batches and a notify can trail the client's response, so wait
+  // for the final state, not just the count.
+  await expect.poll(async () => Math.min(...(await shownIds(page)))).toBeGreaterThanOrEqual(31);
   await expect(page.getByLabel('Request count')).toHaveText('100 requests');
   const ids = await shownIds(page);
-  expect(Math.min(...ids)).toBeGreaterThanOrEqual(31);
   // Only the rows near the viewport are in the DOM.
   expect(ids.length).toBeLessThan(100);
 

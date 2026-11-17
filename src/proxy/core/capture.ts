@@ -45,6 +45,12 @@ export class BodyCapture {
   private decoderDone: Promise<void> | null = null;
   private truncated = false;
   private decodeError: string | undefined;
+  /**
+   * The last joined buffer per source. A long stream past the cap is
+   * snapshotted every progress tick with nothing new captured; re-joining up
+   * to the full cap each time was pure waste.
+   */
+  private joined: { raw?: Buffer; decoded?: Buffer } = {};
 
   constructor(
     contentEncoding: unknown,
@@ -76,6 +82,7 @@ export class BodyCapture {
     const piece = chunk.length > room ? chunk.subarray(0, room) : chunk;
     this.decoded.push(piece);
     this.decodedBytes += piece.length;
+    this.joined.decoded = undefined;
     if (chunk.length > room) this.stopDecoding();
   }
 
@@ -94,6 +101,7 @@ export class BodyCapture {
       const piece = chunk.length > room ? chunk.subarray(0, room) : chunk;
       this.raw.push(piece);
       this.rawBytes += piece.length;
+      this.joined.raw = undefined;
     }
     if (this.decoder) this.decoder.write(chunk);
   }
@@ -101,8 +109,10 @@ export class BodyCapture {
   /** What has been captured so far; safe to call while the body is streaming. */
   snapshot(): CaptureSnapshot {
     const decoding = this.decoderDone !== null && !this.decodeError;
+    const source = decoding ? 'decoded' : 'raw';
+    const body = (this.joined[source] ??= Buffer.concat(this[source]));
     return {
-      body: Buffer.concat(decoding ? this.decoded : this.raw),
+      body,
       truncated: decoding ? this.truncated : this.size > this.rawBytes,
       decodeError: this.decodeError,
     };

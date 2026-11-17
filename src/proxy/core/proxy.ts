@@ -115,6 +115,23 @@ function bodyLength(body: unknown): number {
   return 0;
 }
 
+/**
+ * The request body as kept on the traffic entry: at most `limit` bytes. The
+ * wire body is never affected. Without the cap a large upload was copied in
+ * full to main (and then the window) on every notify, only to be cut there.
+ */
+function viewRequestBody(view: RequestView, body: unknown, limit: number): void {
+  const bytes = body === undefined || body === null ? undefined : toBuffer(body);
+  view.size = bytes?.length ?? 0;
+  if (bytes && bytes.length > limit) {
+    view.body = Buffer.from(bytes.subarray(0, limit));
+    view.truncated = true;
+  } else {
+    view.body = bytes;
+    delete view.truncated;
+  }
+}
+
 function toBuffer(body: unknown): Buffer {
   if (Buffer.isBuffer(body)) return body;
   if (body instanceof Uint8Array) return Buffer.from(body);
@@ -254,8 +271,7 @@ export function handleRequest(
   // ---- mock rules: answered here, the upstream is never contacted ----
   const mock = matchMock(rules, requestParams.method as string, requestParams.path as string);
   if (mock) {
-    requestView.body = toBuffer(requestParams.body);
-    requestView.size = bodyLength(requestParams.body);
+    viewRequestBody(requestView, toBuffer(requestParams.body), captureLimit);
     serveMock(mock);
     return;
   }
@@ -290,8 +306,7 @@ export function handleRequest(
   }
   syncContentLength(headers, requestParams.body);
   requestView.curl = buildCurl(protocol, requestParams);
-  requestView.body = requestParams.body;
-  requestView.size = bodyLength(requestParams.body);
+  viewRequestBody(requestView, requestParams.body, captureLimit);
 
   let timedOut = false;
   const failUpstream = (err: NodeJS.ErrnoException): void => {

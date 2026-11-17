@@ -16,17 +16,39 @@ import { useUiStore } from './uiStore';
  * so the lookup runs from the end.
  */
 export function upsert(traffic: TrafficEntry[], entry: TrafficEntry, cap: number): TrafficEntry[] {
-  const index = traffic.findLastIndex((e) => e.trafficId === entry.trafficId);
-  let next;
-  if (index >= 0) {
-    next = traffic.slice();
-    next[index] = entry;
-  } else {
-    next = [...traffic, entry];
-    if (next.length > cap) next.splice(0, next.length - cap);
+  return upsertMany(traffic, [entry], cap);
+}
+
+/** Applies a batch of new/updated entries with one copy of the list. */
+export function upsertMany(
+  traffic: TrafficEntry[],
+  entries: TrafficEntry[],
+  cap: number
+): TrafficEntry[] {
+  if (entries.length === 0) return traffic;
+  const next = traffic.slice();
+  for (const entry of entries) {
+    // Main hands out increasing ids, so a new entry needs no search (a miss
+    // would otherwise scan the whole history, up to 20,000 rows).
+    const last = next.at(-1);
+    if (!last || entry.trafficId > last.trafficId) {
+      next.push(entry);
+      continue;
+    }
+    const index = next.findLastIndex((e) => e.trafficId === entry.trafficId);
+    if (index >= 0) next[index] = entry;
+    else next.push(entry);
   }
+  if (next.length > cap) next.splice(0, next.length - cap);
   return next;
 }
+
+/**
+ * Traffic events are applied at most once per this interval. Under load main
+ * sends hundreds of events a second; applying each one copied the whole list
+ * and re-rendered the table every time.
+ */
+export const TRAFFIC_FLUSH_MS = 16;
 
 export type SortKey = 'id' | 'method' | 'host' | 'url' | 'status' | 'type' | 'size' | 'duration';
 
@@ -69,6 +91,21 @@ interface ProxyStore {
   exportHar(ids?: number[]): Promise<void>;
   importHar(): Promise<void>;
   regenerateRootCert(): Promise<void>;
+  /** Applies traffic events still waiting for the next batch (tests, mostly). */
+  flushTraffic(): void;
+}
+
+// Traffic events waiting to be applied in one batch.
+let queuedTraffic: TrafficEntry[] = [];
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+// Until the initial snapshot has loaded, events are only queued: applying them
+// first would be overwritten by the (older) snapshot.
+let trafficLoaded = false;
+
+function dropQueuedTraffic(): void {
+  queuedTraffic = [];
+  if (flushTimer) clearTimeout(flushTimer);
+  flushTimer = null;
 }
 
 export const useProxyStore = create<ProxyStore>((set, get) => ({
@@ -96,11 +133,28 @@ export const useProxyStore = create<ProxyStore>((set, get) => ({
       localStorage.removeItem('userSettings');
     }
 
+    // Listen before taking the snapshot: an exchange recorded while the
+    // snapshot is in flight would otherwise never reach the table.
+    trafficLoaded = false;
+    dropQueuedTraffic();
+    window.reversee.onTraffic((entry) => {
+      queuedTraffic.push(entry);
+      if (trafficLoaded && !flushTimer) {
+        flushTimer = setTimeout(() => get().flushTraffic(), TRAFFIC_FLUSH_MS);
+      }
+    });
+    window.reversee.onTrafficCleared(() => {
+      dropQueuedTraffic();
+      set({ traffic: [], selectedId: null });
+    });
+
     const [settings, traffic] = await Promise.all([
       window.reversee.getSettings(),
       window.reversee.getTraffic(),
     ]);
     set({ settings, traffic });
+    trafficLoaded = true;
+    get().flushTraffic();
     void window.reversee.getCertStatus().then((certStatus) => set({ certStatus }));
 
     window.reversee.onCertStatus((certStatus) => set({ certStatus }));
@@ -112,16 +166,19 @@ export const useProxyStore = create<ProxyStore>((set, get) => ({
     });
     window.reversee.onProxyState(({ running, port }) => set({ running, port }));
     window.reversee.onProxyError((error) => set({ error, running: false }));
-    window.reversee.onTraffic((entry) =>
-      set({
-        traffic: upsert(
-          get().traffic,
-          entry,
-          get().settings?.trafficCap ?? defaultSettings.trafficCap
-        ),
-      })
-    );
-    window.reversee.onTrafficCleared(() => set({ traffic: [], selectedId: null }));
+  },
+
+  flushTraffic() {
+    const batch = queuedTraffic;
+    dropQueuedTraffic();
+    if (batch.length === 0) return;
+    set({
+      traffic: upsertMany(
+        get().traffic,
+        batch,
+        get().settings?.trafficCap ?? defaultSettings.trafficCap
+      ),
+    });
   },
 
   async updateSettings(patch) {
@@ -143,6 +200,7 @@ export const useProxyStore = create<ProxyStore>((set, get) => ({
 
   async clearTraffic() {
     await window.reversee.clearTraffic();
+    dropQueuedTraffic();
     set({ traffic: [], selectedId: null });
   },
 

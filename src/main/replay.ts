@@ -163,6 +163,13 @@ export async function replayEntry(
   if (!entry.request.target) {
     throw new Error('that entry has no recorded upstream target to replay to');
   }
+  // Only the first 2 MB of a large body is kept. Sending that prefix (with a
+  // content-length to match) would silently deliver a corrupted request.
+  if (entry.request.truncated && overrides.body === undefined) {
+    throw new Error(
+      'the captured request body was cut at the 2 MB display cap, so it cannot be replayed as it was sent — provide a body to replay with'
+    );
+  }
   return replayRequest(
     {
       target: entry.request.target,
