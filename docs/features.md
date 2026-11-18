@@ -58,7 +58,12 @@ the desktop UI, and agents through the Model Context Protocol.
   gzip / brotli / zstd decoding; binary bodies show their size, a fingerprint and a hex
   preview. Swap A and B with the arrows button. Agents use `compare_requests`.
 - **Streaming and WebSockets** — responses are streamed, so Server-Sent Events and
-  large downloads behave as they would without the proxy. WebSocket upgrades are
+  large downloads behave as they would without the proxy. Request bodies are streamed
+  upstream too, so an upload of any size costs a fixed amount of memory (the traffic
+  view keeps the first 2 MB). A body is held in memory first only when a request
+  breakpoint matches the request or the request interceptor is on, and then up to
+  256 MB: past that the client gets a `413` with an `x-reversee-error: REQUEST_BODY_TOO_LARGE`
+  header and a plain-text explanation. WebSocket upgrades are
   tunnelled and their messages (including permessage-deflate) listed per connection.
 - **Routes and mocks** — _Routes & Mocks_ in the settings bar (Cmd/Ctrl+Shift+M). A
   mock answers matching requests with a status / headers / body you write (optionally

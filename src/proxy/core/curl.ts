@@ -15,7 +15,19 @@ export const CURL_INLINE_BODY_LIMIT = 2 * 1024 * 1024;
 /** Where a too-large body is read from in the generated command. */
 export const CURL_BODY_FILE = 'request-body.bin';
 
-export function buildCurl(protocol: Protocol, requestParams: RequestParams): string {
+export interface CurlOptions {
+  /**
+   * The body passed in is only the start of the real one (a streamed upload
+   * keeps a bounded copy): never inline it, point at the file instead.
+   */
+  bodyTruncated?: boolean;
+}
+
+export function buildCurl(
+  protocol: Protocol,
+  requestParams: RequestParams,
+  options: CurlOptions = {}
+): string {
   const defaultPort = protocol === 'https' ? 443 : 80;
   const port = requestParams.port;
   const portPart = port && String(port) !== String(defaultPort) ? ':' + port : '';
@@ -33,7 +45,7 @@ export function buildCurl(protocol: Protocol, requestParams: RequestParams): str
   const body = requestParams.body;
   if (body && body.length) {
     const bytes = typeof body === 'string' ? Buffer.byteLength(body) : body.length;
-    if (bytes > CURL_INLINE_BODY_LIMIT) {
+    if (options.bodyTruncated || bytes > CURL_INLINE_BODY_LIMIT) {
       // A truncated inline body would be a silently wrong command; point at a
       // file the user saves the real body to instead.
       parts.push('--data-binary', shellQuote('@' + CURL_BODY_FILE));
