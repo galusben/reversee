@@ -44,9 +44,11 @@ let nextHitId = 0;
 const haltedRequests = new Map<number, (params: RequestParams) => void>();
 const haltedResponses = new Map<number, (edit: ResponseEdit) => void>();
 
+const matchesRequestBreakpoint = (request: { url?: string; method?: string }): boolean =>
+  matchBreakpoint(breakpoints, request.url ?? '', request.method ?? '', 'request') !== null;
+
 const gate: RequestGate = (request, body) => {
-  const match = matchBreakpoint(breakpoints, request.url ?? '', request.method ?? '', 'request');
-  if (!match) return null;
+  if (!matchesRequestBreakpoint(request)) return null;
   const id = nextHitId++;
   return new Promise<RequestParams>((resolve) => {
     haltedRequests.set(id, resolve);
@@ -63,6 +65,9 @@ const gate: RequestGate = (request, body) => {
     });
   });
 };
+
+// Requests no breakpoint can hold are streamed upstream instead of buffered.
+gate.matches = matchesRequestBreakpoint;
 
 const responseGate: ResponseGate = {
   matches: ({ url, method }) => matchBreakpoint(breakpoints, url, method, 'response') !== null,

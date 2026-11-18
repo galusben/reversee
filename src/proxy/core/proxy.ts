@@ -1,6 +1,10 @@
 // The proxy core: forwards one client request to its upstream and records a
 // traffic entry. Electron-free and headless-testable (the logger is injected).
 //
+// Request bodies are STREAMED upstream too, unless something has to see the
+// whole body before it is sent (a request breakpoint or the request
+// interceptor); the server then buffers it, up to MAX_BUFFERED_REQUEST_BODY.
+//
 // Responses are STREAMED to the client as they arrive, so Server-Sent Events,
 // long-poll bodies and large downloads behave as they would without the proxy.
 // The only cases that buffer the whole response first are the ones that have
@@ -18,6 +22,7 @@ import type {
   Headers,
   Logger,
   MockRule,
+  Protocol,
   ProxySettings,
   RequestParams,
   RequestView,
@@ -36,6 +41,44 @@ const noop: Logger = { debug() {}, info() {}, warn() {}, error() {} };
 const PENDING_NOTIFY_DELAY_MS = 100;
 /** Minimum gap between progress updates of a still-streaming body. */
 const PROGRESS_NOTIFY_INTERVAL_MS = 500;
+
+/**
+ * The most request body the proxy holds in memory when it has to buffer one
+ * (a request breakpoint or the request interceptor needs it whole). Past it
+ * the client gets a 413. Streamed uploads have no limit.
+ */
+export const MAX_BUFFERED_REQUEST_BODY = 256 * 1024 * 1024;
+
+/** Value of the x-reversee-error header on the 413. */
+export const BODY_TOO_LARGE_ERROR = 'REQUEST_BODY_TOO_LARGE';
+
+/**
+ * True when the request body must be in memory before anything goes upstream,
+ * apart from request breakpoints (the server asks its gate about those).
+ */
+export function requestNeedsBuffering(ctx: ProxyContext): boolean {
+  return Boolean(ctx.settings.requestInterceptor && ctx.settings.interceptRequest);
+}
+
+/** How handleRequest gets the request body (default: `requestParams.body`, already buffered). */
+export interface RequestBodyMode {
+  /**
+   * Stream the body from `clientReq` to the upstream as it arrives, keeping a
+   * bounded copy for the view. Only for a request nothing has to see whole
+   * first: no breakpoint holds it and `requestNeedsBuffering(ctx)` is false.
+   */
+  stream?: boolean;
+  /**
+   * Buffering was required but the body passed `limit` bytes: answer 413
+   * without contacting the upstream. `requestParams.body` holds the start of
+   * the body (for the view) and `size` the bytes received or declared.
+   */
+  tooLarge?: { limit: number; size: number };
+}
+
+function formatMegabytes(bytes: number): string {
+  return `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`;
+}
 
 export interface ResponseEdit {
   statusCode?: number;
@@ -172,7 +215,8 @@ export function handleRequest(
   ctx: ProxyContext,
   requestParams: RequestParams,
   /** Capture-anything mode: the server the client asked for (see buildRequestParams). */
-  forward?: UpstreamTarget
+  forward?: UpstreamTarget,
+  mode: RequestBodyMode = {}
 ): void {
   const { settings } = ctx;
   const logger = ctx.logger ?? noop;
@@ -225,7 +269,29 @@ export function handleRequest(
   let snapshot: (() => void) | null = null;
   let disposeCapture: (() => void) | null = null;
 
+  // A streamed upload keeps a bounded copy of the body for the view.
+  const streaming = Boolean(mode.stream);
+  const upload = streaming ? new BodyCapture(undefined, captureLimit) : null;
+  const viewUpload = (): void => {
+    if (!upload) return;
+    const snap = upload.snapshot();
+    requestView.body = snap.body;
+    requestView.size = upload.size;
+    if (snap.truncated) requestView.truncated = true;
+  };
+  const upstreamProtocol = (): Protocol => (requestParams.protocol === 'https' ? 'https' : 'http');
+  /** curl for a streamed upload: the captured body, or the file placeholder when it is not all there. */
+  const uploadCurl = (complete: boolean): void => {
+    if (!upload) return;
+    requestView.curl = buildCurl(
+      upstreamProtocol(),
+      { ...requestParams, body: upload.snapshot().body },
+      { bodyTruncated: !complete || upload.size > captureLimit }
+    );
+  };
+
   const emit = (): void => {
+    viewUpload();
     announced = true;
     ctx.notify(entry, streamId);
   };
@@ -245,6 +311,8 @@ export function handleRequest(
       if (timer) clearTimeout(timer);
     }
     disposeCapture?.();
+    // The exchange ended before the upload did (client gone, early answer).
+    if (upload && requestView.curl === undefined) uploadCurl(false);
     timings.total ??= elapsed();
     delete entry.pending;
     emit();
@@ -268,11 +336,57 @@ export function handleRequest(
     }
   };
 
+  /** A plain-text error answered by the proxy itself (502, 504, 413). */
+  const sendError = (status: number, code: string, text: string, close: boolean): void => {
+    const errorHeaders: Record<string, string> = {
+      'content-type': 'text/plain; charset=utf-8',
+      'content-length': String(Buffer.byteLength(text)),
+      'x-reversee-error': /^[\w-]+$/.test(code) ? code : 'UPSTREAM_ERROR',
+    };
+    // The client is still sending a body nobody will read: close the
+    // connection after the answer instead of reading the rest of it.
+    if (close) errorHeaders['connection'] = 'close';
+    clientRes.statusCode = status;
+    for (const key of Object.keys(errorHeaders)) setResponseHeader(key, errorHeaders[key]);
+    clientRes.end(text);
+    responseView.statusCode = status;
+    responseView.body = Buffer.from(text);
+    responseView.size = Buffer.byteLength(text);
+  };
+
+  // ---- a body too large to buffer: refused, the upstream is never contacted ----
+  if (mode.tooLarge) {
+    const { limit, size } = mode.tooLarge;
+    viewRequestBody(requestView, requestParams.body, captureLimit);
+    requestView.size = size;
+    requestView.truncated = true;
+    requestView.curl = buildCurl(upstreamProtocol(), requestParams, { bodyTruncated: true });
+    const text =
+      `Reversee did not forward this request: its body is too large to hold in memory.\n\n` +
+      `A request breakpoint or the request interceptor needs the whole body before it is ` +
+      `sent upstream, so the proxy buffers it, up to ${limit} bytes (${formatMegabytes(limit)}).\n` +
+      `Request body: more than ${limit} bytes\n\n` +
+      `Without a matching request breakpoint or the request interceptor, uploads of any ` +
+      `size are streamed straight through.\n`;
+    sendError(413, BODY_TOO_LARGE_ERROR, text, true);
+    finalize();
+    return;
+  }
+
   // ---- mock rules: answered here, the upstream is never contacted ----
   const mock = matchMock(rules, requestParams.method as string, requestParams.path as string);
   if (mock) {
-    viewRequestBody(requestView, toBuffer(requestParams.body), captureLimit);
-    serveMock(mock);
+    if (streaming) {
+      // Read the body for the view, then answer, as when it was buffered.
+      consumeUpload(
+        () => {},
+        () => serveMock(mock),
+        () => {}
+      );
+    } else {
+      viewRequestBody(requestView, toBuffer(requestParams.body), captureLimit);
+      serveMock(mock);
+    }
     return;
   }
 
@@ -304,9 +418,12 @@ export function handleRequest(
   if (settings.hostRewrite && rewriteForListener) {
     headers['host'] = requestParams.host + ':' + requestParams.port;
   }
-  syncContentLength(headers, requestParams.body);
-  requestView.curl = buildCurl(protocol, requestParams);
-  viewRequestBody(requestView, requestParams.body, captureLimit);
+  if (!streaming) {
+    // A streamed body is forwarded unchanged, so its framing headers stay as sent.
+    syncContentLength(headers, requestParams.body);
+    requestView.curl = buildCurl(protocol, requestParams);
+    viewRequestBody(requestView, requestParams.body, captureLimit);
+  }
 
   let timedOut = false;
   const failUpstream = (err: NodeJS.ErrnoException): void => {
@@ -327,17 +444,7 @@ export function handleRequest(
       `Reversee could not get a response from the upstream.\n\n` +
       `Upstream: ${protocol}://${requestParams.host}:${requestParams.port}${requestParams.path}\n` +
       `Error: ${code} — ${err.message}\n`;
-    const errorHeaders: Record<string, string> = {
-      'content-type': 'text/plain; charset=utf-8',
-      'content-length': String(Buffer.byteLength(text)),
-      'x-reversee-error': /^[\w-]+$/.test(code) ? code : 'UPSTREAM_ERROR',
-    };
-    clientRes.statusCode = status;
-    for (const key of Object.keys(errorHeaders)) setResponseHeader(key, errorHeaders[key]);
-    clientRes.end(text);
-    responseView.statusCode = status;
-    responseView.body = Buffer.from(text);
-    responseView.size = Buffer.byteLength(text);
+    sendError(status, code, text, streaming && !clientReq.complete);
     finalize();
   };
 
@@ -356,7 +463,10 @@ export function handleRequest(
   }
 
   const timeoutMs = (settings.upstreamTimeoutSec ?? 0) * 1000;
-  if (timeoutMs > 0) {
+  // The header timeout counts from the end of the request: a slow upload is
+  // not an unresponsive upstream.
+  const startHeaderTimer = (): void => {
+    if (timeoutMs <= 0 || finalized || timings.firstByte !== undefined) return;
     headerTimer = setTimeout(() => {
       timedOut = true;
       const err = new Error(
@@ -365,7 +475,7 @@ export function handleRequest(
       err.code = 'ETIMEDOUT';
       connector.destroy(err);
     }, timeoutMs);
-  }
+  };
 
   connector.on('socket', (socket) => {
     // A keep-alive socket is handed to many requests. Listening on one that is
@@ -398,10 +508,65 @@ export function handleRequest(
   });
 
   announcePending();
-  if (requestParams.body && bodyLength(requestParams.body) > 0) {
-    connector.write(requestParams.body);
+  if (streaming) {
+    let upstreamClosed = false;
+    connector.on('close', () => {
+      upstreamClosed = true;
+      clientReq.resume(); // never leave the upload paused on a drain that cannot come
+    });
+    consumeUpload(
+      (chunk) => {
+        if (upstreamClosed || connector.writableEnded) return;
+        if (!connector.write(chunk)) {
+          clientReq.pause();
+          connector.once('drain', () => clientReq.resume());
+        }
+      },
+      () => {
+        if (!upstreamClosed && !connector.writableEnded) connector.end();
+        startHeaderTimer();
+      },
+      () => connector.destroy()
+    );
+  } else {
+    if (requestParams.body && bodyLength(requestParams.body) > 0) {
+      connector.write(requestParams.body);
+    }
+    connector.end();
+    startHeaderTimer();
   }
-  connector.end();
+
+  // ---- streamed upload ----
+
+  /**
+   * Reads the streamed request body: every chunk goes to the bounded capture
+   * and then to `onChunk`. A client that disconnects mid-upload is recorded as
+   * aborted, after `onAbort` stops whatever was waiting on the rest.
+   */
+  function consumeUpload(
+    onChunk: (chunk: Buffer) => void,
+    onEnd: () => void,
+    onAbort: () => void
+  ): void {
+    const capture = upload as BodyCapture;
+    clientReq.on('data', (chunk: Buffer) => {
+      capture.write(chunk);
+      onChunk(chunk);
+    });
+    clientReq.on('end', () => {
+      viewUpload();
+      uploadCurl(true);
+      onEnd();
+    });
+    clientReq.on('error', (err) => logger.debug('client request error', err));
+    clientReq.on('close', () => {
+      if (clientReq.complete || finalized) return;
+      entry.clientAborted = true;
+      onAbort();
+      snapshot?.();
+      finalize();
+    });
+  }
 
   // ---- response handling ----
 
