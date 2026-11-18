@@ -1,11 +1,20 @@
-// The listening server around the proxy core. Collects the request body, lets
-// an optional gate hold the request (breakpoints), then hands off to
-// handleRequest; WebSocket upgrades are tunnelled by handleUpgrade. Replaces
-// the http-shutdown dependency with node's native closeAllConnections.
+// The listening server around the proxy core. Streams the request body
+// straight through when nothing needs it whole; otherwise collects it (up to a
+// ceiling, then 413), lets an optional gate hold the request (breakpoints),
+// then hands off to handleRequest; WebSocket upgrades are tunnelled by
+// handleUpgrade. Replaces the http-shutdown dependency with node's native
+// closeAllConnections.
 import http from 'node:http';
 import https from 'node:https';
 import type { Duplex } from 'node:stream';
-import { handleRequest, type ProxyContext, type ResponseGate } from './proxy';
+import {
+  handleRequest,
+  MAX_BUFFERED_REQUEST_BODY,
+  requestNeedsBuffering,
+  type ProxyContext,
+  type ResponseGate,
+} from './proxy';
+import { CAPTURE_LIMIT } from './capture';
 import { compileRules } from './rules';
 import { handleUpgrade } from './websocket';
 import { answerPlainHttpOnTls } from './tls-hint';
@@ -30,10 +39,17 @@ export interface SslOptions {
  * immediately, or a promise of (possibly edited) request params to hold it
  * until the promise resolves (breakpoint resume).
  */
-export type RequestGate = (
+export type RequestGate = ((
   request: http.IncomingMessage,
   body: Buffer
-) => Promise<RequestParams> | null;
+) => Promise<RequestParams> | null) & {
+  /**
+   * Whether the gate may hold this request, asked before its body is read. A
+   * request it will not hold is streamed upstream instead of buffered. Without
+   * it every request is buffered for the gate.
+   */
+  matches?: (request: http.IncomingMessage) => boolean;
+};
 
 export interface ProxyServerOptions {
   settings: ProxySettings;
@@ -48,6 +64,12 @@ export interface ProxyServerOptions {
   onServerError?: (err: NodeJS.ErrnoException) => void;
   /** Bytes of each response body kept for the traffic view. */
   captureLimit?: number;
+  /**
+   * The most request body held in memory when it must be buffered (a request
+   * breakpoint or interceptor); past it the client gets a 413. Defaults to
+   * MAX_BUFFERED_REQUEST_BODY.
+   */
+  maxBufferedBody?: number;
   /**
    * Capture-anything mode: issues the certificate presented to a client for an
    * HTTPS host. Without it HTTPS tunnels pass through undecrypted.
@@ -101,12 +123,46 @@ export function createHttp1Handlers(options: ProxyServerOptions): Http1Handlers 
     captureLimit: options.captureLimit,
   };
   const tunnels = new Set<Duplex>();
+  const maxBody = options.maxBufferedBody ?? MAX_BUFFERED_REQUEST_BODY;
+  const captureLimit = options.captureLimit ?? CAPTURE_LIMIT;
 
   return {
     onRequest(request, response, forward) {
+      const mayHold = gate ? (gate.matches?.(request) ?? true) : false;
+      if (!mayHold && !requestNeedsBuffering(ctx)) {
+        handleRequest(request, response, ctx, {}, forward, { stream: true });
+        return;
+      }
+
+      // Buffered, so bounded: a body that cannot fit is refused with a 413
+      // (upfront when its content-length already says so).
+      const declared = Number(request.headers['content-length']);
+      if (declared > maxBody) {
+        handleRequest(request, response, ctx, { body: Buffer.alloc(0) }, forward, {
+          tooLarge: { limit: maxBody, size: declared },
+        });
+        return;
+      }
       const chunks: Buffer[] = [];
-      request.on('data', (chunk: Buffer) => chunks.push(chunk));
+      let received = 0;
+      let refused = false;
+      request.on('data', (chunk: Buffer) => {
+        if (refused) return;
+        received += chunk.length;
+        if (received > maxBody) {
+          refused = true;
+          // Only the start is kept, for the traffic view.
+          const head = Buffer.concat(chunks, Math.min(received - chunk.length, captureLimit));
+          chunks.length = 0;
+          handleRequest(request, response, ctx, { body: head }, forward, {
+            tooLarge: { limit: maxBody, size: received },
+          });
+          return;
+        }
+        chunks.push(chunk);
+      });
       request.on('end', () => {
+        if (refused) return;
         const body = Buffer.concat(chunks);
         const halted = gate?.(request, body) ?? null;
         if (halted) {
