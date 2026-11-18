@@ -150,10 +150,11 @@ describe('switching tabs', () => {
     await renderApp();
     act(() => fake.emit('onTraffic', trafficEntry({ trafficId: 733, tabId: 't2' })));
     act(() => fake.emit('onProxyState', { running: true, port: 8001, tabId: 't2' }));
+    act(() => fake.emit('onTraffic', trafficEntry({ trafficId: 534, tabId: 't1' })));
+    // Traffic is applied in batches: once this tab's row shows, the batch has landed.
+    expect(await screen.findByRole('row', { name: /^534/ })).toBeTruthy();
     expect(screen.queryByRole('row', { name: /^733/ })).toBeNull();
     expect(screen.getByText('Proxy stopped')).toBeTruthy();
-    act(() => fake.emit('onTraffic', trafficEntry({ trafficId: 534, tabId: 't1' })));
-    expect(screen.getByRole('row', { name: /^534/ })).toBeTruthy();
   });
 
   it('marks new traffic in a background tab until it is looked at', async () => {
