@@ -3,21 +3,26 @@
 import { useMemo, useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { ArrowLeftRight } from 'lucide-react';
-import { useProxyStore } from '../stores/proxyStore';
 import { useUiStore } from '../stores/uiStore';
 import { MonacoDiffView } from './MonacoView';
 import { Modal, secondaryButton } from './ui/Modal';
 import { compareExchanges, type BodyDiff, type FieldDiff } from '../../../shared/compare';
 import { formatBytes } from '../../../shared/timings';
 import type { TrafficEntry } from '../../../shared/types';
+import { useTrafficEntry } from '../lib/use-traffic-entry';
 
 export function CompareDialog(): React.JSX.Element | null {
   const ids = useUiStore((s) => s.compareIds);
   const close = useUiStore((s) => s.closeCompare);
-  const traffic = useProxyStore((s) => s.traffic);
+  // Both sides' bodies are fetched from main (the list holds rows only).
+  // Each side is taken from whichever slot holds it, so swapping A and B
+  // re-renders at once instead of closing until both refetch.
+  const first = useTrafficEntry(ids?.[0]).entry;
+  const second = useTrafficEntry(ids?.[1]).entry;
   if (!ids) return null;
-  const a = traffic.find((e) => e.trafficId === ids[0]);
-  const b = traffic.find((e) => e.trafficId === ids[1]);
+  const loaded = [first, second];
+  const a = loaded.find((e) => e?.trafficId === ids[0]);
+  const b = loaded.find((e) => e?.trafficId === ids[1]);
   if (!a || !b) return null;
   return <CompareView key={`${ids[0]}-${ids[1]}`} a={a} b={b} onClose={close} />;
 }

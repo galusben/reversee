@@ -15,9 +15,10 @@ import { useProxyStore, type SortKey, type SortState } from '../stores/proxyStor
 import { useUiStore } from '../stores/uiStore';
 import { WithContextMenu } from './ui/ContextMenu';
 import { mockFromEntry, routeFromEntry } from '../lib/rule-seed';
+import { fetchTrafficEntry } from '../lib/use-traffic-entry';
 import { filterTraffic, hostOf } from '../../../shared/traffic-query';
 import { formatBytes, formatDuration, totalMs } from '../../../shared/timings';
-import type { TrafficEntry } from '../../../shared/types';
+import type { TrafficRow } from '../../../shared/traffic-row';
 
 /** Must match .traffic-row in styles.css: the table renders only the visible rows. */
 export const ROW_HEIGHT = 30;
@@ -26,7 +27,7 @@ const OVERSCAN = 12;
 /** Used until the container has been measured (and in jsdom, which never measures). */
 const FALLBACK_VIEWPORT = 800;
 
-function statusClass(entry: TrafficEntry): string {
+function statusClass(entry: TrafficRow): string {
   if (entry.pending) return 'text-neutral-400';
   // For gRPC the HTTP status is 200 even on failure; the grpc-status trailer
   // carries the real outcome (0 = OK).
@@ -41,7 +42,7 @@ function statusClass(entry: TrafficEntry): string {
 }
 
 /** Status cell text: gRPC status code when present, else the HTTP status. */
-function statusText(entry: TrafficEntry): string {
+function statusText(entry: TrafficRow): string {
   if (entry.connectorError) return 'ERR';
   if (entry.grpc?.status !== undefined) return `gRPC ${entry.grpc.status}`;
   if (entry.response.statusCode === undefined) return entry.pending ? '…' : '';
@@ -49,7 +50,7 @@ function statusText(entry: TrafficEntry): string {
 }
 
 /** Host cell: the server the request went to, with the port when it is not the usual one. */
-function hostLabel(entry: TrafficEntry): string {
+function hostLabel(entry: TrafficRow): string {
   const target = entry.request.target;
   if (!target) {
     const host = hostOf(entry);
@@ -59,24 +60,23 @@ function hostLabel(entry: TrafficEntry): string {
   return target.port === usual ? target.host : `${target.host}:${target.port}`;
 }
 
-function contentType(entry: TrafficEntry): string {
+function contentType(entry: TrafficRow): string {
   const value = entry.response.headers['content-type'];
   const text = Array.isArray(value) ? value[0] : value;
   return text ? text.split(';')[0] : '';
 }
 
-function responseSize(entry: TrafficEntry): number | undefined {
-  if (entry.response.size !== undefined) return entry.response.size;
-  const body = entry.response.body;
-  return body === undefined ? undefined : body.length;
+/** Rows carry the size (toTrafficRow fills it in from the body when the core did not). */
+function responseSize(entry: TrafficRow): number | undefined {
+  return entry.response.size;
 }
 
-function startedAt(entry: TrafficEntry): string {
+function startedAt(entry: TrafficRow): string {
   const date = new Date(entry.timings.start);
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString([], { hour12: false });
 }
 
-function sortValue(entry: TrafficEntry, key: SortKey): number | string {
+function sortValue(entry: TrafficRow, key: SortKey): number | string {
   switch (key) {
     case 'id':
       return entry.trafficId;
@@ -99,10 +99,10 @@ function sortValue(entry: TrafficEntry, key: SortKey): number | string {
 
 /** The entries the table lists under the current filter (unsorted). */
 export function listedTraffic(
-  all: TrafficEntry[],
+  all: TrafficRow[],
   filterText: string,
   errorsOnly: boolean
-): TrafficEntry[] {
+): TrafficRow[] {
   if (!filterText && !errorsOnly) return all;
   return filterTraffic(all, {
     ...(filterText ? { text: filterText } : {}),
@@ -110,7 +110,7 @@ export function listedTraffic(
   });
 }
 
-function sortTraffic(entries: TrafficEntry[], sort: SortState): TrafficEntry[] {
+function sortTraffic(entries: TrafficRow[], sort: SortState): TrafficRow[] {
   // The store is already in id order: the default view needs no work.
   if (sort.key === 'id') return sort.dir === 'asc' ? entries : [...entries].reverse();
   const sign = sort.dir === 'asc' ? 1 : -1;
@@ -138,12 +138,12 @@ const Row = memo(function Row({
   onSelect,
   onMenu,
 }: {
-  entry: TrafficEntry;
+  entry: TrafficRow;
   selected: boolean;
   /** Marked as side A of a comparison. */
   marked: boolean;
   onSelect: (id: number) => void;
-  onMenu: (entry: TrafficEntry) => void;
+  onMenu: (entry: TrafficRow) => void;
 }): React.JSX.Element {
   return (
     <tr
@@ -242,9 +242,9 @@ export function TrafficTable(): React.JSX.Element {
   const filterRef = useRef<HTMLInputElement>(null);
   // One context menu for the whole table (a Radix menu root per row is far
   // too heavy); the right-clicked entry is tracked here.
-  const menuEntryRef = useRef<TrafficEntry | null>(null);
+  const menuEntryRef = useRef<TrafficRow | null>(null);
   // Stable identity, or every memoized row would re-render on each update.
-  const onMenu = useCallback((entry: TrafficEntry) => {
+  const onMenu = useCallback((entry: TrafficRow) => {
     menuEntryRef.current = entry;
   }, []);
   const [scrollTop, setScrollTop] = useState(0);
@@ -521,8 +521,12 @@ export function TrafficTable(): React.JSX.Element {
               {
                 label: 'Mock This Response…',
                 onSelect: () => {
-                  const entry = menuEntryRef.current;
-                  if (entry) openRules(true, { kind: 'mock', rule: mockFromEntry(entry) });
+                  const row = menuEntryRef.current;
+                  if (!row) return;
+                  // The mock is seeded with the response body, fetched from main.
+                  void fetchTrafficEntry(row.trafficId).then((entry) => {
+                    if (entry) openRules(true, { kind: 'mock', rule: mockFromEntry(entry) });
+                  });
                 },
               },
               {
@@ -538,8 +542,13 @@ export function TrafficTable(): React.JSX.Element {
               },
               {
                 label: 'Copy as curl',
-                onSelect: () =>
-                  void window.reversee.copyToClipboard(menuEntryRef.current?.request.curl ?? ''),
+                onSelect: () => {
+                  const row = menuEntryRef.current;
+                  if (!row) return;
+                  void fetchTrafficEntry(row.trafficId).then((entry) =>
+                    window.reversee.copyToClipboard(entry?.request.curl ?? '')
+                  );
+                },
               },
               {
                 label: 'Copy URL',
