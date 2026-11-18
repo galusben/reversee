@@ -7,7 +7,7 @@ import type {
   ReplayResult,
   RootCertStatus,
 } from '../../../shared/ipc';
-import type { TrafficEntry } from '../../../shared/types';
+import type { TrafficRow } from '../../../shared/traffic-row';
 import { useUiStore } from './uiStore';
 
 /**
@@ -15,16 +15,16 @@ import { useUiStore } from './uiStore';
  * request completing, a stream growing) nearly always target a recent entry,
  * so the lookup runs from the end.
  */
-export function upsert(traffic: TrafficEntry[], entry: TrafficEntry, cap: number): TrafficEntry[] {
+export function upsert(traffic: TrafficRow[], entry: TrafficRow, cap: number): TrafficRow[] {
   return upsertMany(traffic, [entry], cap);
 }
 
 /** Applies a batch of new/updated entries with one copy of the list. */
 export function upsertMany(
-  traffic: TrafficEntry[],
-  entries: TrafficEntry[],
+  traffic: TrafficRow[],
+  entries: TrafficRow[],
   cap: number
-): TrafficEntry[] {
+): TrafficRow[] {
   if (entries.length === 0) return traffic;
   const next = traffic.slice();
   for (const entry of entries) {
@@ -81,7 +81,7 @@ interface ProxyStore {
   running: boolean;
   port?: number;
   error: ProxyErrorInfo | null;
-  traffic: TrafficEntry[];
+  traffic: TrafficRow[];
   selectedId: number | null;
   /** When locked (default), the table does not auto-scroll to new traffic. */
   scrollLocked: boolean;
@@ -120,7 +120,7 @@ interface ProxyStore {
 }
 
 // Traffic events waiting to be applied in one batch.
-let queuedTraffic: TrafficEntry[] = [];
+let queuedTraffic: TrafficRow[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 // Until the initial snapshot has loaded, events are only queued: applying them
 // first would be overwritten by the (older) snapshot.
