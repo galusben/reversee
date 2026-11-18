@@ -31,7 +31,7 @@ claude mcp add reversee -- npx -y reversee-mcp
 
 ## How access works
 
-- **Read-only by default.** The 12 read tools are always available. The 12
+- **Read-only by default.** The 15 read tools are always available. The 21
   **mutating** tools (marked 🔒 below) are rejected until the user enables
   _Proxy Settings → Allow MCP to Control the Proxy_ in the app, or the app is
   launched headless with `--allow-mcp-control`.
@@ -46,6 +46,68 @@ Every captured request has a stable, monotonic `trafficId`. It is assigned once,
 never reused, and never reset — not on _clear_, not on a proxy restart. It is the
 durable handle you pass to `get_traffic_entry` and `replay_request`. Prefer it over
 list positions, which shift as new traffic arrives.
+
+## Tabs
+
+The app can run several proxies at once, one per **tab**. Each tab has its own
+listen port, destination, routes and mocks, scripts, breakpoints and traffic.
+
+- **Every tab-scoped tool takes an optional `tab`.** That covers status, config,
+  proxy control, traffic listing and search, interceptors, rules, breakpoints and
+  HAR export. `tab` is an id (`"t2"`) or a tab name. It resolves by id first, then
+  by name ignoring case. Names are unique, so the lookup is never ambiguous.
+- **Without `tab` a tool acts on the active tab** (the one shown in the window), so
+  prompts written for a single proxy keep working.
+- **Prefer ids.** The user can rename a tab, but its id never changes.
+- **Responses say which tab they acted on.** Tab-scoped results include
+  `tab: { id, name }`, which tells you where a call landed when you relied on the
+  default.
+- **`update_config` takes `tab` inside `patch`**, because the bridge forwards only
+  the patch: `{"patch": {"tab": "t2", "dest": "api.example.com"}}`. `theme`,
+  `trafficCap` and the MCP switches are shared by all tabs.
+- **Ids that cross tabs.** `trafficId` and held-request ids are unique across tabs.
+  `get_traffic_entry`, `compare_requests`, `replay_request`, `try_interceptor` and
+  `resume_held_request` find the right tab on their own. `list_held_requests`
+  without `tab` lists every tab's held requests.
+- An unknown `tab` is an error that lists the open tabs.
+
+### `list_tabs`
+
+> List the open tabs. Each tab is an independent proxy session with its own listen
+> port, destination, routes/mocks, scripts, breakpoints and captured traffic.
+
+No parameters. Returns `activeTabId` and, per tab: `id`, `name`, `active`,
+`running`, `port` (while running), `listenPort`, `listenProtocol`, `captureAll`,
+`destination`, `trafficCount`, `pendingCount`, `heldCount` and the last `error`.
+
+### `create_tab` 🔒
+
+> Open a new tab: a separate proxy session, so you can debug something without
+> changing the tab the user is on.
+
+| Param               | Type    | Required | Notes                                                                    |
+| ------------------- | ------- | -------- | ------------------------------------------------------------------------ |
+| `name`              | string  | no       | Unique name. Default: the destination (`api.test`, `api.test #2`, …).    |
+| `activate`          | boolean | no       | Show it in the window. Default `false` (the user keeps their view).      |
+| any per-tab setting | —       | no       | `dest`, `destPort`, `listenPort`, `captureAll`, … as in `update_config`. |
+
+`listenPort` defaults to the next port no other tab uses. The tab opens stopped:
+`start_proxy` with `tab: "<id>"`.
+
+### `rename_tab` 🔒
+
+| Param  | Type   | Required | Notes                                                                               |
+| ------ | ------ | -------- | ----------------------------------------------------------------------------------- |
+| `tab`  | string | no       | Default: the active tab.                                                            |
+| `name` | string | yes      | Unique (case-insensitive), not shaped like an id; `""` restores the automatic name. |
+
+### `close_tab` 🔒
+
+| Param | Type   | Required | Notes                                             |
+| ----- | ------ | -------- | ------------------------------------------------- |
+| `tab` | string | yes      | The tab's proxy stops; held requests are dropped. |
+
+Closing the last tab leaves one empty tab.
 
 ---
 
@@ -620,6 +682,10 @@ A few end-to-end patterns these tools were designed for:
   drive the client, then clear it by setting `enabled: false`.
 - **Debug auth.** `get_traffic_entry` surfaces decoded JWTs inline; `decode_jwt`
   inspects a token you have in hand (check `exp`/`iat`).
+- **Debug alongside the user.** `create_tab` with your own `dest`/`listenPort`,
+  `start_proxy` with `tab: "<id>"`, point your client at that port, and pass the same
+  `tab` to `list_traffic` / `search_traffic`. When you are done, `close_tab`. The
+  user's tab is never touched.
 - **Decode gRPC.** `add_proto_spec` with your `.proto`, then `get_traffic_entry`
   returns messages as JSON, matched by method.
 

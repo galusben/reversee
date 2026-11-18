@@ -5,6 +5,7 @@ import { isNewerVersion, parseWaitSeconds } from '../../scripts/check-bridge-ver
 import {
   MCP_TOOL_CATALOG,
   MCP_MUTATING_METHODS,
+  TAB_SCOPED_TOOLS,
   RECOMMENDED_BRIDGE_VERSION,
   isOlderVersion,
   buildBridgeAdvisory,
@@ -18,7 +19,9 @@ describe('MCP tool catalog', () => {
         'add_mock',
         'add_proto_spec',
         'add_route',
+        'close_tab',
         'compare_requests',
+        'create_tab',
         'decode_jwt',
         'export_diagnostics',
         'export_har',
@@ -29,11 +32,13 @@ describe('MCP tool catalog', () => {
         'list_held_requests',
         'list_proto_specs',
         'list_rules',
+        'list_tabs',
         'list_traffic',
         'record_mocks',
         'regenerate_root_cert',
         'remove_proto_spec',
         'remove_rule',
+        'rename_tab',
         'replay_request',
         'restart_proxy',
         'resume_held_request',
@@ -58,6 +63,22 @@ describe('MCP tool catalog', () => {
     }
   });
 
+  it('gives every tab-scoped tool an optional tab argument', () => {
+    const byName = new Map(MCP_TOOL_CATALOG.map((t) => [t.name, t]));
+    for (const name of TAB_SCOPED_TOOLS) {
+      const tool = byName.get(name);
+      expect(tool, name).toBeDefined();
+      expect(tool.inputSchema.properties.tab, name).toMatchObject({ type: 'string' });
+      expect(tool.inputSchema.required ?? [], name).not.toContain('tab');
+    }
+    // Tools addressing a request or held exchange by id find its tab themselves.
+    for (const name of ['get_traffic_entry', 'replay_request', 'resume_held_request']) {
+      expect(byName.get(name).inputSchema.properties?.tab, name).toBeUndefined();
+    }
+    // The bridge forwards only update_config's patch, so tab goes inside it.
+    expect(byName.get('update_config').description).toMatch(/"tab": "t2"/);
+  });
+
   it('has no duplicate tool names', () => {
     const names = MCP_TOOL_CATALOG.map((t) => t.name);
     expect(new Set(names).size).toBe(names.length);
@@ -69,11 +90,14 @@ describe('MCP tool catalog', () => {
         'add_mock',
         'add_proto_spec',
         'add_route',
+        'close_tab',
+        'create_tab',
         'export_har',
         'record_mocks',
         'regenerate_root_cert',
         'remove_proto_spec',
         'remove_rule',
+        'rename_tab',
         'replay_request',
         'restart_proxy',
         'resume_held_request',

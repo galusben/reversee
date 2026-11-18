@@ -61,7 +61,7 @@ test('headless with control: configure, proxy, inspect, and replay over MCP', as
     listenProtocol: 'http',
     listenPort,
   });
-  expect(await client.call('start_proxy')).toEqual({ running: true, port: listenPort });
+  expect(await client.call('start_proxy')).toMatchObject({ running: true, port: listenPort });
 
   const res = await fetchViaProxy(listenPort, '/agent/check');
   expect(res.statusCode).toBe(200);
@@ -88,7 +88,10 @@ test('headless with control: configure, proxy, inspect, and replay over MCP', as
 
   const status = (await client.call('get_status')) as { running: boolean; trafficCount: number };
   expect(status).toMatchObject({ running: true, trafficCount: 2 });
-  expect(await client.call('stop_proxy')).toEqual({ running: false });
+  expect(await client.call('stop_proxy')).toEqual({
+    running: false,
+    tab: { id: 't1', name: '127.0.0.1' },
+  });
   await expect
     .poll(async () => ((await client.call('get_status')) as { running: boolean }).running)
     .toBe(false);
@@ -226,7 +229,7 @@ test('headless: breakpoints, mocks, HAR export and setup checks over MCP', async
 
   // Export only the failures to a HAR file.
   const harFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'reversee-har-mcp-')), 'out.har');
-  expect(await client.call('export_har', { path: harFile, hasError: true })).toEqual({
+  expect(await client.call('export_har', { path: harFile, hasError: true })).toMatchObject({
     path: harFile,
     entries: 1,
   });
@@ -382,5 +385,70 @@ test('headless: the rule tools are gated behind control', async () => {
   ] as const) {
     const error = await client.call(method, params).catch((e) => e);
     expect(error, method).toBeInstanceOf(ControlCallError);
+  }
+});
+
+test('headless: an agent opens its own tab, proxies through it, and closes it', async () => {
+  upstream = await startUpstream((req, res) => res.end(`up ${req.url}`));
+  const client = await launchHeadless(['--allow-mcp-control']);
+  const [userPort, agentPort] = [await freePort(), await freePort()];
+  await client.call('update_config', { dest: 'user.example', listenPort: userPort });
+
+  const created = (await client.call('create_tab', {
+    dest: '127.0.0.1',
+    destProtocol: 'http',
+    destPort: upstream.port,
+    listenPort: agentPort,
+    name: 'agent',
+  })) as { id: string; name: string };
+  expect(created).toMatchObject({ id: 't2', name: 'agent', running: false });
+
+  // The user's tab stays the active one; the agent addresses its tab by id.
+  const listing = (await client.call('list_tabs')) as {
+    activeTabId: string;
+    tabs: Array<{ id: string; name: string; active: boolean }>;
+  };
+  expect(listing.activeTabId).toBe('t1');
+  expect(listing.tabs.map((t) => [t.id, t.name, t.active])).toEqual([
+    ['t1', 'user.example', true],
+    ['t2', 'agent', false],
+  ]);
+
+  expect(await client.call('start_proxy', { tab: 't2' })).toMatchObject({
+    running: true,
+    port: agentPort,
+    tab: { id: 't2', name: 'agent' },
+  });
+  expect((await fetchViaProxy(agentPort, '/via-agent-tab')).body).toBe('up /via-agent-tab');
+
+  await expect
+    .poll(
+      async () => ((await client.call('list_traffic', { tab: 'agent' })) as { total: number }).total
+    )
+    .toBe(1);
+  expect(((await client.call('list_traffic')) as { total: number }).total).toBe(0);
+
+  // Names are unique, and unknown tabs say which ones exist.
+  await expect(client.call('rename_tab', { tab: 't1', name: 'AGENT' })).rejects.toThrow(
+    /already called/
+  );
+  await expect(client.call('list_traffic', { tab: 't9' })).rejects.toThrow(
+    /no tab "t9" \(open tabs: t1 "user.example", t2 "agent"/
+  );
+
+  expect(await client.call('close_tab', { tab: 't2' })).toEqual({
+    closed: { id: 't2', name: 'agent' },
+    activeTabId: 't1',
+  });
+  await expect(fetchViaProxy(agentPort, '/gone')).rejects.toThrow();
+});
+
+test('headless read-only: tabs can be listed but not created or closed', async () => {
+  const client = await launchHeadless([]);
+  expect(((await client.call('list_tabs')) as { tabs: unknown[] }).tabs).toHaveLength(1);
+  for (const method of ['create_tab', 'close_tab', 'rename_tab']) {
+    await expect(client.call(method, { tab: 't1', name: 'x' }), method).rejects.toBeInstanceOf(
+      ControlCallError
+    );
   }
 });

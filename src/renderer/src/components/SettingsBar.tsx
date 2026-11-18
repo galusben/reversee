@@ -31,6 +31,12 @@ function PortInput({
   onValidity: (valid: boolean) => void;
 }): React.JSX.Element {
   const [text, setText] = useState(String(value));
+  // Follow the setting when it changes from elsewhere (another tab shown, an agent).
+  const [shown, setShown] = useState(value);
+  if (value !== shown) {
+    setShown(value);
+    if (Number(text) !== value) setText(String(value));
+  }
   const parsed = Number(text);
   const valid = isValidPort(parsed);
 

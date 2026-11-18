@@ -20,18 +20,27 @@ function truncateBody(view: { body?: Uint8Array | string; truncated?: boolean })
 
 export class TrafficStore {
   private entries: TrafficEntry[] = [];
-  // Monotonic and main-owned: never reset on clear, never reused across proxy
-  // restarts, so a trafficId is a stable handle (needed for replay) for as long
-  // as the entry lives.
-  private nextId = 1;
+  /**
+   * Monotonic and main-owned: never reset on clear, never reused across proxy
+   * restarts, so a trafficId is a stable handle (needed for replay) for as long
+   * as the entry lives. Tabs share one allocator, so an id is unique across
+   * every tab and names one request on its own.
+   */
+  private readonly allocateId: () => number;
 
-  constructor(private cap: number = TRAFFIC_CAP) {}
+  constructor(
+    private cap: number = TRAFFIC_CAP,
+    allocateId?: () => number
+  ) {
+    let next = 1;
+    this.allocateId = allocateId ?? (() => next++);
+  }
 
   /** Assigns a fresh stable trafficId and appends the entry. */
   add(entry: TrafficEntry): TrafficEntry {
     truncateBody(entry.request);
     truncateBody(entry.response);
-    entry.trafficId = this.nextId++;
+    entry.trafficId = this.allocateId();
     this.entries.push(entry);
     if (this.entries.length > this.cap) {
       this.entries.splice(0, this.entries.length - this.cap);

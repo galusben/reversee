@@ -8,11 +8,13 @@ import type { TrafficEntry } from '../shared/types';
 
 export function saveRecordedMocks(
   entries: TrafficEntry[],
-  options: RecordOptions = {}
+  options: RecordOptions = {},
+  /** The tab whose mocks receive them (default: the active tab). */
+  tabId?: string
 ): RecordMocksResult {
   const recording = recordMocks(entries, options);
-  const merged = mergeRecorded(getSettings().mocks, recording);
-  if (merged.stored.length) setSettings({ mocks: merged.mocks });
+  const merged = mergeRecorded(getSettings(tabId).mocks, recording);
+  if (merged.stored.length) setSettings({ mocks: merged.mocks }, tabId);
   return {
     considered: entries.length,
     created: merged.added,

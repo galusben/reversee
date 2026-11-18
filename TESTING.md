@@ -11,6 +11,8 @@ Reversee has four test layers. All of them except the packaged smoke test run on
 
 `npm test` runs Vitest, which includes both the unit/integration suite and the MCP end-to-end (the latter builds and spawns the real bridge in `beforeAll`). `npm run lint` and `npm run typecheck` round out the `checks` job.
 
+Every Vitest run also writes `test-results/vitest/results.json`. When a test fails only once in a while, you don't need to reproduce it: `npm run test:failures` prints the last run's failures (file, test, duration, full message and stack). In CI, a failing `checks` job prints the same output and uploads the report as the `unit-test-report` artifact. Playwright keeps a trace of each failed e2e test in `test-results/`, uploaded as `playwright-traces`.
+
 ## What each layer covers
 
 ### Unit & integration (`tests/unit/`)
@@ -58,6 +60,7 @@ REVERSEE_APP_BIN="/path/to/Reversee.app/Contents/MacOS/Reversee" \
 
 ```sh
 npm test                              # unit + integration + MCP e2e (Vitest)
+npm run test:failures                 # print the last run's failures in full (no rerun)
 npm run typecheck                     # tsc (app + mcp)
 npm run lint                          # eslint
 npm run build && npx playwright test  # app end-to-end

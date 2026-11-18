@@ -8,6 +8,25 @@ the desktop UI, and agents through the Model Context Protocol.
 - **Configure the proxy** — listen protocol (http/https) + port, destination
   protocol + host + port. Toggles: _rewrite host_ (override the Host header),
   _rewrite redirects_ (rewrite 3xx `Location`), _allow self-signed upstream_.
+- **Tabs** — each tab is an independent proxy session: its own listen port,
+  destination (or capture-anything mode), routes and mocks, scripts, breakpoints and
+  traffic, running in its own worker process. All tabs keep proxying in the
+  background.
+  - The strip shows each tab's state, port and request count, with a dot for unseen
+    traffic.
+  - An amber ⏸ marks a tab holding requests at a breakpoint, and a notice offers to
+    switch to it.
+  - Names come from the destination and are kept unique (`api.test`,
+    `api.test #2`). They can be renamed by double-click. Tab ids (`t1`, `t2`, …)
+    never change.
+  - A new tab picks the next free listen port. Starting on a port another running
+    tab uses fails with a message naming that tab.
+  - Closing a running tab, or one holding requests, asks first.
+  - Tabs are restored, stopped, on relaunch. Settings from an earlier single-proxy
+    version become tab 1.
+  - Shared by all tabs: root CA, proto specs, theme, history cap and the MCP
+    switches.
+  - Shortcuts: ⌘T, ⌘⇧D (duplicate), ⌘W, ⌘1…9, ⌃Tab.
 - **Capture anything** — the mode selector in the settings bar switches between
   _Forward to one server_ (a reverse proxy in front of one destination) and _Capture
   anything_: a regular HTTP proxy at `http://127.0.0.1:<port>`, reachable from this machine only. A client set up with
@@ -128,6 +147,10 @@ Agents drive the running app through the `reversee-mcp` stdio bridge. Setup is i
 
 | Tool                   | Purpose                                                                                              | Mutating? |
 | ---------------------- | ---------------------------------------------------------------------------------------------------- | --------- |
+| `list_tabs`            | Open tabs (each its own proxy): id, unique name, port, destination, state, counts; the active tab.   | no        |
+| `create_tab`           | Open a tab (in the background by default) with its own destination and port.                         | **yes**   |
+| `rename_tab`           | Rename a tab (names are unique).                                                                     | **yes**   |
+| `close_tab`            | Close a tab, stopping its proxy.                                                                     | **yes**   |
 | `get_status`           | App version, proxy run state, listen/dest config, traffic & breakpoint counts.                       | no        |
 | `get_config`           | Full proxy configuration.                                                                            | no        |
 | `update_config`        | Patch the configuration (partial settings object).                                                   | **yes**   |
@@ -161,7 +184,9 @@ Agents drive the running app through the `reversee-mcp` stdio bridge. Setup is i
 | `validate_setup`       | Setup checks: destination, ports, root cert, proxy process.                                          | no        |
 | `export_diagnostics`   | Versions, platform, settings, state, log location — for bug reports.                                 | no        |
 
-32 tools; the 18 marked mutating are gated.
+36 tools; the 21 marked mutating are gated. Tools that act on one tab take an
+optional `tab` (id or name) and default to the tab shown in the window; see
+[mcp-tools.md](mcp-tools.md#tabs).
 
 ### Headless mode
 

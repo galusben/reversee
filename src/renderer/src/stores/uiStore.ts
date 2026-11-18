@@ -8,6 +8,8 @@ export type RuleSeed =
 export interface Notice {
   kind: 'info' | 'error';
   text: string;
+  /** Clicking the notice shows this tab (e.g. a background tab holding a request). */
+  tabId?: string;
 }
 
 interface UiStore {
@@ -43,6 +45,8 @@ interface UiStore {
   notice: Notice | null;
   showNotice(notice: Notice): void;
   clearNotice(): void;
+  /** Closes the dialogs that edit or show one tab's data (on a tab switch). */
+  closeTabDialogs(): void;
 }
 
 const NOTICE_MS = 6000;
@@ -90,4 +94,16 @@ export const useUiStore = create<UiStore>((set, get) => ({
     noticeTimer = null;
     set({ notice: null });
   },
+  closeTabDialogs: () =>
+    set({
+      summaryOpen: false,
+      preferencesOpen: false,
+      rulesOpen: false,
+      rulesSeed: null,
+      scriptsOpen: false,
+      recordMocks: null,
+      replayEditorId: null,
+      compareBaseId: null,
+      compareIds: null,
+    }),
 }));

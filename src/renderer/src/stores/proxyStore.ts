@@ -57,7 +57,26 @@ export interface SortState {
   dir: 'asc' | 'desc';
 }
 
+/** How a tab's traffic table was left, restored when the user comes back to it. */
+export interface TabView {
+  selectedId: number | null;
+  scrollLocked: boolean;
+  filterText: string;
+  errorsOnly: boolean;
+  sort: SortState;
+}
+
+const defaultView: TabView = {
+  selectedId: null,
+  scrollLocked: true,
+  filterText: '',
+  errorsOnly: false,
+  sort: { key: 'id', dir: 'asc' },
+};
+
 interface ProxyStore {
+  /** The tab this store mirrors (the active tab); null until the tabs load. */
+  tabId: string | null;
   settings: AppSettings | null;
   running: boolean;
   port?: number;
@@ -75,6 +94,11 @@ interface ProxyStore {
   certStatus: RootCertStatus | null;
 
   init(): Promise<void>;
+  /** Marks which tab the data already loaded belongs to (no reload). */
+  bindTab(tabId: string): void;
+  /** Switches to another tab: reloads its settings, traffic and state, restoring `view`. */
+  loadTab(tabId: string, view?: TabView): Promise<void>;
+  viewState(): TabView;
   updateSettings(patch: Partial<AppSettings>): Promise<void>;
   start(): Promise<void>;
   stop(): Promise<void>;
@@ -108,7 +132,13 @@ function dropQueuedTraffic(): void {
   flushTimer = null;
 }
 
+/** Whether an event from main concerns the tab this window shows. */
+function forThisTab(eventTabId: string | undefined, tabId: string | null): boolean {
+  return !eventTabId || !tabId || eventTabId === tabId;
+}
+
 export const useProxyStore = create<ProxyStore>((set, get) => ({
+  tabId: null,
   settings: null,
   running: false,
   port: undefined,
@@ -138,12 +168,15 @@ export const useProxyStore = create<ProxyStore>((set, get) => ({
     trafficLoaded = false;
     dropQueuedTraffic();
     window.reversee.onTraffic((entry) => {
+      // Main sends only the shown tab's traffic; this also drops stragglers from a tab just left.
+      if (!forThisTab(entry.tabId, get().tabId)) return;
       queuedTraffic.push(entry);
       if (trafficLoaded && !flushTimer) {
         flushTimer = setTimeout(() => get().flushTraffic(), TRAFFIC_FLUSH_MS);
       }
     });
-    window.reversee.onTrafficCleared(() => {
+    window.reversee.onTrafficCleared((tabId) => {
+      if (!forThisTab(tabId, get().tabId)) return;
       dropQueuedTraffic();
       set({ traffic: [], selectedId: null });
     });
@@ -164,8 +197,12 @@ export const useProxyStore = create<ProxyStore>((set, get) => ({
       const over = traffic.length - settings.trafficCap;
       set(over > 0 ? { settings, traffic: traffic.slice(over) } : { settings });
     });
-    window.reversee.onProxyState(({ running, port }) => set({ running, port }));
-    window.reversee.onProxyError((error) => set({ error, running: false }));
+    window.reversee.onProxyState(({ running, port, tabId }) => {
+      if (forThisTab(tabId, get().tabId)) set({ running, port });
+    });
+    window.reversee.onProxyError((error) => {
+      if (forThisTab(error.tabId, get().tabId)) set({ error, running: false });
+    });
   },
 
   flushTraffic() {
@@ -179,6 +216,36 @@ export const useProxyStore = create<ProxyStore>((set, get) => ({
         get().settings?.trafficCap ?? defaultSettings.trafficCap
       ),
     });
+  },
+
+  bindTab(tabId) {
+    set({ tabId });
+  },
+
+  async loadTab(tabId, view = defaultView) {
+    // Clear at once so the old tab's rows never show under the new tab's name.
+    // As in init: queue live traffic while the snapshot loads, then apply it on top.
+    trafficLoaded = false;
+    dropQueuedTraffic();
+    set({ tabId, traffic: [], error: null, ...view });
+    const [settings, traffic, state] = await Promise.all([
+      window.reversee.getSettings(),
+      window.reversee.getTraffic(),
+      window.reversee.getProxyState(),
+    ]);
+    if (get().tabId !== tabId) return; // switched again meanwhile
+    set({ settings, traffic, running: state.running, port: state.port });
+    trafficLoaded = true;
+    get().flushTraffic();
+    const { selectedId } = get();
+    if (selectedId !== null && !get().traffic.some((e) => e.trafficId === selectedId)) {
+      set({ selectedId: null });
+    }
+  },
+
+  viewState() {
+    const { selectedId, scrollLocked, filterText, errorsOnly, sort } = get();
+    return { selectedId, scrollLocked, filterText, errorsOnly, sort };
   },
 
   async updateSettings(patch) {

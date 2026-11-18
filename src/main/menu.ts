@@ -1,10 +1,16 @@
-// Application menu. The proxy-behavior checkboxes write to settings (the 1.x
-// menu was read directly by the proxy at start time via the remote module);
-// snapshot-at-start semantics are preserved because settings are captured in
-// the proxy:start payload.
+// Application menu. The proxy-behavior checkboxes write to the active tab's
+// settings (the 1.x menu was read directly by the proxy at start time via the
+// remote module); snapshot-at-start semantics are preserved because settings
+// are captured in the proxy:start payload. Proxy items act on the active tab.
 import { app, Menu, shell, type BrowserWindow, type MenuItemConstructorOptions } from 'electron';
 import { IPC } from '../shared/ipc';
-import { getSettings, setSettings, onSettingsChanged, type RootCertPem } from './settings';
+import {
+  getActiveTabId,
+  getSettings,
+  setSettings,
+  onSettingsChanged,
+  type RootCertPem,
+} from './settings';
 import { certificateTrustDialog, exportRootCert } from './certs/certs';
 import { checkForUpdatesInteractive } from './updater';
 
@@ -18,6 +24,11 @@ export interface MenuHooks {
   onExportHar(): void;
   onImportHar(): void;
   onRegenerateRootCert(): void;
+  onNewTab(): void;
+  onDuplicateTab(): void;
+  onCloseTab(): void;
+  /** Jump to the tab `offset` places away (wrapping), or to index `at` (8 = last). */
+  onSelectTab(target: { offset: number } | { at: number }): void;
 }
 
 let syncRegistered = false;
@@ -48,6 +59,26 @@ export function createMenu(win: BrowserWindow, hooks: MenuHooks): void {
     {
       label: 'File',
       submenu: [
+        {
+          label: 'New Tab',
+          id: 'new-tab',
+          accelerator: 'CmdOrCtrl+T',
+          click: () => hooks.onNewTab(),
+        },
+        {
+          label: 'Duplicate Tab',
+          id: 'duplicate-tab',
+          accelerator: 'CmdOrCtrl+Shift+D',
+          click: () => hooks.onDuplicateTab(),
+        },
+        {
+          label: 'Close Tab',
+          id: 'close-tab',
+          accelerator: 'CmdOrCtrl+W',
+          click: () => hooks.onCloseTab(),
+        },
+        { role: 'close', label: 'Close Window', accelerator: 'CmdOrCtrl+Shift+W' },
+        { type: 'separator' },
         {
           label: 'Export HAR…',
           id: 'export-har',
@@ -209,6 +240,55 @@ export function createMenu(win: BrowserWindow, hooks: MenuHooks): void {
       ],
     },
     {
+      label: 'Tabs',
+      submenu: [
+        {
+          label: 'Rename Tab…',
+          id: 'rename-tab',
+          click: () => win.webContents.send(IPC.renameTabEvent),
+        },
+        { type: 'separator' },
+        {
+          label: 'Next Tab',
+          id: 'next-tab',
+          accelerator: 'Ctrl+Tab',
+          click: () => hooks.onSelectTab({ offset: 1 }),
+        },
+        {
+          label: 'Previous Tab',
+          id: 'previous-tab',
+          accelerator: 'Ctrl+Shift+Tab',
+          click: () => hooks.onSelectTab({ offset: -1 }),
+        },
+        // Browser-style alternates; hidden, but their shortcuts work.
+        {
+          label: 'Next Tab',
+          visible: false,
+          acceleratorWorksWhenHidden: true,
+          accelerator: 'CmdOrCtrl+Shift+]',
+          click: () => hooks.onSelectTab({ offset: 1 }),
+        },
+        {
+          label: 'Previous Tab',
+          visible: false,
+          acceleratorWorksWhenHidden: true,
+          accelerator: 'CmdOrCtrl+Shift+[',
+          click: () => hooks.onSelectTab({ offset: -1 }),
+        },
+        { type: 'separator' },
+        ...[1, 2, 3, 4, 5, 6, 7, 8].map((n): MenuItemConstructorOptions => ({
+          label: `Tab ${n}`,
+          accelerator: `CmdOrCtrl+${n}`,
+          click: () => hooks.onSelectTab({ at: n - 1 }),
+        })),
+        {
+          label: 'Last Tab',
+          accelerator: 'CmdOrCtrl+9',
+          click: () => hooks.onSelectTab({ at: 8 }),
+        },
+      ],
+    },
+    {
       label: 'View',
       submenu: [
         { role: 'reload' },
@@ -221,7 +301,8 @@ export function createMenu(win: BrowserWindow, hooks: MenuHooks): void {
         { role: 'togglefullscreen' },
       ],
     },
-    { role: 'windowMenu' },
+    // Not the stock Window menu off macOS: its Close item takes Ctrl+W, which closes a tab here.
+    isMac ? { role: 'windowMenu' } : { label: 'Window', submenu: [{ role: 'minimize' }] },
     {
       role: 'help',
       submenu: [
@@ -256,7 +337,9 @@ export function createMenu(win: BrowserWindow, hooks: MenuHooks): void {
   // the window is re-created, and the listener looks the live menu up by id.
   if (syncRegistered) return;
   syncRegistered = true;
-  onSettingsChanged((next) => {
+  onSettingsChanged((next, tabId) => {
+    // The checkboxes show the window's tab; a background tab's change is not shown.
+    if (tabId !== getActiveTabId()) return;
     const menu = Menu.getApplicationMenu();
     const sync = (id: string, checked: boolean): void => {
       const item = menu?.getMenuItemById(id);
