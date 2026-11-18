@@ -725,6 +725,35 @@ describe('new entry fields in tool output', () => {
     expect(full.interceptorLogs).toEqual(['hello']);
     expect(full.interceptorError).toBe(true);
   });
+
+  it('get_traffic_entry reports gRPC message totals next to the kept messages', () => {
+    const grpc = {
+      method: '/demo.Feed/Watch',
+      status: 0,
+      requestMessages: [{ json: { topic: 'a' } }],
+      responseMessages: [{ json: { n: 449 } }, { json: { n: 450 } }],
+    };
+    const capped = ctx.trafficStore.add(
+      entry({
+        url: '/demo.Feed/Watch',
+        grpc: { ...grpc, requestMessageCount: 1, responseMessageCount: 450 },
+      })
+    );
+    const full = handlers.get_traffic_entry({ trafficId: capped.trafficId });
+    expect(full.grpc).toMatchObject({
+      method: '/demo.Feed/Watch',
+      requestMessageCount: 1,
+      responseMessageCount: 450,
+      requestMessages: [{ topic: 'a' }],
+      responseMessages: [{ n: 449 }, { n: 450 }],
+    });
+
+    // An entry captured before the totals existed falls back to what it holds.
+    const older = ctx.trafficStore.add(entry({ url: '/demo.Feed/Watch', grpc }));
+    const old = handlers.get_traffic_entry({ trafficId: older.trafficId });
+    expect(old.grpc.requestMessageCount).toBe(1);
+    expect(old.grpc.responseMessageCount).toBe(2);
+  });
 });
 
 describe('route and mock tools', () => {

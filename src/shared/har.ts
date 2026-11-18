@@ -167,6 +167,9 @@ function toHarEntry(entry: TrafficEntry): HarEntry {
       method: entry.grpc.method,
       status: entry.grpc.status,
       statusMessage: entry.grpc.statusMessage,
+      // Totals seen; past the capture cap only the most recent messages are kept.
+      requestMessageCount: entry.grpc.requestMessageCount ?? entry.grpc.requestMessages.length,
+      responseMessageCount: entry.grpc.responseMessageCount ?? entry.grpc.responseMessages.length,
       requestMessages: entry.grpc.requestMessages.map((m) => m.json ?? null),
       responseMessages: entry.grpc.responseMessages.map((m) => m.json ?? null),
     };

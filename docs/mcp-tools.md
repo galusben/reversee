@@ -233,8 +233,11 @@ No parameters. Reach for this if an interceptor wedged the worker.
 ### `get_traffic_entry`
 
 > Full details of one captured request: headers, bodies, timings, a
-> copy-pasteable curl command, the upstream target, and any decoded JWTs found in
-> its Authorization header or cookies.
+> copy-pasteable curl command, the upstream target, any decoded JWTs found in its
+> Authorization header or cookies, decoded gRPC messages, WebSocket messages (for an
+> upgraded connection), and errors / console output of the user interceptors that
+> ran. Long gRPC streams and WebSockets keep only their most recent messages; the
+> counts give the totals seen.
 
 | Param       | Type    | Required | Notes                                       |
 | ----------- | ------- | -------- | ------------------------------------------- |
@@ -242,7 +245,10 @@ No parameters. Reach for this if an interceptor wedged the worker.
 
 Returns the full request/response, plus decoded gRPC when a matching proto spec is
 loaded and decoded JWTs when the request carries a bearer token or JWT cookie. A
-WebSocket connection carries `webSocket.messages` (direction, opcode, text, size);
+gRPC call carries `grpc.requestMessages` / `grpc.responseMessages` (the most recent
+300 per direction) with `requestMessageCount` / `responseMessageCount`, the totals
+seen. A WebSocket connection carries `webSocket.messages` (direction, opcode, text,
+size; the most recent 300) with `messageCount`;
 `interceptorErrors` / `interceptorLogs` report what the user interceptors did. In
 summaries, `pending: true` marks an exchange still in flight and `mocked: true` one
 answered by a mock rule.

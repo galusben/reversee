@@ -238,7 +238,8 @@ export const MCP_TOOL_CATALOG: McpToolDef[] = [
     description:
       'Full details of one captured request: headers, bodies, timings, a copy-pasteable curl command, the upstream ' +
       'target, any decoded JWTs found in its Authorization header or cookies, decoded gRPC messages, WebSocket ' +
-      'messages (for an upgraded connection), and errors / console output of the user interceptors that ran.',
+      'messages (for an upgraded connection), and errors / console output of the user interceptors that ran. ' +
+      'Long gRPC streams and WebSockets keep only their most recent messages; the counts give the totals seen.',
     inputSchema: {
       type: 'object',
       properties: {

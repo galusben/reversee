@@ -89,7 +89,9 @@ the desktop UI, and agents through the Model Context Protocol.
   on https, cleartext h2c on http) that proxies native gRPC. Import `.proto`/`.desc`
   definitions (_gRPC → Proto Specs_; protobufjs, no `protoc`) and every message —
   unary and server/client/bidi streaming — is decoded into JSON in the detail pane's
-  gRPC tab, with the `grpc-status` shown on the row. Matched by method
+  gRPC tab, with the `grpc-status` shown on the row. A long stream keeps the most
+  recent 300 messages per direction (the pane says how many it is showing of the
+  total), like WebSockets. Matched by method
   (`/package.Service/Method`). HTTP/1.1 clients are still served on the same port
   (interceptors and breakpoints apply to them, not to HTTP/2 streams).
 - **Connect AI** — a dialog with the `npx reversee-mcp` setup, plus the toggle that

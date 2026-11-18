@@ -29,6 +29,7 @@ import { createHttp1Handlers, type ProxyServer, type ProxyServerOptions } from '
 import { answerPlainHttpOnTls } from './tls-hint';
 import type { ResolvedMethod } from './grpc-registry';
 import type {
+  GrpcMessage,
   GrpcView,
   Headers,
   Logger,
@@ -88,6 +89,7 @@ export function createHttp2ProxyServer(options: Http2ProxyServerOptions): ProxyS
       rules,
       upstreams,
       resolveMethod: options.resolveMethod,
+      captureLimit: options.captureLimit ?? CAPTURE_LIMIT,
     });
   };
   const onError = (err: NodeJS.ErrnoException): void => {
@@ -237,6 +239,50 @@ class UpstreamSessions {
 /** Minimum gap between updates of an open HTTP/2 call (messages, headers). */
 const STREAM_NOTIFY_INTERVAL_MS = 250;
 
+/**
+ * Most recent decoded gRPC messages kept per direction of a call (the same cap
+ * WebSockets use). A long streaming call keeps a running total instead of
+ * every message, so it cannot grow without bound.
+ */
+export const GRPC_MESSAGE_LIMIT = 300;
+
+/** Appends a decoded message, dropping the oldest once past the cap. */
+function keepRecent(messages: GrpcMessage[], message: GrpcMessage): void {
+  messages.push(message);
+  if (messages.length > GRPC_MESSAGE_LIMIT) {
+    messages.splice(0, messages.length - GRPC_MESSAGE_LIMIT);
+  }
+}
+
+/**
+ * The first `limit` bytes of a stream. The chunk that crosses the limit is
+ * cut, so the capture reaches exactly the limit; `bytes` counts everything.
+ */
+class RawCapture {
+  private chunks: Buffer[] = [];
+  private captured = 0;
+  bytes = 0;
+
+  constructor(private limit: number) {}
+
+  push(chunk: Buffer): void {
+    this.bytes += chunk.length;
+    const room = this.limit - this.captured;
+    if (room <= 0) return;
+    const kept = chunk.length <= room ? chunk : chunk.subarray(0, room);
+    this.chunks.push(kept);
+    this.captured += kept.length;
+  }
+
+  get truncated(): boolean {
+    return this.bytes > this.limit;
+  }
+
+  body(): Buffer {
+    return Buffer.concat(this.chunks);
+  }
+}
+
 interface ForwardContext {
   settings: ProxySettings;
   notify: (entry: TrafficEntry, streamId?: string) => void;
@@ -244,6 +290,8 @@ interface ForwardContext {
   rules: CompiledRules;
   upstreams: UpstreamSessions;
   resolveMethod?: (path: string) => ResolvedMethod | undefined;
+  /** Bytes of each direction's raw body kept for the traffic view. */
+  captureLimit: number;
 }
 
 function forwardStream(
@@ -282,7 +330,14 @@ function forwardStream(
   };
   const responseView: ResponseView = { headers: {}, body: Buffer.alloc(0) };
   const grpc: GrpcView | undefined = isGrpc
-    ? { method: path, requestMessages: [], responseMessages: [], matchedSpecId: resolved?.specId }
+    ? {
+        method: path,
+        requestMessages: [],
+        responseMessages: [],
+        requestMessageCount: 0,
+        responseMessageCount: 0,
+        matchedSpecId: resolved?.specId,
+      }
     : undefined;
   const entry: TrafficEntry = {
     trafficId: trafficId++,
@@ -349,27 +404,26 @@ function forwardStream(
 
   // --- request direction: client -> upstream (raw passthrough + decode copy) ---
   const reqAcc = new FrameAccumulator();
-  const reqRaw: Buffer[] = [];
-  let reqBytes = 0;
+  const reqRaw = new RawCapture(ctx.captureLimit);
   clientStream.on('data', (chunk: Buffer) => {
     if (!upstream.write(chunk)) {
       clientStream.pause();
       upstream.once('drain', () => clientStream.resume());
     }
-    reqBytes += chunk.length;
-    if (reqBytes <= CAPTURE_LIMIT) reqRaw.push(chunk);
+    reqRaw.push(chunk);
     if (grpc) {
       for (const frame of reqAcc.push(chunk)) {
-        grpc.requestMessages.push(decodeFrame(frame, resolved?.requestType));
+        grpc.requestMessageCount = (grpc.requestMessageCount ?? 0) + 1;
+        keepRecent(grpc.requestMessages, decodeFrame(frame, resolved?.requestType));
       }
       scheduleNotify();
     }
   });
   clientStream.on('end', () => {
     upstream.end();
-    requestView.body = Buffer.concat(reqRaw);
-    requestView.size = reqBytes;
-    if (reqBytes > CAPTURE_LIMIT) requestView.truncated = true;
+    requestView.body = reqRaw.body();
+    requestView.size = reqRaw.bytes;
+    if (reqRaw.truncated) requestView.truncated = true;
   });
   clientStream.on('error', (err) => {
     logger.info('grpc client stream error', err);
@@ -382,8 +436,7 @@ function forwardStream(
 
   // --- response direction: upstream -> client ---
   const respAcc = new FrameAccumulator();
-  const respRaw: Buffer[] = [];
-  let respBytes = 0;
+  const respRaw = new RawCapture(ctx.captureLimit);
   let trailers: Headers = {};
 
   upstream.on('response', (respHeaders) => {
@@ -413,11 +466,11 @@ function forwardStream(
       upstream.pause();
       clientStream.once('drain', () => upstream.resume());
     }
-    respBytes += chunk.length;
-    if (respBytes <= CAPTURE_LIMIT) respRaw.push(chunk);
+    respRaw.push(chunk);
     if (grpc) {
       for (const frame of respAcc.push(chunk)) {
-        grpc.responseMessages.push(decodeFrame(frame, resolved?.responseType));
+        grpc.responseMessageCount = (grpc.responseMessageCount ?? 0) + 1;
+        keepRecent(grpc.responseMessages, decodeFrame(frame, resolved?.responseType));
       }
       scheduleNotify();
     }
@@ -431,9 +484,9 @@ function forwardStream(
   });
   upstream.on('end', () => {
     timings.total = Number(process.hrtime.bigint() - startAt);
-    responseView.body = Buffer.concat(respRaw);
-    responseView.size = respBytes;
-    if (respBytes > CAPTURE_LIMIT) responseView.truncated = true;
+    responseView.body = respRaw.body();
+    responseView.size = respRaw.bytes;
+    if (respRaw.truncated) responseView.truncated = true;
     if (!clientStream.closed) clientStream.end();
     finalize();
   });

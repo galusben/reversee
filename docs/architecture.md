@@ -131,8 +131,10 @@ Electron-free:
   For each stream it opens an upstream HTTP/2 stream, pipes bytes both ways
   **unmodified**, and copies frames through a `FrameAccumulator` to decode messages
   as they arrive (so streaming calls fill in incrementally), capturing the
-  `grpc-status` trailer. It re-emits the `TrafficEntry` on each frame (the store
-  upserts by `trafficId`). HTTP/1.1 is served on the same port through the regular
+  `grpc-status` trailer. It re-emits the `TrafficEntry` as frames arrive, at most
+  every 250 ms (the store upserts by `trafficId`), and keeps the most recent
+  `GRPC_MESSAGE_LIMIT` (300) messages per direction plus running totals
+  (`requestMessageCount` / `responseMessageCount`), so a long stream stays bounded. HTTP/1.1 is served on the same port through the regular
   HTTP/1.1 handlers: over TLS, ALPN picks the protocol per connection (Node's HTTP/2
   compatibility layer is deliberately not attached — it would send trailers twice);
   in cleartext, the first bytes are sniffed for the HTTP/2 preface.
