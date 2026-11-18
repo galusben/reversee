@@ -4,6 +4,7 @@
 import type { AppSettings } from './settings-schema';
 import type { RecordOptions, SkipGroup, StoredMock } from './record-mocks';
 import type { TabsSnapshot } from './tabs';
+import type { TrafficRow } from './traffic-row';
 import type {
   BreakpointCompileError,
   BreakpointPhase,
@@ -30,6 +31,7 @@ export const IPC = {
   settingsMigrateLegacy: 'settings:migrate-legacy',
   appVersion: 'app:version',
   trafficGetAll: 'traffic:get-all',
+  trafficGet: 'traffic:get',
   trafficClear: 'traffic:clear',
   clipboardWrite: 'clipboard:write',
   breakpointsGet: 'breakpoints:get',
@@ -42,6 +44,7 @@ export const IPC = {
   trafficExportHar: 'traffic:export-har',
   trafficImportHar: 'traffic:import-har',
   trafficRecordMocks: 'traffic:record-mocks',
+  trafficPreviewMocks: 'traffic:preview-mocks',
   certStatusGet: 'cert:status',
   certRegenerate: 'cert:regenerate',
   filePick: 'file:pick',
@@ -205,7 +208,10 @@ export interface RevAPI {
   /** One-time import of pre-2.0 settings persisted in renderer localStorage. */
   migrateLegacySettings(old: unknown): Promise<void>;
   getVersion(): Promise<string>;
-  getTraffic(): Promise<TrafficEntry[]>;
+  /** The active tab's history as list rows (no bodies; see getTrafficEntry). */
+  getTraffic(): Promise<TrafficRow[]>;
+  /** One full entry, with bodies and curl, from whichever tab holds it; null once it is gone. */
+  getTrafficEntry(trafficId: number): Promise<TrafficEntry | null>;
   clearTraffic(): Promise<void>;
   copyToClipboard(text: string): Promise<void>;
   getBreakpoints(): Promise<BreakpointRule[]>;
@@ -223,6 +229,8 @@ export interface RevAPI {
   importHar(): Promise<HarImportResult>;
   /** Saves captured exchanges as mock rules (all traffic, or just `ids`). */
   recordMocks(ids?: number[], options?: RecordOptions): Promise<RecordMocksResult>;
+  /** What recordMocks would do with the same arguments, without saving (mock bodies left out). */
+  previewMocks(ids?: number[], options?: RecordOptions): Promise<RecordMocksResult>;
   getCertStatus(): Promise<RootCertStatus>;
   /** Asks for confirmation, then replaces the root CA. Resolves with the resulting status. */
   regenerateRootCert(): Promise<RootCertStatus>;
@@ -230,7 +238,8 @@ export interface RevAPI {
   pickFile(title: string): Promise<string | null>;
   /** Dry-runs script code against a captured exchange; nothing is sent or saved. */
   tryScript(kind: ScriptKind, code: string, trafficId: number): Promise<ScriptTrialOutcome>;
-  onTraffic(cb: (entry: TrafficEntry) => void): () => void;
+  /** A new or updated exchange in the active tab, as a list row (no bodies). */
+  onTraffic(cb: (row: TrafficRow) => void): () => void;
   /** The active tab's traffic was cleared (the payload is its tab id). */
   onTrafficCleared(cb: (tabId?: string) => void): () => void;
   onBreakpointHit(cb: (hit: BreakpointHit) => void): () => void;

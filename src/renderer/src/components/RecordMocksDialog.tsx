@@ -1,17 +1,20 @@
 // Record and replay: turns captured responses into mock rules in one step.
-// The preview runs the same shared conversion main runs when saving.
-import { useMemo, useState } from 'react';
+// The preview is computed by main with the same conversion it runs when
+// saving (the window's traffic list holds no bodies).
+import { useEffect, useMemo, useState } from 'react';
 import { useProxyStore } from '../stores/proxyStore';
 import { useUiStore } from '../stores/uiStore';
 import { Modal, primaryButton, secondaryButton } from './ui/Modal';
 import { listedTraffic } from './TrafficTable';
-import { mergeRecorded, recordMocks } from '../../../shared/record-mocks';
 import { describeMock } from '../../../shared/rule-input';
-import type { TrafficEntry } from '../../../shared/types';
+import type { RecordMocksResult } from '../../../shared/ipc';
+import type { TrafficRow } from '../../../shared/traffic-row';
 
 type Scope = 'all' | 'listed' | 'one';
 
 const PREVIEW_ROWS = 8;
+/** Traffic keeps arriving while the dialog is open: re-preview after it settles. */
+const PREVIEW_DEBOUNCE_MS = 150;
 
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
 
@@ -48,24 +51,39 @@ function RecordMocksBody({
   const [ignoreQuery, setIgnoreQuery] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const chosen: TrafficEntry[] = useMemo(
+  const chosen: TrafficRow[] = useMemo(
     () => (scope === 'one' && single ? [single] : scope === 'listed' ? listed : all),
     [scope, single, listed, all]
   );
-  const preview = useMemo(() => {
-    const recording = recordMocks(chosen, { ignoreQuery });
-    return { recording, merge: mergeRecorded(savedMocks, recording) };
-  }, [chosen, ignoreQuery, savedMocks]);
-  const { recording, merge } = preview;
-  const total = merge.added + merge.replaced;
+  const ids = scope === 'all' ? undefined : chosen.map((e) => e.trafficId);
+  const idsKey = ids?.join(',') ?? 'all';
+  const [preview, setPreview] = useState<RecordMocksResult | null>(null);
+  useEffect(() => {
+    let current = true;
+    const timer = setTimeout(() => {
+      void window.reversee
+        .previewMocks(
+          idsKey === 'all' ? undefined : idsKey.split(',').filter(Boolean).map(Number),
+          {
+            ignoreQuery,
+          }
+        )
+        .then((result) => {
+          if (current) setPreview(result);
+        });
+    }, PREVIEW_DEBOUNCE_MS);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+    // `all` re-previews as traffic arrives in "all" scope; savedMocks when mocks change.
+  }, [idsKey, ignoreQuery, savedMocks, all]);
+  const total = preview ? preview.created + preview.replaced : 0;
 
   const save = async (): Promise<void> => {
     setBusy(true);
     try {
-      const result = await window.reversee.recordMocks(
-        scope === 'all' ? undefined : chosen.map((e) => e.trafficId),
-        { ignoreQuery }
-      );
+      const result = await window.reversee.recordMocks(ids, { ignoreQuery });
       const parts = [plural(result.created, 'new mock')];
       if (result.replaced) parts.push(`${result.replaced} updated`);
       const skipped = result.skipped.reduce((n, s) => n + s.count, 0);
@@ -124,31 +142,33 @@ function RecordMocksBody({
 
       <div className="mt-4 rounded-md border border-neutral-200 p-3" aria-label="Recording preview">
         <p className="text-sm font-medium">
-          {total === 0
-            ? 'Nothing to record.'
-            : `${plural(merge.added, 'new mock')}${merge.replaced ? `, ${merge.replaced} updated` : ''}`}
+          {!preview
+            ? 'Preparing preview…'
+            : total === 0
+              ? 'Nothing to record.'
+              : `${plural(preview.created, 'new mock')}${preview.replaced ? `, ${preview.replaced} updated` : ''}`}
         </p>
-        {merge.stored.length > 0 && (
+        {preview && preview.mocks.length > 0 && (
           <ul className="mt-1.5 space-y-0.5 font-mono text-xs text-neutral-600">
-            {merge.stored.slice(0, PREVIEW_ROWS).map(({ rule, trafficId: id }) => (
+            {preview.mocks.slice(0, PREVIEW_ROWS).map(({ rule, trafficId: id }) => (
               <li key={rule.id} className="truncate">
                 #{id} → {describeMock(rule)}
               </li>
             ))}
-            {merge.stored.length > PREVIEW_ROWS && (
-              <li>…and {merge.stored.length - PREVIEW_ROWS} more</li>
+            {preview.mocks.length > PREVIEW_ROWS && (
+              <li>…and {preview.mocks.length - PREVIEW_ROWS} more</li>
             )}
           </ul>
         )}
-        {(recording.skipped.length > 0 || merge.overLimit > 0) && (
+        {preview && (preview.skipped.length > 0 || preview.overLimit > 0) && (
           <ul className="mt-2 space-y-0.5 text-xs text-amber-700">
-            {recording.skipped.map((s) => (
+            {preview.skipped.map((s) => (
               <li key={s.reason}>
                 Skipped {s.count}: {s.reason}
               </li>
             ))}
-            {merge.overLimit > 0 && (
-              <li>Skipped {merge.overLimit}: the mock list is full (200 rules)</li>
+            {preview.overLimit > 0 && (
+              <li>Skipped {preview.overLimit}: the mock list is full (200 rules)</li>
             )}
           </ul>
         )}

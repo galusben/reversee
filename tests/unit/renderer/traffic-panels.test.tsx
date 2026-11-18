@@ -97,7 +97,10 @@ describe('TrafficTable', () => {
     fireEvent.contextMenu(rows()[1]);
     const menu = await screen.findByRole('menu');
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Copy as curl' }));
-    expect(fake.api.copyToClipboard).toHaveBeenCalledWith('curl -X POST /orders');
+    // The curl command is fetched with the full entry from main.
+    await waitFor(() =>
+      expect(fake.api.copyToClipboard).toHaveBeenCalledWith('curl -X POST /orders')
+    );
   });
 
   it('clears all traffic from the context menu', async () => {

@@ -489,6 +489,56 @@ test('HAR export writes a valid archive and import loads it back', async () => {
   await expect(page.getByRole('status')).toContainText('not a HAR file');
 });
 
+test('bodies stay out of the traffic list and are fetched for the selected request', async () => {
+  const big = JSON.stringify({ marker: 'BODY-MARKER', pad: 'x'.repeat(600 * 1024) });
+  // The fixture has already read the request body when it calls this.
+  const upstream = await upstreamOf((_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(big);
+  });
+  const { page, listenPort } = await startProxied(upstream.port);
+  // Watch what main pushes to the window over the traffic channel.
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      seen: unknown[];
+      reversee: { onTraffic(cb: (e: unknown) => void): void };
+    };
+    w.seen = [];
+    w.reversee.onTraffic((e) => w.seen.push(e));
+  });
+  await fetchViaProxy(listenPort, '/heavy', { method: 'POST', body: 'REQUEST-MARKER' });
+  await expect(row(page, '/heavy')).toContainText('200');
+
+  const pushed = await page.evaluate(() => {
+    const seen = (window as unknown as { seen: Array<Record<string, Record<string, unknown>>> })
+      .seen;
+    return seen.map((e) => ({
+      bytes: JSON.stringify(e).length,
+      requestKeys: Object.keys(e.request),
+      responseKeys: Object.keys(e.response),
+      size: e.response.size,
+    }));
+  });
+  expect(pushed.length).toBeGreaterThan(0);
+  for (const event of pushed) {
+    expect(event.requestKeys).not.toContain('body');
+    expect(event.requestKeys).not.toContain('curl');
+    expect(event.responseKeys).not.toContain('body');
+    expect(event.bytes).toBeLessThan(4096);
+  }
+  expect(pushed.at(-1)?.size).toBe(Buffer.byteLength(big));
+  const snapshot = await page.evaluate(() =>
+    (window as unknown as { reversee: { getTraffic(): Promise<unknown[]> } }).reversee.getTraffic()
+  );
+  expect(JSON.stringify(snapshot).length).toBeLessThan(4096);
+
+  // Selecting the row fetches the full entry: both bodies are there.
+  await row(page, '/heavy').click();
+  await expect(page.getByText('BODY-MARKER').first()).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('tab', { name: /Request Body/ }).click();
+  await expect(page.getByText('REQUEST-MARKER').first()).toBeVisible({ timeout: 15_000 });
+});
+
 test('sorting, keyboard navigation and menu shortcuts', async () => {
   const upstream = await upstreamOf((req, res) => {
     const delay = req.url === '/slow' ? 300 : 0;

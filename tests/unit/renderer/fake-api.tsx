@@ -3,6 +3,7 @@
 // store resets, the jsdom shims Radix needs, and a stand-in for the lazy
 // Monaco editor (Monaco cannot run in jsdom; the real editor is covered e2e).
 import { vi } from 'vitest';
+import { act } from '@testing-library/react';
 import { defaultSettings } from '../../../src/shared/settings-schema';
 import { useProxyStore } from '../../../src/renderer/src/stores/proxyStore';
 import { useBreakpointStore } from '../../../src/renderer/src/stores/breakpointStore';
@@ -10,6 +11,8 @@ import { useProtoSpecStore } from '../../../src/renderer/src/stores/protoSpecSto
 import { useUiStore } from '../../../src/renderer/src/stores/uiStore';
 import { useTabsStore } from '../../../src/renderer/src/stores/tabsStore';
 import type { TabSummary, TabsSnapshot } from '../../../src/shared/tabs';
+import type { TrafficEntry } from '../../../src/shared/types';
+import { mergeRecorded, recordMocks } from '../../../src/shared/record-mocks';
 
 type Listener = (payload?: unknown) => void;
 
@@ -78,6 +81,11 @@ export function installFakeApi() {
     migrateLegacySettings: vi.fn(() => Promise.resolve()),
     getVersion: vi.fn(() => Promise.resolve('0.0.0-test')),
     getTraffic: vi.fn(() => Promise.resolve([])),
+    // Plays main's part: tests seed the store with full entries, so the
+    // "fetched" entry is the store's own (with its bodies).
+    getTrafficEntry: vi.fn((id: number) =>
+      Promise.resolve(useProxyStore.getState().traffic.find((e) => e.trafficId === id) ?? null)
+    ),
     clearTraffic: vi.fn(() => Promise.resolve()),
     copyToClipboard: vi.fn(() => Promise.resolve()),
     getBreakpoints: vi.fn(() => Promise.resolve([])),
@@ -99,6 +107,21 @@ export function installFakeApi() {
         mocks: [],
       })
     ),
+    // Runs the same shared conversion main's preview runs, over the store's entries.
+    previewMocks: vi.fn((ids?: number[], options?: { ignoreQuery?: boolean }) => {
+      const all = useProxyStore.getState().traffic as TrafficEntry[];
+      const chosen = ids ? all.filter((e) => ids.includes(e.trafficId)) : all;
+      const recording = recordMocks(chosen, options);
+      const merged = mergeRecorded(useProxyStore.getState().settings?.mocks ?? [], recording);
+      return Promise.resolve({
+        considered: chosen.length,
+        created: merged.added,
+        replaced: merged.replaced,
+        overLimit: merged.overLimit,
+        skipped: recording.skipped,
+        mocks: merged.stored,
+      });
+    }),
     getCertStatus: vi.fn(() => Promise.resolve(certStatus)),
     regenerateRootCert: vi.fn(() => Promise.resolve(certStatus)),
     pickFile: vi.fn(() => Promise.resolve('/picked/file.pem')),
@@ -276,4 +299,14 @@ export function trafficEntry(overrides: Record<string, unknown> = {}) {
     timings: { start: '2026-01-01T00:00:00.000Z', total: 12_000_000 },
     ...overrides,
   };
+}
+
+/**
+ * Lets pending fetches from the fake main settle (the window fetches full
+ * entries with getTrafficEntry and the mock preview with previewMocks).
+ */
+export async function settle(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
 }

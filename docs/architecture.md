@@ -58,7 +58,7 @@ System integration, state, and the MCP control surface.
 | `settings.ts`          | Persistence via electron-store: global settings + the tabs (`tabs` key; per-tab settings, names, active tab); validation and change listeners.                           |
 | `traffic-store.ts`     | Ring buffer of captured traffic entries; the cap follows the `trafficCap` setting.                                                                                       |
 | `replay.ts`            | Re-sends a stored request (optionally edited) to its upstream; used by the UI and the `replay_request` tool.                                                             |
-| `record-mocks.ts`      | Record and replay: saves captured entries as mock rules (merged into settings); used by the UI and the `record_mocks` tool.                                              |
+| `record-mocks.ts`      | Record and replay: saves captured entries as mock rules (merged into settings), and previews that for the window; used by the UI and the `record_mocks` tool.            |
 | `client-cert.ts`       | Reads the PEM client certificate + key configured for upstream mutual TLS.                                                                                               |
 | `windows.ts`           | BrowserWindow creation and lifecycle.                                                                                                                                    |
 | `menu.ts`              | Application menu, including the MCP setup item and cache reset.                                                                                                          |
@@ -87,8 +87,15 @@ Entry: `src/renderer/src/main.tsx` → `App.tsx`.
 
 - **Stores** (`src/renderer/src/stores/`): `tabsStore.ts` (tab strip; on a switch
   it reloads the stores below for the new tab and restores its table view),
-  `proxyStore.ts` (the active tab's traffic mirror, proxy state, settings), `breakpointStore.ts` (rules, FIFO hit queue, compile errors),
+  `proxyStore.ts` (the active tab's traffic as list rows, proxy state, settings), `breakpointStore.ts` (rules, FIFO hit queue, compile errors),
   `uiStore.ts` (dialog state).
+- **Traffic rows vs. full entries**: the window's list holds `TrafficRow`s
+  (`src/shared/traffic-row.ts`: an entry without its bodies and curl command).
+  The views that show bodies (detail panes, replay, compare, "mock this
+  response", copy as curl) fetch the full entry from main with
+  `useTrafficEntry` / `getTrafficEntry` (`src/renderer/src/lib/use-traffic-entry.ts`),
+  refetching when the row updates; the Record-as-mocks preview is computed in
+  main (`previewMocks`). Bodies therefore live in main only.
 - **Stores** also include `protoSpecStore.ts` (saved gRPC proto specs + compile errors).
 - **Components** (`src/renderer/src/components/`): `TabStrip.tsx`, `SettingsBar.tsx`,
   `TrafficTable.tsx`, `DetailPanes.tsx`, `CompareDialog.tsx` (two-exchange diff),
@@ -185,6 +192,8 @@ entry is true until the final one. A fast exchange is reported once, when it end
 
 - `ipc.ts` — the `RevAPI` interface, `WorkerInbound`/`WorkerOutbound` message
   types, and IPC channel names (`domain:action`).
+- `traffic-row.ts` — `TrafficRow` and `toTrafficRow`: what main sends the
+  window for the traffic list (no bodies, no curl; `size` always set).
 - `types.ts` — core types: `ProxySettings`, `RequestParams`, `TrafficEntry`,
   `BreakpointRule`, `Headers`, `Logger`, and the gRPC types (`GrpcView`,
   `ProtoSpec`, `GrpcProtoBundle`).
@@ -192,7 +201,7 @@ entry is true until the final one. A fast exchange is reported once, when it end
   range, protocol enum, booleans, route and mock rules).
 - `record-mocks.ts` — record and replay: captured exchanges → mock rules (dedupe,
   header filtering, base64 for binary bodies, skip reasons) and the merge into the
-  saved mocks; pure, so the dialog's preview and main's save run the same code.
+  saved mocks; pure, so main's preview (for the dialog) and its save run the same code.
 - `compare.ts` — the two-exchange diff (headers, status, normalized bodies, line /
   unified diff) used by the Compare screen and `compare_requests`.
 - `har.ts` — HAR 1.2 export / import; `timings.ts` — timing phases for the waterfall

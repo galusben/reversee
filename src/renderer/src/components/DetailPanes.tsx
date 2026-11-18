@@ -3,6 +3,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 import { ArrowDownLeft, ArrowUpRight, Boxes, KeyRound, Radio, Terminal } from 'lucide-react';
 import { useProxyStore } from '../stores/proxyStore';
 import { MonacoView, bodyToText } from './MonacoView';
+import { useTrafficEntry } from '../lib/use-traffic-entry';
 import { WithContextMenu } from './ui/ContextMenu';
 import { languageForContentType } from '../lib/content-type';
 import { findTokens, type FoundToken } from '../../../shared/decode';
@@ -390,14 +391,14 @@ const tabClass =
 
 export function DetailPanes(): React.JSX.Element {
   const selectedId = useProxyStore((s) => s.selectedId);
-  const entry = useProxyStore((s) =>
-    s.selectedId === null ? undefined : s.traffic.find((e) => e.trafficId === s.selectedId)
-  );
+  // Bodies are fetched from main for the selected row only. While the next
+  // selection loads, the previous entry stays up rather than flashing empty.
+  const { entry } = useTrafficEntry(selectedId);
 
-  if (!entry) {
+  if (selectedId === null || !entry) {
     return (
       <div className="flex h-full items-center justify-center bg-white text-sm text-neutral-400">
-        Select a request to inspect it.
+        {selectedId === null ? 'Select a request to inspect it.' : ''}
       </div>
     );
   }

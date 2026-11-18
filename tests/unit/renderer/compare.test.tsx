@@ -3,7 +3,7 @@
 // the Compare screen (summary, header tables, body diff).
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
-import { installFakeApi, installDomShims, resetStores, trafficEntry } from './fake-api';
+import { installFakeApi, installDomShims, resetStores, trafficEntry, settle } from './fake-api';
 import { TrafficTable } from '../../../src/renderer/src/components/TrafficTable';
 import { CompareDialog } from '../../../src/renderer/src/components/CompareDialog';
 import { useProxyStore } from '../../../src/renderer/src/stores/proxyStore';
@@ -105,6 +105,7 @@ describe('CompareDialog', () => {
     seed();
     useUiStore.setState({ compareIds: [1, 2] });
     render(<CompareDialog />);
+    await settle(); // both sides are fetched from main
     const dialog = screen.getByRole('dialog', { name: 'Compare requests' });
     const summary = within(dialog).getByRole('list');
     expect(summary.textContent).toContain(
@@ -144,14 +145,16 @@ describe('CompareDialog', () => {
     expect(useUiStore.getState().compareIds).toBeNull();
   });
 
-  it('says so when the exchanges are identical, and renders nothing for a missing id', () => {
+  it('says so when the exchanges are identical, and renders nothing for a missing id', async () => {
     seed();
     useUiStore.setState({ compareIds: [1, 1] });
     const { unmount } = render(<CompareDialog />);
+    await settle();
     expect(screen.getByText(/No differences/)).toBeTruthy();
     unmount();
     useUiStore.setState({ compareIds: [1, 99] });
     const { container } = render(<CompareDialog />);
+    await settle();
     expect(container.innerHTML).toBe('');
   });
 });
