@@ -186,6 +186,10 @@ function fullEntry(entry: TrafficEntry): Record<string, unknown> {
           method: entry.grpc.method,
           status: entry.grpc.status,
           statusMessage: entry.grpc.statusMessage,
+          // Totals seen; a long stream keeps only the most recent messages below.
+          requestMessageCount: entry.grpc.requestMessageCount ?? entry.grpc.requestMessages.length,
+          responseMessageCount:
+            entry.grpc.responseMessageCount ?? entry.grpc.responseMessages.length,
           requestMessages: entry.grpc.requestMessages.map(grpcMessageView),
           responseMessages: entry.grpc.responseMessages.map(grpcMessageView),
         }

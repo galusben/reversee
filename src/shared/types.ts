@@ -270,13 +270,22 @@ export interface GrpcMessage {
 
 /**
  * gRPC-specific view of a captured call. Messages arrays grow as streaming
- * frames arrive; a unary call has exactly one entry per direction.
+ * frames arrive, keeping only the most recent ones per direction on a long
+ * stream (the counts are the totals); a unary call has exactly one entry per
+ * direction.
  */
 export interface GrpcView {
   /** The :path pseudo-header, e.g. "/package.Service/Method". */
   method: string;
   requestMessages: GrpcMessage[];
   responseMessages: GrpcMessage[];
+  /**
+   * Request messages seen in total; exceeds requestMessages.length once the
+   * capture cap is hit. Absent on entries captured or imported before it existed.
+   */
+  requestMessageCount?: number;
+  /** Response messages seen in total (see requestMessageCount). */
+  responseMessageCount?: number;
   /** grpc-status trailer (0 = OK). Undefined until trailers arrive. */
   status?: number;
   /** grpc-message trailer (human-readable status detail). */

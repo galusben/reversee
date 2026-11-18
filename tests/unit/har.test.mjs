@@ -150,11 +150,26 @@ describe('toHar', () => {
         messages: [{ from: 'client', opcode: 'text', text: 'hi', size: 2, atMs: 1 }],
         messageCount: 1,
       },
+      grpc: {
+        method: '/demo.Feed/Watch',
+        status: 0,
+        requestMessages: [{ json: { topic: 'a' } }],
+        responseMessages: [{ json: { n: 450 } }],
+        requestMessageCount: 1,
+        responseMessageCount: 450,
+      },
     });
     const extra = toHar([e], '1').log.entries[0]._reversee;
     expect(extra.error).toMatch(/ECONNREFUSED/);
     expect(extra.mocked).toBe(true);
     expect(extra.webSocketMessages).toHaveLength(1);
+    expect(extra.grpc).toMatchObject({
+      method: '/demo.Feed/Watch',
+      requestMessageCount: 1,
+      responseMessageCount: 450,
+      requestMessages: [{ topic: 'a' }],
+      responseMessages: [{ n: 450 }],
+    });
   });
 
   it('survives an entry that has no response yet', () => {

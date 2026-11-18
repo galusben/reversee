@@ -138,5 +138,32 @@ describe('DetailPanes', () => {
     expect(screen.getByText(/status 5 NOT_FOUND — missing/)).toBeTruthy();
     expect(screen.getByText(/"text": "hi"/)).toBeTruthy();
     expect(screen.getByText(/decode failed: bad wire/)).toBeTruthy();
+    // Nothing was dropped, so no "most recent" note.
+    expect(screen.queryByText(/showing the most recent/)).toBeNull();
+  });
+
+  it('says when a long gRPC stream shows only its most recent messages', () => {
+    show(
+      trafficEntry({
+        grpc: {
+          method: '/demo.Feed/Watch',
+          status: 0,
+          matchedSpecId: 'spec',
+          requestMessages: [{ json: { topic: 'a' } }],
+          responseMessages: [{ json: { n: 449 } }, { json: { n: 450 } }],
+          requestMessageCount: 1,
+          responseMessageCount: 450,
+        },
+      })
+    );
+    expect(screen.getByText('Request (1)')).toBeTruthy();
+    expect(screen.getByText('Response (450)')).toBeTruthy();
+    // Only the capped direction carries the note.
+    expect(screen.getAllByText(/showing the most recent/)).toHaveLength(1);
+    expect(screen.getByText('showing the most recent 2 of 450')).toBeTruthy();
+    // Kept messages are numbered by their place in the whole stream.
+    expect(screen.getByText('message 449')).toBeTruthy();
+    expect(screen.getByText('message 450')).toBeTruthy();
+    expect(screen.getByText('message 1')).toBeTruthy(); // the single request message
   });
 });
