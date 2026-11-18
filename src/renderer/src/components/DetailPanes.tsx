@@ -73,29 +73,56 @@ function GrpcPane({ grpc }: { grpc: GrpcView }): React.JSX.Element {
           <span className="text-amber-600">no proto spec matched — import one to decode</span>
         )}
       </div>
-      <section className="mb-4">
-        <h4 className="mb-1.5 text-xs font-semibold uppercase text-neutral-500">
-          Request ({grpc.requestMessages.length})
-        </h4>
-        {grpc.requestMessages.map((m, i) => (
-          <GrpcMessageBlock key={i} msg={m} label={`message ${i + 1}`} />
-        ))}
-        {grpc.requestMessages.length === 0 && (
-          <p className="text-xs text-neutral-400">No request messages.</p>
-        )}
-      </section>
-      <section>
-        <h4 className="mb-1.5 text-xs font-semibold uppercase text-neutral-500">
-          Response ({grpc.responseMessages.length})
-        </h4>
-        {grpc.responseMessages.map((m, i) => (
-          <GrpcMessageBlock key={i} msg={m} label={`message ${i + 1}`} />
-        ))}
-        {grpc.responseMessages.length === 0 && (
-          <p className="text-xs text-neutral-400">No response messages.</p>
-        )}
-      </section>
+      <GrpcMessages
+        className="mb-4"
+        title="Request"
+        messages={grpc.requestMessages}
+        total={grpc.requestMessageCount}
+      />
+      <GrpcMessages
+        title="Response"
+        messages={grpc.responseMessages}
+        total={grpc.responseMessageCount}
+      />
     </div>
+  );
+}
+
+/**
+ * One direction of a gRPC call. A long stream keeps only its most recent
+ * messages; `total` (absent on older entries) is how many were seen, so the
+ * shown ones are numbered by their position in the whole stream.
+ */
+function GrpcMessages({
+  title,
+  messages,
+  total,
+  className,
+}: {
+  title: string;
+  messages: GrpcMessage[];
+  total?: number;
+  className?: string;
+}): React.JSX.Element {
+  const count = Math.max(total ?? 0, messages.length);
+  const offset = count - messages.length;
+  return (
+    <section className={className}>
+      <h4 className="mb-1.5 text-xs font-semibold uppercase text-neutral-500">
+        {title} ({count})
+      </h4>
+      {offset > 0 && (
+        <p className="mb-1.5 text-xs text-neutral-500">
+          showing the most recent {messages.length} of {count}
+        </p>
+      )}
+      {messages.map((m, i) => (
+        <GrpcMessageBlock key={offset + i} msg={m} label={`message ${offset + i + 1}`} />
+      ))}
+      {messages.length === 0 && (
+        <p className="text-xs text-neutral-400">No {title.toLowerCase()} messages.</p>
+      )}
+    </section>
   );
 }
 
