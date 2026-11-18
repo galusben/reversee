@@ -6,7 +6,7 @@
     <title>Reversee MCP tools — control an HTTP proxy from Claude Code &amp; Cursor</title>
     <meta
       name="description"
-      content="The full Reversee MCP tool reference: 32 tools that let AI agents (Claude Code, Cursor, any MCP client) inspect and control a reverse proxy — search traffic, replay requests, mock endpoints, inject faults, decode JWTs and gRPC. Read-only by default, one-line setup."
+      content="The full Reversee MCP tool reference: 36 tools that let AI agents (Claude Code, Cursor, any MCP client) inspect and control a reverse proxy — search traffic, replay requests, mock endpoints, inject faults, decode JWTs and gRPC. Read-only by default, one-line setup."
     />
     <link rel="canonical" href="https://galusben.github.io/reversee/mcp.html" />
     <link rel="icon" type="image/png" href="./logo.png" />
@@ -16,7 +16,7 @@
     <meta property="og:title" content="Reversee MCP tools — drive an HTTP proxy from AI agents" />
     <meta
       property="og:description"
-      content="32 MCP tools for AI agents to inspect and control Reversee's reverse proxy: search & summarize traffic, replay requests, install interceptors, decode JWTs and gRPC. Read-only by default."
+      content="36 MCP tools for AI agents to inspect and control Reversee's reverse proxy: search & summarize traffic, replay requests, install interceptors, decode JWTs and gRPC. Read-only by default."
     />
     <meta property="og:url" content="https://galusben.github.io/reversee/mcp.html" />
     <meta
@@ -54,7 +54,7 @@
         "mainEntity": {
           "@type": "ItemList",
           "name": "Reversee MCP tools",
-          "numberOfItems": 32,
+          "numberOfItems": 36,
           "itemListElement": [
             { "@type": "ListItem", "position": 1, "name": "get_status" },
             { "@type": "ListItem", "position": 2, "name": "validate_setup" },
@@ -87,7 +87,11 @@
             { "@type": "ListItem", "position": 29, "name": "remove_rule" },
             { "@type": "ListItem", "position": 30, "name": "try_interceptor" },
             { "@type": "ListItem", "position": 31, "name": "record_mocks" },
-            { "@type": "ListItem", "position": 32, "name": "compare_requests" }
+            { "@type": "ListItem", "position": 32, "name": "compare_requests" },
+            { "@type": "ListItem", "position": 33, "name": "list_tabs" },
+            { "@type": "ListItem", "position": 34, "name": "create_tab" },
+            { "@type": "ListItem", "position": 35, "name": "rename_tab" },
+            { "@type": "ListItem", "position": 36, "name": "close_tab" }
           ]
         }
       }
@@ -435,7 +439,7 @@
           <div class="crumbs"><a href="./">Reversee</a> → MCP tools</div>
           <h1>Reversee <span class="grad-text">MCP tools</span></h1>
           <p class="lede">
-            Reversee exposes <strong>32 Model Context Protocol tools</strong> so AI agents — Claude
+            Reversee exposes <strong>36 Model Context Protocol tools</strong> so AI agents — Claude
             Code, Cursor, or any MCP client — can inspect and control its reverse proxy: search and
             summarize captured traffic, replay requests, mock endpoints and reroute paths, install
             interceptors for fault injection, and decode JWTs and gRPC. Read-only by default; the
@@ -501,7 +505,7 @@
 
       <section class="section-soft">
         <div class="wrap">
-          <h2 class="section-title">The 32 tools</h2>
+          <h2 class="section-title">The 36 tools</h2>
           <p class="section-sub">
             Descriptions below are verbatim — this is exactly what an agent reads in the
             <code>tools/list</code> response. The app owns this catalog and serves it to the bridge
@@ -552,6 +556,67 @@
                 breakpoints, log location.
               </p>
               <p class="params">No parameters.</p>
+            </div>
+          </div>
+
+          <div class="toolgroup">
+            <h3>Tabs</h3>
+            <p class="desc">
+              Each tab is an independent proxy session with its own port, destination, rules,
+              scripts, breakpoints and traffic. Tab-scoped tools take an optional
+              <code>tab</code> (id or name) and default to the tab on screen; their responses
+              include <code>tab: {id, name}</code>.
+            </p>
+            <div class="tool">
+              <div class="tool-head">
+                <span class="tool-name">list_tabs</span><span class="tag tag-read">READ</span>
+              </div>
+              <p class="desc">
+                List the open tabs: each tab's stable id (<code>t1</code>, <code>t2</code>, …),
+                unique name, running state, port, destination, request/in-flight/held counts, and
+                which tab is active.
+              </p>
+              <p class="params">No parameters.</p>
+            </div>
+            <div class="tool">
+              <div class="tool-head">
+                <span class="tool-name">create_tab</span><span class="tag tag-gated">CONTROL</span>
+              </div>
+              <p class="desc">
+                Open a new tab, so an agent can debug something without changing the tab the user is
+                on. It opens stopped and in the background unless <code>activate</code> is true; the
+                listen port defaults to the next one no other tab uses. Returns the tab summary,
+                including its id.
+              </p>
+              <p class="params">
+                <code>name</code> (unique, optional), <code>activate</code> (boolean), and any
+                per-tab setting from <code>update_config</code> (<code>dest</code>,
+                <code>destProtocol</code>, <code>destPort</code>, <code>listenProtocol</code>,
+                <code>listenPort</code>, <code>captureAll</code>, …).
+              </p>
+            </div>
+            <div class="tool">
+              <div class="tool-head">
+                <span class="tool-name">rename_tab</span><span class="tag tag-gated">CONTROL</span>
+              </div>
+              <p class="desc">
+                Rename a tab. Names are unique (case-insensitive); an empty name restores the
+                automatic name from the destination.
+              </p>
+              <p class="params">
+                <code>name</code> (string, required), <code>tab</code> (id or name; default the
+                active tab).
+              </p>
+            </div>
+            <div class="tool">
+              <div class="tool-head">
+                <span class="tool-name">close_tab</span><span class="tag tag-gated">CONTROL</span>
+              </div>
+              <p class="desc">
+                Close a tab: its proxy stops, its held requests are dropped and its traffic is
+                discarded. Closing the last tab leaves one empty tab.
+              </p>
+              <p class="params"><code>tab</code> (id preferred, or name; required).</p>
             </div>
           </div>
 

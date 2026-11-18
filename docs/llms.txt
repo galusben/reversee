@@ -6,6 +6,7 @@
 
 - Acts as a reverse proxy: point a client at Reversee's listen address and it forwards to a destination, recording every request and response.
 - Capture anything mode: instead of forwarding to one destination, Reversee works as a regular HTTP/HTTPS proxy (`HTTP_PROXY`/`HTTPS_PROXY=http://127.0.0.1:<port>`), capturing every request a program makes to any server; HTTPS is decrypted with per-host certificates signed by the Reversee root CA, which the client must trust. Set `captureAll: true` with `update_config`.
+- Tabs: each tab is an independent proxy session (own listen port, destination or capture-anything, routes/mocks, scripts, breakpoints, traffic), so several tools can be debugged at once.
 - Inspect traffic: method, path, status, content type, headers, request/response bodies (gzip/brotli decoded, syntax-highlighted), per-request timings, and a copy-as-curl command.
 - Interceptors: rewrite requests (`requestParams`: host, path, method, port, headers, body) or responses (`responseParams`: statusCode, headers, body) with JavaScript, live. The Scripts screen offers examples and a dry run on a captured request.
 - Breakpoints: hold requests matching a URL regex + HTTP methods, edit the URL/headers/body, then resume.
@@ -26,6 +27,8 @@ Security model: the MCP bridge talks to the app over a token-authenticated local
 MCP tools:
 - `get_status`: app version, proxy run state, listen/destination config, traffic and breakpoint counts.
 - `get_config` / `update_config`: read / change the proxy configuration (update is gated).
+- `list_tabs`: open tabs with stable ids (`t1`, `t2`, …), names, run state, port, destination, counts and the active tab. Tab-scoped tools take an optional `tab` (id or name; default the active tab) and report which tab they acted on.
+- `create_tab` / `rename_tab` / `close_tab`: open a separate proxy session (stopped, in the background unless `activate`), rename one, or close one (gated).
 - `start_proxy` / `stop_proxy` / `restart_proxy`: control the proxy process (gated).
 - `list_traffic`: captured requests, paged, bodies elided.
 - `search_traffic`: filter captured requests server-side (method, status incl. classes/comparisons, url/regex, content-type, header, body, timing, errors) so you fetch only what matters instead of dumping everything.
