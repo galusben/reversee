@@ -209,12 +209,24 @@ export function handleUpgrade(
   // relay its answer as a plain close-delimited HTTP response.
   connector.on('response', (res) => {
     clearHeaderTimer();
-    // We end the socket ourselves below; that close is not a client abort.
+    // From here on a close means the relay was cut short, not an early abort.
     clientSocket.removeListener('close', onEarlyClose);
     timings.firstByte = elapsed();
     responseView.statusCode = res.statusCode;
     responseView.headers = { ...res.headers };
-    const capture = new BodyCapture(res.headers['content-encoding']);
+    delete entry.ws; // it never became a WebSocket
+    const capture = new BodyCapture(res.headers['content-encoding'], ctx.captureLimit);
+    let relayed = false;
+    // The relay ended early: keep what was captured and close the books.
+    const abandon = (): void => {
+      if (finalized) return;
+      const snap = capture.snapshot();
+      responseView.body = snap.body;
+      responseView.size = capture.size;
+      if (snap.truncated) responseView.truncated = true;
+      capture.destroy();
+      finalize();
+    };
     clientSocket.write(
       rawHead(
         `HTTP/1.1 ${res.statusCode} ${res.statusMessage ?? ''}`,
@@ -224,17 +236,36 @@ export function handleUpgrade(
     );
     res.on('data', (chunk: Buffer) => {
       capture.write(chunk);
-      clientSocket.write(chunk);
+      // Backpressure: a slow client must not make the worker queue the body.
+      if (!clientSocket.write(chunk)) {
+        res.pause();
+        clientSocket.once('drain', () => res.resume());
+      }
     });
     res.on('end', () => {
+      relayed = true;
       clientSocket.end();
       void capture.finish().then((snap) => {
         responseView.body = snap.body;
         responseView.size = capture.size;
         if (snap.truncated) responseView.truncated = true;
-        delete entry.ws; // it never became a WebSocket
         finalize();
       });
+    });
+    res.on('error', (err) => logger.debug('websocket upstream response error', err));
+    // The upstream died mid-body: the client must see a broken response.
+    res.on('close', () => {
+      if (finalized || relayed || res.complete) return;
+      entry.connectorError = new Error('upstream closed the connection mid-response');
+      abandon();
+      clientSocket.destroy();
+    });
+    // The client went away mid-body: stop downloading a body nobody will read.
+    clientSocket.on('close', () => {
+      if (finalized || relayed) return;
+      entry.clientAborted = true;
+      abandon();
+      res.destroy();
     });
   });
 
