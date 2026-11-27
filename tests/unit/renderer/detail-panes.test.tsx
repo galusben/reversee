@@ -144,8 +144,8 @@ describe('DetailPanes', () => {
     expect(screen.queryByText(/showing the most recent/)).toBeNull();
   });
 
-  it('says when a long gRPC stream shows only its most recent messages', () => {
-    show(
+  it('says when a long gRPC stream shows only its most recent messages', async () => {
+    await show(
       trafficEntry({
         grpc: {
           method: '/demo.Feed/Watch',
