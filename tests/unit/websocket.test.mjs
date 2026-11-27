@@ -3,6 +3,8 @@
 // through the real proxy server to a hand-rolled echo server.
 import { describe, it, expect, afterEach } from 'vitest';
 import zlib from 'node:zlib';
+import http from 'node:http';
+import net from 'node:net';
 import { startProxyServer, closeAll, makeSettings, request } from './helpers.mjs';
 import { startWsEchoServer, encodeFrame } from '../fixtures/ws-echo';
 import {
@@ -267,6 +269,154 @@ describe('WebSocket tunnel', () => {
     expect(entry.response.statusCode).toBe(403);
     expect(entry.response.body.toString()).toBe('denied');
     expect(entry.ws).toBeUndefined();
+  });
+
+  // An upstream that declines every upgrade, writing what `write` produces on
+  // the raw socket. `sent` counts the bytes the upstream managed to hand to its
+  // socket, so a stall there shows the proxy's backpressure reaching it.
+  async function startDecliningUpstream(write) {
+    const state = { sent: 0, closed: false };
+    const server = http.createServer();
+    server.on('upgrade', (_req, socket) => {
+      socket.on('error', () => {});
+      socket.on('close', () => (state.closed = true));
+      void write(socket, state);
+    });
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+    cleanup.push(() => closeAll(server));
+    return { port: server.address().port, state };
+  }
+
+  // Writes and waits for drain; false once the socket is gone.
+  const writeOut = async (socket, state, data) => {
+    if (socket.destroyed) return false;
+    const ok = socket.write(data);
+    state.sent += data.length;
+    if (!ok) {
+      await new Promise((r) => {
+        const done = () => {
+          socket.off('drain', done);
+          socket.off('close', done);
+          r();
+        };
+        socket.on('drain', done);
+        socket.on('close', done);
+      });
+    }
+    return !socket.destroyed;
+  };
+
+  // A raw upgrade request whose reading the test controls.
+  function rawUpgrade(port) {
+    const socket = net.connect(port, '127.0.0.1');
+    socket.write(
+      'GET /socket HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n' +
+        'Sec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n'
+    );
+    return socket;
+  }
+
+  const CHUNK = 64 * 1024;
+  const pattern = (i) => Buffer.alloc(CHUNK, i % 251);
+
+  it('relays a large declined-upgrade body with backpressure to a slow client', async () => {
+    const CHUNKS = 256; // 16 MB
+    const total = CHUNKS * CHUNK;
+    const upstream = await startDecliningUpstream(async (socket, state) => {
+      await writeOut(
+        socket,
+        state,
+        `HTTP/1.1 401 Unauthorized\r\ncontent-length: ${total}\r\n\r\n`
+      );
+      for (let i = 0; i < CHUNKS; i++) if (!(await writeOut(socket, state, pattern(i)))) return;
+      socket.end();
+    });
+    const captureLimit = 256 * 1024;
+    const proxyServer = await startProxyServer(makeSettings(upstream.port), { captureLimit });
+    cleanup.push(() => closeAll(proxyServer.server));
+    const done = proxyServer.nextTraffic();
+
+    const client = rawUpgrade(proxyServer.port);
+    client.pause(); // a client that is not reading
+    await new Promise((r) => setTimeout(r, 400));
+    // The upstream is held back: only socket buffers' worth of the body left it.
+    expect(upstream.state.sent).toBeLessThan(total / 2);
+
+    const received = [];
+    client.on('data', (c) => received.push(c));
+    const ended = new Promise((r) => client.on('end', r));
+    client.resume();
+    await ended;
+    const raw = Buffer.concat(received);
+    const split = raw.indexOf('\r\n\r\n');
+    expect(raw.subarray(0, split).toString()).toMatch(/^HTTP\/1\.1 401 /);
+    const body = raw.subarray(split + 4);
+    expect(body.length).toBe(total);
+    for (let i = 0; i < CHUNKS; i++) {
+      expect(body.subarray(i * CHUNK, (i + 1) * CHUNK).equals(pattern(i))).toBe(true);
+    }
+
+    const entry = await done;
+    expect(entry.pending).toBeUndefined();
+    expect(entry.response.statusCode).toBe(401);
+    expect(entry.response.size).toBe(total);
+    expect(entry.response.body.length).toBe(captureLimit); // bounded capture
+    expect(entry.response.truncated).toBe(true);
+    expect(entry.ws).toBeUndefined();
+    expect(entry.clientAborted).toBeUndefined();
+  });
+
+  it('stops the upstream when the client leaves a declined upgrade mid-body', async () => {
+    // An endless body: only the client going away can stop it.
+    const upstream = await startDecliningUpstream(async (socket, state) => {
+      await writeOut(socket, state, 'HTTP/1.1 404 Not Found\r\ncontent-type: text/plain\r\n\r\n');
+      for (let i = 0; ; i++) if (!(await writeOut(socket, state, pattern(i)))) return;
+    });
+    const proxyServer = await startProxyServer(makeSettings(upstream.port));
+    cleanup.push(() => closeAll(proxyServer.server));
+    const done = proxyServer.nextTraffic();
+
+    const client = rawUpgrade(proxyServer.port);
+    let got = 0;
+    await new Promise((resolve) =>
+      client.on('data', (c) => {
+        got += c.length;
+        if (got > 4 * CHUNK) resolve();
+      })
+    );
+    client.destroy();
+
+    const entry = await done;
+    expect(entry.pending).toBeUndefined();
+    expect(entry.clientAborted).toBe(true);
+    expect(entry.response.statusCode).toBe(404);
+    expect(entry.response.body.length).toBeGreaterThan(0);
+    await until(() => upstream.state.closed, 'upstream connection closed');
+  });
+
+  it('closes the client when the upstream dies mid-body of a declined upgrade', async () => {
+    const upstream = await startDecliningUpstream(async (socket, state) => {
+      await writeOut(socket, state, 'HTTP/1.1 403 Forbidden\r\ncontent-length: 100000\r\n\r\n');
+      await writeOut(socket, state, Buffer.alloc(1000, 'x'));
+      setTimeout(() => socket.destroy(), 50);
+    });
+    const proxyServer = await startProxyServer(makeSettings(upstream.port));
+    cleanup.push(() => closeAll(proxyServer.server));
+    const done = proxyServer.nextTraffic();
+
+    const client = rawUpgrade(proxyServer.port);
+    const received = [];
+    client.on('data', (c) => received.push(c));
+    client.on('error', () => {});
+    const clientClosed = new Promise((r) => client.on('close', r));
+
+    const entry = await done;
+    await clientClosed; // not left hanging on a body that will never arrive
+    expect(Buffer.concat(received).toString()).toMatch(/^HTTP\/1\.1 403 /);
+    expect(entry.pending).toBeUndefined();
+    expect(entry.response.statusCode).toBe(403);
+    expect(entry.connectorError).toBeTruthy();
+    expect(entry.response.body.toString()).toBe('x'.repeat(1000));
   });
 
   it('answers 502 when the upstream is down', async () => {
