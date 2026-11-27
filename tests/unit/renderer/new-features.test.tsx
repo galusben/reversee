@@ -5,7 +5,7 @@
 // Replay dialogs.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor, within, act } from '@testing-library/react';
-import { installFakeApi, installDomShims, resetStores, trafficEntry } from './fake-api';
+import { installFakeApi, installDomShims, resetStores, settle, trafficEntry } from './fake-api';
 import App from '../../../src/renderer/src/App';
 import { TrafficTable, ROW_HEIGHT } from '../../../src/renderer/src/components/TrafficTable';
 import { DetailPanes } from '../../../src/renderer/src/components/DetailPanes';
@@ -249,6 +249,7 @@ describe('replay and HAR actions', () => {
     render(<TrafficTable />);
     fireEvent.contextMenu(dataRows()[1]);
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Mock This Response…' }));
+    await settle(); // the response body is fetched from main
     expect(useUiStore.getState().rulesOpen).toBe(true);
     expect(useUiStore.getState().rulesSeed).toEqual({
       kind: 'mock',
@@ -358,13 +359,15 @@ describe('store behaviour', () => {
 });
 
 describe('detail panes', () => {
-  function show(e: ReturnType<typeof trafficEntry>) {
+  async function show(e: ReturnType<typeof trafficEntry>) {
     useProxyStore.setState({ traffic: [e], selectedId: e.trafficId });
-    return render(<DetailPanes />);
+    const result = render(<DetailPanes />);
+    await settle(); // the full entry is fetched from main
+    return result;
   }
 
-  it('lists WebSocket messages with direction, and opens on that tab', () => {
-    show(
+  it('lists WebSocket messages with direction, and opens on that tab', async () => {
+    await show(
       entry(1, {
         response: { statusCode: 101, headers: {} },
         ws: {
@@ -397,8 +400,8 @@ describe('detail panes', () => {
     expect(screen.getByText('closed')).toBeTruthy();
   });
 
-  it('draws a timing waterfall alongside the raw numbers', () => {
-    show(
+  it('draws a timing waterfall alongside the raw numbers', async () => {
+    await show(
       entry(1, {
         timings: {
           start: '2026-01-01T00:00:00.000Z',
@@ -425,8 +428,8 @@ describe('detail panes', () => {
     expect(screen.getByText(/Total : 100 ms/)).toBeTruthy();
   });
 
-  it('shows interceptor errors and console output on their own tab', () => {
-    show(
+  it('shows interceptor errors and console output on their own tab', async () => {
+    await show(
       entry(1, {
         interceptorErrors: [{ phase: 'response', message: 'x is not defined' }],
         interceptorLogs: ['status 200', '[warn] careful'],
@@ -440,14 +443,14 @@ describe('detail panes', () => {
     expect(screen.getByText('[warn] careful')).toBeTruthy();
   });
 
-  it('has no interceptor tab when nothing was logged', () => {
-    show(entry(1));
+  it('has no interceptor tab when nothing was logged', async () => {
+    await show(entry(1));
     expect(screen.queryByRole('tab', { name: /Interceptor/ })).toBeNull();
     expect(screen.queryByRole('tab', { name: /Messages/ })).toBeNull();
   });
 
-  it('summarizes what happened to the exchange', () => {
-    show(
+  it('summarizes what happened to the exchange', async () => {
+    await show(
       entry(1, {
         mocked: true,
         clientAborted: true,
@@ -1033,6 +1036,7 @@ describe('ReplayDialog', () => {
     useProxyStore.setState({ traffic: [original()] });
     useUiStore.setState({ replayEditorId: 5 });
     render(<ReplayDialog />);
+    await settle(); // the request's full entry is fetched from main
     expect(screen.getByText(/straight to http:\/\/up.test:8080/)).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText('Replay method'), { target: { value: 'put' } });
@@ -1059,6 +1063,7 @@ describe('ReplayDialog', () => {
     useProxyStore.setState({ traffic: [original()] });
     useUiStore.setState({ replayEditorId: 5 });
     render(<ReplayDialog />);
+    await settle(); // the request's full entry is fetched from main
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() => expect(fake.api.replayRequest).toHaveBeenCalledOnce());
     expect(fake.api.replayRequest.mock.calls[0][1]).not.toHaveProperty('body');
@@ -1069,17 +1074,19 @@ describe('ReplayDialog', () => {
     useProxyStore.setState({ traffic: [original()] });
     useUiStore.setState({ replayEditorId: 5 });
     render(<ReplayDialog />);
+    await settle(); // the request's full entry is fetched from main
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     expect((await screen.findByRole('alert')).textContent).toBe('ECONNREFUSED');
     expect(useUiStore.getState().replayEditorId).toBe(5);
   });
 
-  it('cannot send a request that has no upstream', () => {
+  it('cannot send a request that has no upstream', async () => {
     const e = original();
     delete (e.request as { target?: unknown }).target;
     useProxyStore.setState({ traffic: [e] });
     useUiStore.setState({ replayEditorId: 5 });
     render(<ReplayDialog />);
+    await settle(); // the request's full entry is fetched from main
     expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

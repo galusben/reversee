@@ -51,7 +51,8 @@ import { setupUpdater } from './updater';
 import { createMcpHandlers, MCP_MUTATING_METHODS } from './mcp/handlers';
 import { startControlServer, type ControlServer } from './mcp/control-server';
 import { parseCliFlags } from './cli-args';
-import { saveRecordedMocks } from './record-mocks';
+import { previewRecordedMocks, saveRecordedMocks } from './record-mocks';
+import { toTrafficRow } from '../shared/traffic-row';
 import iconAsset from '../../resources/icon.png?asset';
 
 log.transports.file.level = 'info';
@@ -109,7 +110,8 @@ function createSessions(): SessionManager {
       return { key: leaf.privateKey, cert: leaf.certificate };
     },
     events: {
-      traffic: (session, entry) => sendForTab(session, IPC.trafficEvent, entry),
+      // Rows only: the window fetches the full entry it shows (getTrafficEntry).
+      traffic: (session, entry) => sendForTab(session, IPC.trafficEvent, toTrafficRow(entry)),
       trafficCleared: (session) => sendForTab(session, IPC.trafficClearedEvent, session.id),
       state: (session) =>
         sendForTab(session, IPC.proxyStateEvent, {
@@ -333,7 +335,9 @@ function registerIpc(): void {
   });
   ipcMain.handle(IPC.appVersion, () => app.getVersion());
 
-  ipcMain.handle(IPC.trafficGetAll, () => sessions.active().trafficStore.getAll());
+  ipcMain.handle(IPC.trafficGetAll, () =>
+    sessions.active().trafficStore.getAll().map(toTrafficRow)
+  );
   ipcMain.handle(IPC.trafficClear, () => sessions.active().clearTraffic());
   ipcMain.handle(IPC.trafficReplay, (_event, trafficId: unknown, overrides: unknown) =>
     replayFromUi(trafficId, overrides)
@@ -344,17 +348,26 @@ function registerIpc(): void {
     )
   );
   ipcMain.handle(IPC.trafficImportHar, () => importHar());
-  ipcMain.handle(IPC.trafficRecordMocks, (_event, ids: unknown, options: unknown) => {
+  ipcMain.handle(IPC.trafficGet, (_event, trafficId: unknown) =>
+    typeof trafficId === 'number' ? (sessions.findTraffic(trafficId)?.entry ?? null) : null
+  );
+  const mockArgs = (ids: unknown, options: unknown) => {
     const wanted = Array.isArray(ids) ? new Set(ids.filter((id) => typeof id === 'number')) : null;
     const session = sessions.active();
     const all = session.trafficStore.getAll();
     const o = (options ?? {}) as Record<string, unknown>;
-    return saveRecordedMocks(
+    return [
       wanted ? all.filter((e) => wanted.has(e.trafficId)) : all,
       { ignoreQuery: o['ignoreQuery'] === true, enabled: o['enabled'] !== false },
-      session.id
-    );
-  });
+      session.id,
+    ] as const;
+  };
+  ipcMain.handle(IPC.trafficRecordMocks, (_event, ids: unknown, options: unknown) =>
+    saveRecordedMocks(...mockArgs(ids, options))
+  );
+  ipcMain.handle(IPC.trafficPreviewMocks, (_event, ids: unknown, options: unknown) =>
+    previewRecordedMocks(...mockArgs(ids, options))
+  );
   ipcMain.handle(IPC.clipboardWrite, (_event, text: unknown) => {
     if (typeof text === 'string') clipboard.writeText(text);
   });

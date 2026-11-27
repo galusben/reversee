@@ -33,6 +33,9 @@ beforeEach(() => {
 afterEach(cleanup);
 
 const preview = () => screen.getByLabelText('Recording preview');
+/** The preview is computed by main (debounced); wait until it has arrived. */
+const previewReady = () =>
+  waitFor(() => expect(preview().textContent).not.toContain('Preparing preview'));
 
 describe('Record as mocks', () => {
   it('opens from the toolbar and records all captured traffic', async () => {
@@ -47,6 +50,7 @@ describe('Record as mocks', () => {
     expect(
       (within(dialog).getByLabelText('All captured requests (4)') as HTMLInputElement).checked
     ).toBe(true);
+    await previewReady();
     expect(preview().textContent).toContain('2 new mocks');
     expect(preview().textContent).toContain('#2 → GET, path is "/api/users" -> 200');
     expect(preview().textContent).toContain('Skipped 1: still in flight');
@@ -68,6 +72,7 @@ describe('Record as mocks', () => {
     expect(
       (screen.getByLabelText('The 2 requests the filter lists') as HTMLInputElement).checked
     ).toBe(true);
+    await previewReady();
     expect(preview().textContent).toContain('1 new mock');
     expect(screen.getByRole('dialog').textContent).toContain('They answer at once.');
     fireEvent.click(screen.getByLabelText('Match any query string', { exact: false }));
@@ -97,6 +102,7 @@ describe('Record as mocks', () => {
     useUiStore.getState().setRecordMocks(true, 3);
     render(<RecordMocksDialog />);
     expect((screen.getByLabelText('Only #3: GET /health') as HTMLInputElement).checked).toBe(true);
+    await previewReady();
     expect(preview().textContent).toContain('0 new mocks, 1 updated');
     fireEvent.click(screen.getByRole('button', { name: 'Record 1 mock' }));
     await waitFor(() =>
@@ -104,9 +110,10 @@ describe('Record as mocks', () => {
     );
   });
 
-  it('cannot record when nothing qualifies', () => {
+  it('cannot record when nothing qualifies', async () => {
     useUiStore.getState().setRecordMocks(true, 4);
     render(<RecordMocksDialog />);
+    await previewReady();
     expect(preview().textContent).toContain('Nothing to record.');
     expect((screen.getByRole('button', { name: 'Record' }) as HTMLButtonElement).disabled).toBe(
       true

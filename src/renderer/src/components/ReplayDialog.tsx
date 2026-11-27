@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useProxyStore } from '../stores/proxyStore';
 import { useUiStore } from '../stores/uiStore';
 import { bodyToText } from './MonacoView';
+import { useTrafficEntry } from '../lib/use-traffic-entry';
 import { Modal, inputClass, primaryButton, secondaryButton } from './ui/Modal';
 import type { ReplayOverrides } from '../../../shared/ipc';
 import type { Headers, TrafficEntry } from '../../../shared/types';
@@ -43,10 +44,9 @@ export function headerOverrides(
 export function ReplayDialog(): React.JSX.Element | null {
   const id = useUiStore((s) => s.replayEditorId);
   const close = useUiStore((s) => s.setReplayEditorId);
-  const entry = useProxyStore((s) =>
-    id === null ? undefined : s.traffic.find((e) => e.trafficId === id)
-  );
-  if (id === null || !entry) return null;
+  const { entry } = useTrafficEntry(id);
+  // The form starts from the request's full entry (its body is fetched from main).
+  if (id === null || !entry || entry.trafficId !== id) return null;
   // Keyed so the form starts from the chosen request every time it opens.
   return <ReplayForm key={id} entry={entry} onClose={() => close(null)} />;
 }
