@@ -90,4 +90,14 @@ describe('curl builder', () => {
     expect(cmd.length).toBeLessThan(200);
     expect(cmd).toContain("--data-binary '@request-body.bin'");
   });
+
+  it('points at the file when the body passed in is only the start of the real one', () => {
+    const cmd = curl.build(
+      'http',
+      { host: 'h', port: 80, path: '/upload', method: 'POST', body: Buffer.from('partial') },
+      { bodyTruncated: true }
+    );
+    expect(cmd).not.toContain('partial');
+    expect(cmd).toContain("--data-binary '@request-body.bin'");
+  });
 });

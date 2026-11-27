@@ -29,7 +29,7 @@ export async function startUpstream(handler, { tls = false } = {}) {
 
 export async function startProxyServer(
   settings,
-  { gate, responseGate, captureLimit, issueCert } = {}
+  { gate, responseGate, captureLimit, maxBufferedBody, issueCert } = {}
 ) {
   // One element per exchange. The core notifies repeatedly for a slow or
   // streaming exchange (pending -> progress -> done) with a stable streamId;
@@ -65,6 +65,7 @@ export async function startProxyServer(
     gate,
     responseGate,
     captureLimit,
+    maxBufferedBody,
     issueCert,
   });
   const port = await server.listen();
